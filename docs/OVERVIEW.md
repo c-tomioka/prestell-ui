@@ -1,0 +1,39 @@
+# OVERVIEW.md
+
+## プロダクト名（仮）
+Astro AI Playground（仮称）
+
+## 一言コンセプト
+Astro公式Playground（`play.astro.build` / `withastro/astro-playground`）をフォークし、AIチャットでUIコードを生成・編集できる「Astro版 v0 / bolt.new」を構築する。
+
+## 背景
+- `withastro/astro-playground` はMITライセンスのAstro公式リポジトリで、ブラウザ内でAstroコードを即時プレビューできる実行環境（WebContainer相当）を既に持つ。
+- v0.app（Vercel）やbolt.new（StackBlitz）は同様の「チャット→コード生成→ライブプレビュー→デプロイ/Git反映」フローを他フレームワークで実現している。
+- Astro特化のAIビルダーは市場にまだ確立されておらず、Astro Docs MCP Serverと組み合わせることでAstro固有の最新構文に基づいた高品質なコード生成が可能になる。
+
+## 開発フェーズの全体像
+1. Phase 1: ローカルMVP（個人利用） — Cloudflare無料枠内、APIコストのみ発生
+2. Phase 2: 検証・改善 — 複数LLM切替、Ollama対応、MCP精度検証
+3. Phase 3: OSS公開 — ローカル実行部分をMIT/Apache 2.0等でGitHub公開
+4. Phase 4: SaaS化準備 — マルチユーザー対応、Cloudflare本番デプロイ
+5. Phase 5: 事前クレジット課金モデルでの販売
+
+各フェーズの詳細タスクは `ROADMAP.md` を参照。
+
+## コア機能要件
+- チャットベースのUIでAstroコンポーネント・ページを生成/編集する
+- 生成コードをブラウザ内でライブプレビュー表示する
+- 満足したらローカルファイルへの反映、または任意のGitHubリポジトリへpush（Phase 3以降）
+- LLMは複数プロバイダーから選択可能（Claude, OpenAI, Google, Workers AI, Ollamaローカルモデル等）
+- Astro Docs MCP Serverを接続し、常に最新のAstro知識に基づいたコード生成を行う
+
+## 非機能要件
+- Phase 1〜3ではCloudflare無料枠（Workers Free, Workers AI free neurons, AI Gateway free logs）に収まること
+- ローカル実行を前提とし、Wrangler devやMiniflareで完全に動作すること
+- 将来のOSS化を見据え、秘密情報はコードにハードコードせず環境変数化すること
+- ローカルLLM（Ollama）接続を必須要件とし、外部APIキーなしでも動作するモードを持つこと（詳細は `LOCAL_LLM.md`）
+
+## スコープ外（現時点）
+- Cloudflare Containersを用いたサーバーサイド実行（Phase 4以降で検討）
+- Stripeによる課金処理（Phase 5で着手）
+- マルチユーザー認証・権限管理（Phase 4以降）

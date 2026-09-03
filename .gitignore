@@ -1,0 +1,110 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+.yarn-cache/
+
+# Build output
+dist/
+build/
+.astro/
+.vercel/
+.netlify/
+.wrangler/
+.dev.vars
+
+# Cloudflare Workers / Pages local state
+.wrangler/
+wrangler-state/
+.dev.vars*
+!.dev.vars.example
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# AI provider credentials and local configuration
+.ai-gateway/
+.ollama/
+claude.local.md
+
+# Local databases and storage
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.local-data/
+data/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Test coverage and test artifacts
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+
+# TypeScript and build caches
+*.tsbuildinfo
+.turbo/
+.cache/
+.eslintcache
+.stylelintcache
+
+# Editor and IDE files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*~
+
+# OS-generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Local export and generated-project directories
+exports/
+generated-projects/
+workspace/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Optional local tool configuration
+.direnv/
+.envrc.local
