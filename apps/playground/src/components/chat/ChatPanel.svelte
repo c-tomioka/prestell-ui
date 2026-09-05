@@ -1,9 +1,16 @@
 <script lang="ts">
 	import { Chat } from '@ai-sdk/svelte';
 	import { DefaultChatTransport, type UIMessage } from 'ai';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { validateProposal } from '../../lib/ai/apply';
 	import { extractAstroCode } from '../../lib/ai/extract-code';
+	import {
+		buildFixPrompt,
+		clampFixAttempts,
+		MAX_FIX_ATTEMPTS_LIMIT,
+		pendingFixAttempts,
+	} from '../../lib/ai/fix-loop';
+	import { trimForRequest } from '../../lib/ai/history';
 	import {
 		type ChatSettings,
 		type DocsMode,
@@ -11,10 +18,14 @@
 		saveSettings,
 	} from '../../lib/ai/settings';
 	import type { Proposal, ProviderInfo } from '../../lib/ai/types';
+	import { persistableProposals } from '../../lib/projects/record';
+	import { openProjectStore } from '../../lib/projects/store';
 	import MessageList from './MessageList.svelte';
 	import ProviderSelect from './ProviderSelect.svelte';
 
 	interface Props {
+		/** Project whose chat thread is shown; switching it swaps the history. */
+		projectId: string;
 		/** Current editor contents (read at request time so edits are incremental). */
 		getSource: () => string;
 		filename: string;
@@ -22,7 +33,7 @@
 		onClose: () => void;
 	}
 
-	let { getSource, filename, onApply, onClose }: Props = $props();
+	let { projectId, getSource, filename, onApply, onClose }: Props = $props();
 
 	// --- settings (persisted) ---
 	let settings = $state<ChatSettings>(loadSettings());
@@ -106,15 +117,71 @@
 				filename,
 				source: getSource(),
 			}),
+			// The full thread stays in the browser; only a window is sent (server cap).
+			prepareSendMessagesRequest: ({ id, messages, body, trigger, messageId }) => ({
+				body: { ...body, id, trigger, messageId, messages: trimForRequest(messages) },
+			}),
 		}),
 		onFinish: ({ message, isAbort, isError }) => {
-			if (isAbort || isError) return;
+			if (isAbort || isError) {
+				settleRetrying('gave-up');
+				void persistChat();
+				return;
+			}
 			void finalizeProposal(message);
 		},
 	});
 
+	// --- per-project history (IndexedDB) ---
+	let chatReady = $state(false);
+	/** Bumped on every project switch so stale async work is discarded. */
+	let generation = 0;
+	let loadedProjectId = '';
+
+	$effect(() => {
+		const id = projectId;
+		// Only a *different* id reloads; chat state is written here, not tracked.
+		untrack(() => {
+			if (id === loadedProjectId) return;
+			loadedProjectId = id;
+			const current = ++generation;
+			chatReady = false;
+			void chat.stop();
+			chat.messages = [];
+			proposals = {};
+			chat.clearError();
+			void (async () => {
+				let record: Awaited<ReturnType<Awaited<ReturnType<typeof openProjectStore>>['getChat']>>;
+				try {
+					record = await (await openProjectStore()).getChat(id);
+				} catch (error) {
+					console.error('[chat] could not load history', error);
+				}
+				if (current !== generation) return;
+				chat.messages = record?.messages ?? [];
+				proposals = record?.proposals ?? {};
+				chatReady = true;
+			})();
+		});
+	});
+
+	async function persistChat() {
+		if (!chatReady) return;
+		const record = {
+			projectId,
+			messages: $state.snapshot(chat.messages) as UIMessage[],
+			proposals: persistableProposals($state.snapshot(proposals)),
+			updatedAt: Date.now(),
+		};
+		try {
+			await (await openProjectStore()).putChat(record);
+		} catch (error) {
+			console.error('[chat] could not save history', error);
+		}
+	}
+
 	const busy = $derived(chat.status === 'submitted' || chat.status === 'streaming');
-	const canSend = $derived(!busy && input.trim() !== '' && model.trim() !== '');
+	const canSend = $derived(chatReady && !busy && input.trim() !== '' && model.trim() !== '');
 
 	function assistantText(message: UIMessage): string {
 		return message.parts
@@ -136,20 +203,62 @@
 		streamingProposal ? { ...proposals, [streamingProposal[0]]: streamingProposal[1] } : proposals,
 	);
 
+	/** The fix request finished (reply, stop, or error): close the card that triggered it. */
+	function settleRetrying(state: 'resolved' | 'gave-up') {
+		for (const [id, proposal] of Object.entries(proposals)) {
+			if (proposal.fix?.state === 'retrying') {
+				proposals[id] = { ...proposal, fix: { ...proposal.fix, state } };
+			}
+		}
+	}
+
 	async function finalizeProposal(message: UIMessage) {
+		const current = generation;
+		settleRetrying('resolved');
 		const extracted = extractAstroCode(assistantText(message));
 		if (!extracted) {
+			// Prose-only reply (answer or question): nothing to validate, and no auto-fix.
 			delete proposals[message.id];
+			void persistChat();
 			return;
 		}
-		proposals[message.id] = { code: extracted.code, status: 'validating' };
-		const result = await validateProposal(extracted.code, { filename });
+		const code = extracted.code;
+		proposals[message.id] = { code, status: 'validating' };
+		const result = await validateProposal(code, { filename });
+		if (current !== generation) return;
 		if (result.ok) {
-			proposals[message.id] = { code: extracted.code, status: 'valid', warnings: result.warnings };
+			proposals[message.id] = { code, status: 'valid', warnings: result.warnings };
 			if (settings.autoApply) applyProposal(message.id);
-		} else {
-			proposals[message.id] = { code: extracted.code, status: 'invalid', error: result.error };
+			else void persistChat();
+			return;
 		}
+
+		// Fix loop: hand the validation errors back to the model, up to the limit.
+		const attempts = pendingFixAttempts(chat.messages);
+		const max = settings.maxFixAttempts;
+		if (settings.autoFix && attempts < max) {
+			const attempt = attempts + 1;
+			proposals[message.id] = {
+				code,
+				status: 'invalid',
+				error: result.error,
+				fix: { attempt, max, state: 'retrying' },
+			};
+			await persistChat();
+			if (current !== generation) return;
+			void chat.sendMessage({
+				text: buildFixPrompt(result.error, attempt, max),
+				metadata: { kind: 'fix', attempt, max },
+			});
+			return;
+		}
+		proposals[message.id] = {
+			code,
+			status: 'invalid',
+			error: result.error,
+			fix: attempts > 0 ? { attempt: attempts, max, state: 'gave-up' } : undefined,
+		};
+		void persistChat();
 	}
 
 	function applyProposal(messageId: string) {
@@ -157,6 +266,7 @@
 		if (!proposal) return;
 		onApply(proposal.code);
 		proposals[messageId] = { ...proposal, status: 'applied' };
+		void persistChat();
 	}
 
 	function send(event?: Event) {
@@ -164,7 +274,7 @@
 		if (!canSend) return;
 		const text = input.trim();
 		input = '';
-		void chat.sendMessage({ text });
+		void chat.sendMessage({ text }).finally(() => void persistChat());
 	}
 
 	function onKeydown(event: KeyboardEvent) {
@@ -175,6 +285,7 @@
 		chat.messages = [];
 		proposals = {};
 		chat.clearError();
+		void persistChat();
 	}
 </script>
 
@@ -204,6 +315,21 @@
 			<label>
 				<input type="checkbox" bind:checked={settings.autoApply} />
 				<span>Auto-apply valid proposals</span>
+			</label>
+			<label>
+				<input type="checkbox" bind:checked={settings.autoFix} />
+				<span>Auto-fix errors, up to</span>
+				<input
+					class="attempts"
+					type="number"
+					min="1"
+					max={MAX_FIX_ATTEMPTS_LIMIT}
+					value={settings.maxFixAttempts}
+					disabled={!settings.autoFix || busy}
+					aria-label="Maximum auto-fix attempts"
+					onchange={(e) => (settings.maxFixAttempts = clampFixAttempts(e.currentTarget.valueAsNumber))}
+				/>
+				<span>tries</span>
 			</label>
 			<label>
 				<span>Astro docs</span>
@@ -294,6 +420,15 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.35rem;
+	}
+	.toggles .attempts {
+		width: 3rem;
+		font: inherit;
+		color: var(--fg);
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 0.1rem 0.25rem;
 	}
 	.toggles select {
 		font-size: 0.72rem;

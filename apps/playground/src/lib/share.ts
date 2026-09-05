@@ -43,7 +43,7 @@ export function decodeCode(encoded: string): string {
 	}
 }
 
-type ShareableOptions = Pick<
+export type ShareableOptions = Pick<
 	CompileOptions,
 	"sourcemap" | "compact" | "scopedStyleStrategy" | "filename"
 >;
@@ -108,4 +108,16 @@ export function shareUrl(
 	options: Partial<ShareableOptions>,
 ): string {
 	return `${location.origin}${location.pathname}#${buildHash(code, options)}`;
+}
+
+/** The subset of compile options that is persisted / shared. */
+export function pickShareableOptions(
+	options: CompileOptions,
+): Partial<ShareableOptions> {
+	return {
+		sourcemap: options.sourcemap,
+		compact: options.compact,
+		scopedStyleStrategy: options.scopedStyleStrategy,
+		filename: options.filename,
+	};
 }

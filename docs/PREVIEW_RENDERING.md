@@ -44,7 +44,7 @@ PUBLIC_PREVIEW_RENDERER=server pnpm dev
 | 固定費 | 月額 5 ドル〜 | 0 |
 | 変動費 | 動的 Worker $0.002/ユニーク/日（beta 中は免除）+ リクエスト/CPU | 0（配信帯域のみ） |
 | 初回ロード | 軽い | +約 690 KB（非圧縮。gzip で 150〜200 KB 想定、以後キャッシュ） |
-| 生成コードの実行場所 | Cloudflare の隔離サンドボックス（`globalOutbound: null` で通信遮断済み） | ユーザーのブラウザ。**同一オリジンなら fetch / indexedDB に到達可能** |
+| 生成コードの実行場所 | Cloudflare の隔離サンドボックス（`globalOutbound: null` で通信遮断済み） | ユーザーのブラウザ。**同一オリジンなら fetch / indexedDB に到達可能**（Phase 2 以降はプロジェクトとチャット履歴が IndexedDB `prestell` にあるため、到達されると読み書きされ得る） |
 | 悪意あるコードの影響範囲 | Cloudflare 側で完結、ユーザー環境に影響なし | 対策なしだとアプリのオリジン権限で動く → 別オリジン + CSP が必須 |
 | オフライン動作 | 不可 | LLM を除けば可能（ローカル LLM と組み合わせれば完全オフライン） |
 | `/api/chat` 等の AI 機能 | Workers 上 | 変わらず Workers（または別サーバー）が必要。静的部分と API を分離配信 |
@@ -60,7 +60,7 @@ PUBLIC_PREVIEW_RENDERER=server pnpm dev
 - 生成コードは Cloudflare 側で実行されるため、ユーザー環境への被害はないが、無限ループや巨大出力への CPU 時間・サイズ上限は現行どおり必須（既に 1 MB 上限と 5 秒タイムアウトあり）。
 
 **`browser` を採る場合**
-- **別オリジンのサンドボックス**が必須。プレビュー専用のサブドメイン（例: `preview.example.com`）を静的配信し、そこに `sandbox="allow-scripts"` の iframe を置いて中で Worker を起こす。メインアプリのセッション Cookie や localStorage には届かない。
+- **別オリジンのサンドボックス**が必須。プレビュー専用のサブドメイン（例: `preview.example.com`）を静的配信し、そこに `sandbox="allow-scripts"` の iframe を置いて中で Worker を起こす。メインアプリのセッション Cookie や localStorage、プロジェクト・チャット履歴を保持する IndexedDB には届かない（Phase 2 で保存先が IndexedDB になったため、この隔離の重要度が上がっている）。
 - プレビューオリジンには CSP を付ける（`default-src 'none'; script-src 'self' blob:; worker-src 'self' blob:; connect-src 'none'`）。Worker スクリプト自身の応答ヘッダーにも同じ CSP が必要（ドキュメントの CSP は専用 Worker に継承されない）。
 - 生成コードがユーザー自身のブラウザで動くだけなので運営側のコストと責任は小さいが、**他ユーザーが共有した作品を開くケース**では XSS 相当のリスクになる。共有機能を付けるなら上記サンドボックスが唯一の防壁になる点を設計上明記する。
 - `Astro.request` はダミー URL を固定し、環境依存の値をプレビュー結果に混ぜない。

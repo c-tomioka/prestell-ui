@@ -3,6 +3,8 @@
 	import type { CompileOptions } from '@astrojs/compiler-binding';
 	import type { Theme } from '../lib/codemirror';
 	import { COMPACT_OPTIONS, SCOPED_STYLE_STRATEGIES, SOURCEMAP_OPTIONS } from '../lib/options';
+	import type { ProjectSummary } from '../lib/projects/types';
+	import ProjectMenu from './ProjectMenu.svelte';
 
 	interface Props {
 		options: CompileOptions;
@@ -15,6 +17,14 @@
 		onShare: () => void;
 		chatOpen: boolean;
 		onToggleChat: () => void;
+		projects: ProjectSummary[];
+		currentProjectId: string | null;
+		/** True while the project store is still loading. */
+		projectsBusy: boolean;
+		onCreateProject: () => void;
+		onOpenProject: (id: string) => void;
+		onRenameProject: (name: string) => void;
+		onDeleteProject: () => void;
 	}
 
 	let {
@@ -28,6 +38,13 @@
 		onShare,
 		chatOpen,
 		onToggleChat,
+		projects,
+		currentProjectId,
+		projectsBusy,
+		onCreateProject,
+		onOpenProject,
+		onRenameProject,
+		onDeleteProject,
 	}: Props = $props();
 
 	function setSourcemap(value: string) {
@@ -45,6 +62,16 @@
 </script>
 
 <div class="toolbar">
+	<div class="left">
+	<ProjectMenu
+		{projects}
+		currentId={currentProjectId}
+		disabled={projectsBusy}
+		onCreate={onCreateProject}
+		onOpen={onOpenProject}
+		onRename={onRenameProject}
+		onDelete={onDeleteProject}
+	/>
 	<form class="options" onsubmit={(e) => e.preventDefault()}>
 		<label for="opt-sourcemap">
 			<span>sourcemap</span>
@@ -81,6 +108,7 @@
 			</select>
 		</label>
 	</form>
+	</div>
 
 	<div class="actions">
 		<button
@@ -126,6 +154,13 @@
 		padding: 0.4rem 0.75rem;
 		border-bottom: 1px solid var(--border);
 		background: var(--panel);
+	}
+	.left {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 1.25rem;
+		min-width: 0;
 	}
 	.options {
 		display: flex;
@@ -193,6 +228,7 @@
 		.toolbar {
 			justify-content: flex-start;
 		}
+		.left,
 		.options,
 		.actions {
 			width: 100%;

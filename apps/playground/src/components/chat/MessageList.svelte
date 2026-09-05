@@ -2,6 +2,7 @@
 	import type { UIMessage } from 'ai';
 	import { tick } from 'svelte';
 	import { stripAstroFences } from '../../lib/ai/extract-code';
+	import { fixMetadataOf } from '../../lib/ai/fix-loop';
 	import type { Proposal } from '../../lib/ai/types';
 	import CodeProposal from './CodeProposal.svelte';
 
@@ -53,6 +54,15 @@
 	{#each messages as message (message.id)}
 		{@const text = textOf(message)}
 		{@const proposal = proposals[message.id]}
+		{@const fix = message.role === 'user' ? fixMetadataOf(message) : null}
+		{#if fix}
+			<article class="message fix" data-role="user" data-kind="fix">
+				<details>
+					<summary>🔧 Auto-fix request {fix.attempt}/{fix.max}</summary>
+					<pre class="fix-body">{text}</pre>
+				</details>
+			</article>
+		{:else}
 		<article class="message" data-role={message.role}>
 			<header>{message.role === 'user' ? 'You' : 'Assistant'}</header>
 			{#each toolParts(message) as part, index (index)}
@@ -66,6 +76,7 @@
 				<p class="text">{text}</p>
 			{/if}
 		</article>
+		{/if}
 	{/each}
 	{#if streaming && messages.at(-1)?.role !== 'assistant'}
 		<p class="thinking" role="status">Thinking…</p>
@@ -116,5 +127,25 @@
 		margin: 0;
 		font-size: 0.72rem;
 		color: var(--muted);
+	}
+	.fix {
+		font-size: 0.72rem;
+		color: var(--muted);
+	}
+	.fix summary {
+		cursor: pointer;
+	}
+	.fix-body {
+		margin: 0.3rem 0 0;
+		padding: 0.4rem 0.5rem;
+		max-height: 10rem;
+		overflow: auto;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		font-size: 0.68rem;
+		line-height: 1.4;
+		white-space: pre-wrap;
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		background: var(--panel);
 	}
 </style>

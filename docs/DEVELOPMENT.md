@@ -49,6 +49,10 @@ NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 4. チャットパネル（提案カード、コンパイラ検証、自動適用）
 5. ローカル保存（File System Access API / ダウンロード）
 
+Phase 2 で追加済み:
+- プロジェクト管理とチャット履歴の保存（`src/lib/projects/*`、IndexedDB）。Toolbar の project メニューで New / Rename / Delete / 切替
+- コンパイル検証失敗時の fix ループ（`src/lib/ai/fix-loop.ts`、チャット設定で ON/OFF と上限回数）
+
 残タスク:
 - （Phase 1 の残タスクなし。Ollama / LM Studio / AI Gateway 経由の Claude と Workers AI で E2E 確認済み）
 - 複数ファイル（相対 import）対応の検証（ストレッチ）
@@ -62,6 +66,7 @@ NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 | `PREVIEW_DEBOUNCE_MS` | 0 | コンパイル成功からサーバー側レンダリング（`/api/render`）までの追加待ち時間。デプロイ時のコスト削減はまずここを上げる |
 | `PREVIEW_TIMEOUT_MS` | 5000 | プレビューのタイムアウト |
 | `COMPILER_TIMEOUT_MS` | 8000 | コンパイラ Worker のタイムアウト（超過で再起動） |
+| `PROJECT_SAVE_DEBOUNCE_MS` | 500 | 最後の編集からプロジェクトを IndexedDB に保存するまでの待ち時間（切替・離脱時は即時保存） |
 | `PREVIEW_RENDERER` | `browser` | どこでレンダリングするか。環境変数 `PUBLIC_PREVIEW_RENDERER=browser\|server` から `astro.config.ts` が注入（`apps/playground/.env` にも書ける） |
 
 UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にすると手入力編集での自動レンダリング自体を止められる（↻ で手動描画、設定は localStorage `prestell.preview.auto` に保存。`src/lib/preview-settings.ts`）。コンパイルと Diagnostics は常に自動。
@@ -81,6 +86,8 @@ UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にする
 - MCP 接続が失敗した場合でもチャット機能自体は継続動作すること（グレースフルデグラデーション）を確認する
 - ローカル LLM が未起動のとき、UI に分かりやすいヒントが出ることを確認する
 - 提案コードに `import` や `client:*` が含まれる場合、適用前に「Cannot render」として拒否されることを確認する
+- fix ループ: 拒否された提案に対して「🔧 Auto-fix request 1/N」が自動送信され、修正案が valid になれば適用、上限到達で「auto-fix gave up」で止まること。Stop で中断できること。チャット設定の「Auto-fix errors」を OFF にすると従来どおり invalid で止まること
+- プロジェクト: New / Rename / Delete と切替でエディタとチャット履歴が入れ替わり、リロード後に最後のプロジェクトが復元されること。Share で得た `#code=` URL を開くと「Shared <filename>」として取り込まれ、ハッシュが消えること
 
 ## Claude Code への依頼例（プロンプトサンプル）
 

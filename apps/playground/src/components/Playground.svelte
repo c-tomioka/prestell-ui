@@ -6,7 +6,7 @@
 	import { loadSettings, saveSettings } from '../lib/ai/settings';
 	import { compiler } from '../lib/compiler';
 	import type { ParsedAst } from '../lib/compiler-protocol';
-	import { COMPILE_DEBOUNCE_MS, PREVIEW_DEBOUNCE_MS } from '../lib/config';
+	import { COMPILE_DEBOUNCE_MS, PREVIEW_DEBOUNCE_MS, PROJECT_SAVE_DEBOUNCE_MS } from '../lib/config';
 	import { toCodeMirrorDiagnostics } from '../lib/diagnostics';
 	import { saveComponent } from '../lib/export';
 	import { DEFAULT_COMPILE_OPTIONS } from '../lib/options';
@@ -16,8 +16,19 @@
 		validatePreview,
 	} from '../lib/preview';
 	import { loadAutoPreview, saveAutoPreview } from '../lib/preview-settings';
+	import { resolveInitialProject } from '../lib/projects/boot';
+	import { loadCurrentProjectId, saveCurrentProjectId } from '../lib/projects/current';
+	import { defaultProjectName, importedProjectName } from '../lib/projects/naming';
+	import { createProjectRecord, sortByUpdated, toSummary } from '../lib/projects/record';
+	import { openProjectStore } from '../lib/projects/store';
+	import type { ProjectRecord, ProjectStore, ProjectSummary } from '../lib/projects/types';
 	import { DEFAULT_SOURCE } from '../lib/samples';
-	import { readSharedState, shareUrl, writeSharedState } from '../lib/share';
+	import {
+		pickShareableOptions,
+		readSharedState,
+		type ShareableOptions,
+		shareUrl,
+	} from '../lib/share';
 	import { applyTheme, initialTheme, type Theme } from '../lib/theme';
 	import ChatPanel from './chat/ChatPanel.svelte';
 	import Editor from './Editor.svelte';
@@ -61,10 +72,187 @@
 		result ? toCodeMirrorDiagnostics(source, result.diagnostics) : [],
 	);
 
-	// Reflect the current source + options in the URL hash, reactively.
+	// --- projects (IndexedDB) ---
+	// The URL hash is no longer rewritten on every edit; `share()` builds it on demand
+	// and a `#code=` URL is imported as a new project on load (see bootProjects).
+	let store: ProjectStore | null = null;
+	let projects = $state<ProjectSummary[]>([]);
+	let currentProject = $state<ProjectSummary | null>(null);
+	/** Primitive id so children re-run only on an actual switch, not on every summary update. */
+	const currentProjectId = $derived(currentProject?.id ?? null);
+	let projectsReady = $state(false);
+	let saveTimer: ReturnType<typeof setTimeout> | undefined;
+	/** What the store holds for the current project; edits are saved only when they differ. */
+	let savedSource = '';
+	let savedOptionsKey = '';
+
+	function optionsKey(shareable: Partial<ShareableOptions>): string {
+		return JSON.stringify(shareable);
+	}
+
+	async function saveProject(nextSource: string, nextOptions: Partial<ShareableOptions>) {
+		if (!store || !currentProject) return;
+		const project = currentProject;
+		const now = Date.now();
+		const record: ProjectRecord = {
+			id: project.id,
+			name: project.name,
+			createdAt: project.createdAt,
+			updatedAt: now,
+			source: nextSource,
+			options: nextOptions,
+			schemaVersion: 1,
+		};
+		try {
+			await store.put(record);
+		} catch (error) {
+			console.error('[projects] save failed', error);
+			return;
+		}
+		savedSource = nextSource;
+		savedOptionsKey = optionsKey(nextOptions);
+		if (currentProject?.id === project.id) {
+			currentProject = { ...project, updatedAt: now };
+			projects = sortByUpdated(projects.map((p) => (p.id === project.id ? { ...p, updatedAt: now } : p)));
+		}
+	}
+
+	/** Write any pending edit immediately (before switching projects or leaving the page). */
+	function flushSave(): Promise<void> {
+		if (saveTimer === undefined) return Promise.resolve();
+		clearTimeout(saveTimer);
+		saveTimer = undefined;
+		return saveProject(source, pickShareableOptions($state.snapshot(options)));
+	}
+
 	$effect(() => {
-		writeSharedState(source, $state.snapshot(options));
+		const nextSource = source;
+		const nextOptions = pickShareableOptions($state.snapshot(options));
+		if (!projectsReady || !currentProject) return;
+		if (nextSource === savedSource && optionsKey(nextOptions) === savedOptionsKey) return;
+		clearTimeout(saveTimer);
+		saveTimer = setTimeout(() => {
+			saveTimer = undefined;
+			void saveProject(nextSource, nextOptions);
+		}, PROJECT_SAVE_DEBOUNCE_MS);
 	});
+
+	$effect(() => {
+		const flush = () => void flushSave();
+		const onVisibility = () => {
+			if (document.visibilityState === 'hidden') flush();
+		};
+		window.addEventListener('beforeunload', flush);
+		document.addEventListener('visibilitychange', onVisibility);
+		return () => {
+			window.removeEventListener('beforeunload', flush);
+			document.removeEventListener('visibilitychange', onVisibility);
+		};
+	});
+
+	/** Put a project into the editor without triggering a save of its own contents. */
+	function applyRecord(record: ProjectRecord) {
+		savedSource = record.source;
+		savedOptionsKey = optionsKey(record.options);
+		source = record.source;
+		options = { ...DEFAULT_COMPILE_OPTIONS, ...record.options };
+		currentProject = toSummary(record);
+		saveCurrentProjectId(record.id);
+	}
+
+	async function createFreshRecord(existing: ProjectSummary[]): Promise<ProjectRecord> {
+		const record = createProjectRecord({
+			name: defaultProjectName(existing),
+			source: DEFAULT_SOURCE,
+			options: pickShareableOptions(DEFAULT_COMPILE_OPTIONS),
+		});
+		await store?.put(record);
+		return record;
+	}
+
+	async function bootProjects() {
+		try {
+			store = await openProjectStore();
+			const summaries = await store.list();
+			const decision = resolveInitialProject({
+				hash: shared,
+				summaries,
+				currentId: loadCurrentProjectId(),
+			});
+			let record: ProjectRecord | undefined;
+			if (decision.kind === 'import') {
+				record = createProjectRecord({
+					name: importedProjectName(decision.options.filename),
+					source: decision.code,
+					options: decision.options,
+				});
+				await store.put(record);
+				history.replaceState(null, '', `${location.pathname}${location.search}`);
+			} else if (decision.kind === 'open') {
+				record = await store.get(decision.id);
+			}
+			record ??= await createFreshRecord(summaries);
+			projects = sortByUpdated([...summaries.filter((p) => p.id !== record.id), toSummary(record)]);
+			applyRecord(record);
+		} catch (error) {
+			// Persistence is best-effort: keep the in-memory editor usable.
+			console.error('[projects] boot failed', error);
+		} finally {
+			projectsReady = true;
+			void runCompile();
+		}
+	}
+
+	/** Switch the editor + chat to another project; the preview re-renders like an apply. */
+	async function openProject(id: string) {
+		if (!store || id === currentProject?.id) return;
+		await flushSave();
+		const record = await store.get(id);
+		if (!record) return;
+		clearTimeout(previewTimer);
+		previewRunId++;
+		preview.cancel();
+		renderAfterCompile = !autoPreview;
+		applyRecord(record);
+		void runCompile();
+	}
+
+	async function createProject() {
+		if (!store) return;
+		await flushSave();
+		const record = await createFreshRecord(projects);
+		projects = sortByUpdated([...projects, toSummary(record)]);
+		clearTimeout(previewTimer);
+		previewRunId++;
+		preview.cancel();
+		renderAfterCompile = !autoPreview;
+		applyRecord(record);
+		void runCompile();
+	}
+
+	async function renameProject(name: string) {
+		if (!store || !currentProject) return;
+		await flushSave();
+		const record = await store.get(currentProject.id);
+		if (!record) return;
+		const updated = { ...record, name, updatedAt: Date.now() };
+		await store.put(updated);
+		currentProject = toSummary(updated);
+		projects = sortByUpdated(projects.map((p) => (p.id === updated.id ? toSummary(updated) : p)));
+	}
+
+	async function deleteProject() {
+		if (!store || !currentProject) return;
+		const id = currentProject.id;
+		clearTimeout(saveTimer);
+		saveTimer = undefined;
+		await store.delete(id);
+		projects = projects.filter((p) => p.id !== id);
+		currentProject = null;
+		const next = projects[0];
+		if (next) await openProject(next.id);
+		else await createProject();
+	}
 
 	let runId = 0;
 	let previewRunId = 0;
@@ -276,11 +464,12 @@
 		event.preventDefault();
 	}
 
-	runCompile();
+	void bootProjects();
 
 	onDestroy(() => {
 		clearTimeout(debounceTimer);
 		clearTimeout(previewTimer);
+		void flushSave();
 		compiler.dispose();
 		preview.dispose();
 	});
@@ -298,6 +487,13 @@
 		onShare={share}
 		{chatOpen}
 		onToggleChat={toggleChat}
+		{projects}
+		{currentProjectId}
+		projectsBusy={!projectsReady}
+		onCreateProject={() => void createProject()}
+		onOpenProject={(id) => void openProject(id)}
+		onRenameProject={(name) => void renameProject(name)}
+		onDeleteProject={() => void deleteProject()}
 	/>
 
 	{#if status === 'error'}
@@ -368,9 +564,10 @@
 			/>
 		</section>
 	</div>
-	{#if chatOpen}
+	{#if chatOpen && currentProjectId}
 		<aside class="chat-pane">
 			<ChatPanel
+				projectId={currentProjectId}
 				getSource={() => source}
 				filename={options.filename ?? 'index.astro'}
 				onApply={applyProposal}

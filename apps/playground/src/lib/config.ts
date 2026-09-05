@@ -28,3 +28,6 @@ export const PREVIEW_TIMEOUT_MS = 5000;
 
 /** Terminate and respawn the compiler worker if a request hangs this long. */
 export const COMPILER_TIMEOUT_MS = 8000;
+
+/** Idle time after the last edit before the project is written to IndexedDB. */
+export const PROJECT_SAVE_DEBOUNCE_MS = 500;

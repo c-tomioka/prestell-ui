@@ -1,5 +1,6 @@
 // Chat settings persisted per browser (provider/model choice, toggles).
 import type { DocsMode } from "../../server/ai/validate";
+import { clampFixAttempts, DEFAULT_MAX_FIX_ATTEMPTS } from "./fix-loop";
 
 export type { DocsMode };
 
@@ -10,6 +11,10 @@ export interface ChatSettings {
 	docsMode: DocsMode;
 	autoApply: boolean;
 	chatOpen: boolean;
+	/** Send validation errors back to the model automatically. */
+	autoFix: boolean;
+	/** Upper bound of fix requests per user message (1–5). */
+	maxFixAttempts: number;
 }
 
 const STORAGE_KEY = "prestell.chat.settings";
@@ -20,6 +25,8 @@ export const DEFAULT_SETTINGS: ChatSettings = {
 	docsMode: "off",
 	autoApply: true,
 	chatOpen: true,
+	autoFix: true,
+	maxFixAttempts: DEFAULT_MAX_FIX_ATTEMPTS,
 };
 
 export function loadSettings(): ChatSettings {
@@ -32,6 +39,7 @@ export function loadSettings(): ChatSettings {
 			...DEFAULT_SETTINGS,
 			...parsed,
 			models: { ...(parsed.models ?? {}) },
+			maxFixAttempts: clampFixAttempts(parsed.maxFixAttempts),
 		};
 	} catch {
 		return { ...DEFAULT_SETTINGS };

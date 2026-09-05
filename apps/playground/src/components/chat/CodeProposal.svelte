@@ -10,17 +10,26 @@
 
 	let expanded = $state(false);
 	const lineCount = $derived(proposal.code.split('\n').length);
-	const label = $derived(
-		proposal.status === 'streaming'
-			? 'Generating…'
-			: proposal.status === 'validating'
-				? 'Validating…'
-				: proposal.status === 'valid'
-					? 'Ready to apply'
-					: proposal.status === 'applied'
-						? 'Applied to editor'
-						: 'Cannot render',
-	);
+	const retrying = $derived(proposal.fix?.state === 'retrying');
+	const label = $derived.by(() => {
+		switch (proposal.status) {
+			case 'streaming':
+				return 'Generating…';
+			case 'validating':
+				return 'Validating…';
+			case 'valid':
+				return 'Ready to apply';
+			case 'applied':
+				return 'Applied to editor';
+			default: {
+				const fix = proposal.fix;
+				if (!fix) return 'Cannot render';
+				if (fix.state === 'retrying') return `Cannot render · auto-fixing ${fix.attempt}/${fix.max}…`;
+				if (fix.state === 'resolved') return `Cannot render · retried (${fix.attempt}/${fix.max})`;
+				return `Cannot render · auto-fix gave up (${fix.attempt}/${fix.max})`;
+			}
+		}
+	});
 </script>
 
 <div class="proposal" data-status={proposal.status}>
@@ -42,7 +51,7 @@
 		<button
 			type="button"
 			class="apply"
-			disabled={proposal.status === 'streaming' || proposal.status === 'validating'}
+			disabled={proposal.status === 'streaming' || proposal.status === 'validating' || retrying}
 			onclick={onApply}
 		>
 			{proposal.status === 'applied' ? 'Apply again' : proposal.status === 'invalid' ? 'Apply anyway' : 'Apply'}

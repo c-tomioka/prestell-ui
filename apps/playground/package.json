@@ -46,6 +46,7 @@
 		"@astrojs/compiler-binding": "^0.3.2",
 		"@types/node": "^24.13.3",
 		"cross-env": "^10.1.0",
+		"fake-indexeddb": "^6.2.5",
 		"rolldown": "^1.2.3",
 		"typescript": "^7.0.2",
 		"vitest": "^4.1.10",
