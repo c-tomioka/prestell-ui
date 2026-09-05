@@ -361,6 +361,7 @@
 				{previewError}
 				{autoPreview}
 				{previewStale}
+				rendererMode={preview.mode}
 				onTabChange={handleOutputTabChange}
 				onToggleAutoPreview={toggleAutoPreview}
 				onRefreshPreview={refreshPreview}

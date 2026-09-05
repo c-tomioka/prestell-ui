@@ -57,5 +57,7 @@ provider: "anthropic" / "openai" / "google" / "workers-ai"
 | `LMSTUDIO_BASE_URL` | LM Studio の OpenAI 互換エンドポイント | `http://localhost:1234/v1` |
 
 ## 将来的な拡張（Phase 4 以降を見据えて）
+
+- Phase 4 の静的ホスト版では、ブラウザから Ollama / LM Studio を直接呼ぶ「AI direct モード」を追加する（ローカル側で CORS 許可が必要: `OLLAMA_ORIGINS`、`lms server start --cors`）。
 - SaaS 化時、ユーザー側のローカル Ollama に運営サーバーから直接接続することはできない（ネットワーク的に不可能）ため、SaaS 版では常に外部 LLM / Workers AI のみを提供し、ローカル LLM 対応は OSS 版（ローカル実行版）限定の機能として明確に区別する
 - どうしてもローカルモデルを AI Gateway のログに載せたい場合は `cloudflared tunnel` で HTTPS 公開して Custom Provider に登録する手もあるが、個人利用では推奨しない

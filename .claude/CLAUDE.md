@@ -12,6 +12,7 @@ Astro公式Playground（`withastro/astro-playground`）をフォークし、AI�
 - `ARCHITECTURE.md`: システム構成・技術選定
 - `ROADMAP.md`: フェーズ別タスクリスト
 - `LOCAL_LLM.md`: Ollama等ローカルLLM接続の仕様
+- `PREVIEW_RENDERING.md`: プレビューレンダラー（browser / server）の設計・比較・セキュリティ方針
 - `DEVELOPMENT.md`: セットアップ手順・実装優先順・コーディング規約
 
 作業前に必ず `ARCHITECTURE.md` と `ROADMAP.md` の該当フェーズを確認し、現在のフェーズ範囲外の実装（特にSaaS化・課金関連）に着手しないこと。

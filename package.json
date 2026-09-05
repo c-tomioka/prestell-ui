@@ -9,7 +9,10 @@
 	},
 	"scripts": {
 		"dev": "pnpm --filter @prestell/playground run dev",
+		"dev:server": "pnpm --filter @prestell/playground run dev:server",
+		"dev:stop": "pnpm --filter @prestell/playground run dev:stop",
 		"build": "pnpm --filter @prestell/playground run build",
+		"build:server": "pnpm --filter @prestell/playground run build:server",
 		"check": "pnpm --filter @prestell/playground --filter @prestell/codemirror-astro run check",
 		"test": "pnpm --filter @prestell/playground run test",
 		"lint": "biome check",

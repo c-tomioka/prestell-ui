@@ -6,12 +6,40 @@ import { defineConfig } from "astro/config";
 import { rolldown } from "rolldown";
 import {
 	type Connect,
+	loadEnv,
 	type Plugin,
 	type PreviewServer,
 	searchForWorkspaceRoot,
 	type UserConfig,
 	type ViteDevServer,
 } from "vite";
+
+/**
+ * Preview renderer selection. `browser` (default) renders inside a Web Worker;
+ * `server` keeps the Worker Loader route (`/api/render`).
+ *   PUBLIC_PREVIEW_RENDERER=server astro dev   (or `pnpm dev:server`)
+ */
+function previewRenderer(): "browser" | "server" {
+	const env = loadEnv(
+		process.env.NODE_ENV ?? "development",
+		process.cwd(),
+		"PUBLIC_",
+	);
+	const value = (
+		env.PUBLIC_PREVIEW_RENDERER ??
+		process.env.PUBLIC_PREVIEW_RENDERER ??
+		"browser"
+	)
+		.trim()
+		.toLowerCase();
+	if (value !== "browser" && value !== "server") {
+		throw new Error(
+			`PUBLIC_PREVIEW_RENDERER must be "browser" or "server" (got "${value}").`,
+		);
+	}
+	return value;
+}
+const PREVIEW_RENDERER = previewRenderer();
 
 /**
  * The Rust compiler's WASM build (`wasm32-wasip1-threads`) instantiates a
@@ -124,8 +152,96 @@ function previewWorkerSource(): Plugin {
 	};
 }
 
+const PREVIEW_BROWSER_BUNDLES = "virtual:preview-browser-bundles";
+const RESOLVED_PREVIEW_BROWSER_BUNDLES = `\0${PREVIEW_BROWSER_BUNDLES}`;
+
+interface PreviewBrowserBundles {
+	runtime: string;
+	container: string;
+}
+
+/**
+ * Bundles `astro/compiler-runtime` and `astro/container` as two self-contained
+ * browser ES modules (one rolldown build each, so they never share a chunk)
+ * and exposes their sources to the preview Web Worker, which loads them from
+ * Blob URLs. Any `node:*` import is a hard error: the render path must stay
+ * Web-platform only (see docs/PREVIEW_RENDERING.md).
+ */
+function previewBrowserBundles(): Plugin {
+	const entries = {
+		runtime: fileURLToPath(
+			new URL("./src/lib/preview-runtime.ts", import.meta.url),
+		),
+		container: fileURLToPath(
+			new URL("./src/lib/preview-container.ts", import.meta.url),
+		),
+	};
+	let bundles: PreviewBrowserBundles | undefined;
+
+	async function bundleBrowserModule(input: string): Promise<string> {
+		const bundle = await rolldown({
+			input,
+			platform: "browser",
+			plugins: [
+				{
+					name: "playground:forbid-node-builtins",
+					resolveId(id) {
+						if (id.startsWith("node:")) {
+							throw new Error(
+								`The browser preview renderer must not depend on ${id} (imported while bundling ${input}).`,
+							);
+						}
+					},
+				},
+			],
+			transform: {
+				define: { "process.env.NODE_ENV": JSON.stringify("production") },
+			},
+		});
+		try {
+			const result = await bundle.generate({ format: "es" });
+			const chunks = result.output.filter((output) => output.type === "chunk");
+			if (chunks.length !== 1 || chunks.length !== result.output.length) {
+				throw new Error(`Expected a single self-contained chunk for ${input}.`);
+			}
+			return chunks[0].code;
+		} finally {
+			await bundle.close();
+		}
+	}
+
+	return {
+		name: "playground:preview-browser-bundles",
+		resolveId(id) {
+			if (id === PREVIEW_BROWSER_BUNDLES)
+				return RESOLVED_PREVIEW_BROWSER_BUNDLES;
+		},
+		async load(id) {
+			if (id !== RESOLVED_PREVIEW_BROWSER_BUNDLES) return;
+			for (const entry of Object.values(entries)) this.addWatchFile(entry);
+			if (!bundles) {
+				bundles = {
+					runtime: await bundleBrowserModule(entries.runtime),
+					container: await bundleBrowserModule(entries.container),
+				};
+			}
+			return `export default ${JSON.stringify(bundles)};`;
+		},
+		watchChange(id) {
+			if (Object.values(entries).includes(id)) bundles = undefined;
+		},
+	};
+}
+
 const vite: UserConfig = {
-	plugins: [crossOriginIsolation(), previewWorkerSource()],
+	plugins: [
+		crossOriginIsolation(),
+		previewWorkerSource(),
+		previewBrowserBundles(),
+	],
+	define: {
+		__PREVIEW_RENDERER__: JSON.stringify(PREVIEW_RENDERER),
+	},
 	// The WASM binding ships hand-written browser glue that uses
 	// `new URL('./x.wasm', import.meta.url)` and `new Worker(new URL(...))`.
 	// Pre-bundling rewrites those URLs and breaks them, so exclude it.
@@ -134,6 +250,9 @@ const vite: UserConfig = {
 	},
 	worker: {
 		format: "es",
+		// Production worker bundles get their own plugin pipeline; the preview
+		// Worker imports the virtual bundles module, so it needs this plugin too.
+		plugins: () => [previewBrowserBundles()],
 	},
 	build: {
 		// CodeMirror + the compiler island are legitimately large single chunks.

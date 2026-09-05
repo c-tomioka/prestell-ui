@@ -11,3 +11,10 @@ export interface PreviewRenderRequest {
 export type PreviewRenderResponse =
 	| { ok: true; html: string }
 	| { ok: false; error: string };
+
+/** Message protocol between `preview.ts` and `preview-browser.worker.ts`. */
+export type PreviewWorkerRequest = PreviewRenderRequest & { id: number };
+export type PreviewWorkerResponse = PreviewRenderResponse & { id: number };
+
+/** Where the preview is rendered. Chosen at build time (`PUBLIC_PREVIEW_RENDERER`). */
+export type PreviewRendererMode = "browser" | "server";

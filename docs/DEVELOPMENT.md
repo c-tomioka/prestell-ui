@@ -8,7 +8,7 @@ Claude Code での開発時に参照するセットアップ手順・実装優�
 apps/playground/        # プロダクト本体（Astro 7 + Svelte 5 + Cloudflare Workers ランタイム）
 packages/lang-astro/    # CodeMirror 用 Astro 言語サポート（上流由来、MIT）
 docs/                   # 設計ドキュメント
-saas/                   # Phase 4 以降の SaaS 専用ロジック置き場（現在は空）
+saas/                   # Phase 5 以降の SaaS 専用ロジック置き場（現在は空）
 tmp/upstream/           # withastro/astro-playground のスナップショット（git 管理外、参考用）
 NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 ```
@@ -24,15 +24,17 @@ NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
    - Ollama: `ollama serve` と `ollama pull qwen2.5-coder:7b` など
    - LM Studio: Developer タブで Start Server、モデルをロード
 5. `pnpm dev` → http://localhost:4321
-   - Astro 7 の `astro dev` は daemon 化される。停止は `pnpm --filter @prestell/playground run dev:stop`（= `astro dev stop`）
+   - Astro 7 の `astro dev` は daemon 化される。停止は `pnpm dev:stop`（= `astro dev stop`）
    - `/api/*` も同じプロセス（workerd）で動くので `wrangler dev` は不要
+   - プレビューは既定でブラウザ内 Web Worker がレンダリングする（サーバー呼び出しなし）。上流と同じサーバー側レンダリングを試すときは `pnpm dev:server`
 6. 参考用スナップショットが必要なら `tmp/README.md` のコマンドで `tmp/upstream/` を再取得
 
 ## 開発コマンド（リポジトリルート）
 
 | コマンド | 内容 |
 |---|---|
-| `pnpm dev` | dev サーバー起動（workerd） |
+| `pnpm dev` | dev サーバー起動（プレビューはブラウザ内レンダリング = 既定） |
+| `pnpm dev:server` | サーバー側レンダリング（`/api/render`, Worker Loader）で起動 |
 | `pnpm check` | `tsc --noEmit`（playground + lang-astro） |
 | `pnpm test` | Vitest |
 | `pnpm lint` / `pnpm lint:fix` | Biome |
@@ -51,6 +53,7 @@ NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 - AI Gateway 経由の外部 LLM（Claude 等）での E2E 確認（Ollama qwen2.5-coder:7b と LM Studio google/gemma-4-e4b は確認済み）
 - AI Gateway 経由での `stream` / `tools` 透過の実測（不可なら provider-native endpoint に切替）
 - 複数ファイル（相対 import）対応の検証（ストレッチ）
+- AI direct モード（ブラウザから LLM を直接呼ぶ BYOK 構成）は Phase 4 で実装（`ROADMAP.md`）
 
 ## チューニング用の定数（`apps/playground/src/lib/config.ts`）
 
@@ -60,6 +63,7 @@ NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 | `PREVIEW_DEBOUNCE_MS` | 0 | コンパイル成功からサーバー側レンダリング（`/api/render`）までの追加待ち時間。デプロイ時のコスト削減はまずここを上げる |
 | `PREVIEW_TIMEOUT_MS` | 5000 | プレビューのタイムアウト |
 | `COMPILER_TIMEOUT_MS` | 8000 | コンパイラ Worker のタイムアウト（超過で再起動） |
+| `PREVIEW_RENDERER` | `browser` | どこでレンダリングするか。環境変数 `PUBLIC_PREVIEW_RENDERER=browser\|server` から `astro.config.ts` が注入（`apps/playground/.env` にも書ける） |
 
 UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にすると手入力編集での自動レンダリング自体を止められる（↻ で手動描画、設定は localStorage `prestell.preview.auto` に保存。`src/lib/preview-settings.ts`）。コンパイルと Diagnostics は常に自動。
 
@@ -94,3 +98,4 @@ resolveModel を再利用し、レスポンスは AI SDK の UI message stream �
 - `ARCHITECTURE.md`: システム構成の詳細
 - `ROADMAP.md`: フェーズごとのタスクリスト
 - `LOCAL_LLM.md`: ローカル LLM（Ollama / LM Studio）接続の仕様
+- `PREVIEW_RENDERING.md`: プレビューレンダラーの設計と比較

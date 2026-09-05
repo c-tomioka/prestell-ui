@@ -2,7 +2,13 @@
 import { compileAstroSync, parseAstroSync } from "@astrojs/compiler-binding";
 import { describe, expect, it } from "vitest";
 import type { ParsedAst } from "./compiler-protocol";
-import { PreviewClient, preparePreviewCode, validatePreview } from "./preview";
+import {
+	PreviewClient,
+	preparePreviewCode,
+	ServerPreviewRenderer,
+	validatePreview,
+} from "./preview";
+import { RUNTIME_SPECIFIER, rewriteRuntimeImport } from "./preview-rewrite";
 
 const filename = "index.astro";
 
@@ -82,7 +88,9 @@ describe("preview client", () => {
 			return Promise.resolve(Response.json({ ok: true, html: "<p>Ready</p>" }));
 		};
 		try {
-			const client = new PreviewClient();
+			const client = new PreviewClient({
+				renderer: new ServerPreviewRenderer(),
+			});
 			await expect(client.render(compile("<p>Ready</p>", true))).resolves.toBe(
 				"<p>Ready</p>",
 			);
@@ -105,5 +113,29 @@ describe("preview client", () => {
 		client.cancel();
 
 		await expect(rendering).rejects.toThrow("Preview cancelled.");
+	});
+});
+
+describe("browser renderer helpers", () => {
+	it("rewrites the runtime import to the given URL", () => {
+		const result = compile(`<h1>Hello</h1>`, true);
+		expect(result.code).toContain(`from "${RUNTIME_SPECIFIER}"`);
+		const rewritten = rewriteRuntimeImport(result.code, "blob:null/abc");
+		expect(rewritten).toContain('from "blob:null/abc"');
+		expect(rewritten).not.toContain(RUNTIME_SPECIFIER);
+	});
+
+	it("leaves unrelated specifiers alone", () => {
+		const code = `import x from "./runtime.json";\nimport { a } from './runtime.js';`;
+		expect(rewriteRuntimeImport(code, "blob:x")).toBe(
+			`import x from "./runtime.json";\nimport { a } from 'blob:x';`,
+		);
+	});
+
+	it("reports the renderer mode", () => {
+		expect(
+			new PreviewClient({ renderer: new ServerPreviewRenderer() }).mode,
+		).toBe("server");
+		expect(new PreviewClient({ fetch: globalThis.fetch }).mode).toBe("server");
 	});
 });

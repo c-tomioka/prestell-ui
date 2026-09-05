@@ -1,51 +1,16 @@
 // Derived from withastro/astro-playground (MIT). See THIRD_PARTY_NOTICES.md at the repository root.
-import {
-	experimental_AstroContainer as AstroContainer,
-	type AstroContainerOptions,
-} from "astro/container";
-import type { AstroComponentFactory } from "astro/runtime/server/index.js";
+//
+// Server renderer: runs inside a Worker Loader dynamic Worker (see pages/api/render.ts).
+import { experimental_AstroContainer as AstroContainer } from "astro/container";
 // The generated component is supplied as a second module by Worker Loader.
 // @ts-expect-error There is intentionally no component.js on disk.
 import component from "./component.js";
+import {
+	type AstroComponentFactory,
+	createManifest,
+	PREVIEW_REQUEST_URL,
+} from "./preview-manifest";
 import type { PreviewRenderRequest } from "./preview-protocol";
-
-const SCRIPT_ID = /\$\$renderScript\(\$\$result,\s*("(?:\\.|[^"\\])*")\s*\)/g;
-
-function scriptIds(code: string): string[] {
-	return Array.from(code.matchAll(SCRIPT_ID), (match) => JSON.parse(match[1]));
-}
-
-function createManifest(
-	factory: AstroComponentFactory,
-	code: string,
-	metadata: Omit<PreviewRenderRequest, "code">,
-): NonNullable<AstroContainerOptions["manifest"]> {
-	const ids = scriptIds(code);
-	if (ids.length !== metadata.scripts.length) {
-		throw new Error("The compiler emitted unsupported script metadata.");
-	}
-
-	const inlinedScripts = new Map<string, string>();
-	for (const [index, script] of metadata.scripts.entries()) {
-		if (script.type !== "inline") {
-			throw new Error("External scripts are not supported in Preview.");
-		}
-		inlinedScripts.set(ids[index], script.code ?? "");
-	}
-
-	return {
-		componentMetadata: new Map([
-			[
-				factory.moduleId ?? "index.astro",
-				{
-					containsHead: metadata.containsHead,
-					propagation: metadata.propagation ? "self" : "none",
-				},
-			],
-		]),
-		inlinedScripts,
-	} as NonNullable<AstroContainerOptions["manifest"]>;
-}
 
 export default {
 	async fetch(request: Request): Promise<Response> {
@@ -64,7 +29,7 @@ export default {
 			manifest: createManifest(factory, code, metadata),
 		});
 		return container.renderToResponse(factory, {
-			request: new Request("https://preview.astro.build/"),
+			request: new Request(PREVIEW_REQUEST_URL),
 			partial: true,
 		});
 	},

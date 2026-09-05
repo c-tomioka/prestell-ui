@@ -36,10 +36,23 @@
 
 **完了条件**: 第三者がクローンしてローカルで同じ体験を再現できること。
 
-## Phase 4: SaaS化準備
+## Phase 4: 静的ホスト版（BYOK 前提・運営は課金しないプレビュー公開）
+**目標**: サーバーコストほぼゼロで公開できる「静的フロント + 最小 API」構成に切り替え、ユーザー自身の API キー（BYOK）で AI 機能を使える公開版を出す。
+
+- [x] プレビューのレンダリングをブラウザ内 Web Worker で行うレンダラーを実装し、既定にする（`PUBLIC_PREVIEW_RENDERER=browser|server` で切替。設計: `PREVIEW_RENDERING.md`）
+- [ ] AI direct モード: ブラウザから Ollama / LM Studio / Anthropic / OpenAI / Google AI Studio を直接呼ぶ（AI SDK をクライアントで実行。キーはメモリまたは sessionStorage に保持し、URL や localStorage に置かない）
+- [ ] AI Gateway / Workers AI のブラウザ直接呼び出し（CORS）可否を検証し、不可なら direct モードの対象外と明記
+- [ ] Astro Docs MCP 用の最小中継 Worker（Workers Free、Worker Loader 不要）を用意し、静的フロントから利用
+- [ ] プレビュー用の別オリジン（例: `preview.<domain>`）+ sandbox iframe + CSP（`connect-src 'none'` 等）で生成コードを隔離
+- [ ] 静的ビルド構成（`/api/*` を切り離し、フロントを Cloudflare Pages 等の無料枠で配信）
+- [ ] BYOK の説明 UI（レート制限・請求はユーザー自身のキーに紐づく旨）と、モード切替（server / direct）の設定 UI
+
+**完了条件**: 運営側の固定費なし（静的配信 + Workers Free の中継のみ）で、第三者が自分のキーを入れて生成→プレビューできること。
+
+## Phase 5: SaaS化準備
 **目標**: マルチユーザー対応の本番環境を構築する。
 
-- [ ] Cloudflare本番環境（Workers Paid検討）へのデプロイ
+- [ ] Cloudflare本番環境（Workers Paid検討）へのデプロイ。隔離実行が必要な機能は `server` レンダラー（Worker Loader）を選択
 - [ ] Durable Objectsでユーザーごとのセッション状態・チャット履歴を管理
 - [ ] R2で生成ファイルを永続化
 - [ ] 必要であればCloudflare Containersでサーバーサイド実行環境を追加（WebContainerで対応できない処理がある場合のみ）
@@ -48,7 +61,7 @@
 
 **完了条件**: 複数ユーザーが同時に安全に利用できる状態になること。
 
-## Phase 5: 事前クレジット決済モデルでの販売
+## Phase 6: 事前クレジット決済モデルでの販売
 **目標**: 収益化を開始する。
 
 - [ ] Stripe on Workersで事前クレジット購入フローを実装
@@ -66,5 +79,6 @@
 | 1 | 個人ローカルMVP | LLM API利用料のみ |
 | 2 | 精度・UX改善 | 同上 |
 | 3 | OSS公開 | 無償公開のみ、追加コストなし |
-| 4 | 本番マルチユーザー基盤構築 | Workers Paid等の固定費が発生し得る |
-| 5 | 課金開始・一般販売 | Stripe決済手数料 + インフラ費 + LLM APIコスト |
+| 4 | 静的ホスト版（BYOK） | 静的配信 + Workers Free の中継のみ、ほぼゼロ |
+| 5 | 本番マルチユーザー基盤構築 | Workers Paid等の固定費が発生し得る |
+| 6 | 課金開始・一般販売 | Stripe決済手数料 + インフラ費 + LLM APIコスト |

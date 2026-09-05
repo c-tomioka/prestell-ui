@@ -9,6 +9,18 @@ declare module "virtual:preview-worker-source" {
 	export default bundle;
 }
 
+declare module "virtual:preview-browser-bundles" {
+	/** Self-contained ES module sources for the browser renderer (see astro.config.ts). */
+	const bundles: {
+		runtime: string;
+		container: string;
+	};
+	export default bundles;
+}
+
+/** Injected by astro.config.ts from PUBLIC_PREVIEW_RENDERER; undefined in plain vitest runs. */
+declare const __PREVIEW_RENDERER__: "browser" | "server" | undefined;
+
 declare module "cloudflare:workers" {
 	export const env: Env;
 }

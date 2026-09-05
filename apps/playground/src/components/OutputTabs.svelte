@@ -10,6 +10,7 @@
 		type Theme,
 	} from '../lib/codemirror';
 	import type { ParsedAst } from '../lib/compiler-protocol';
+	import type { PreviewRendererMode } from '../lib/preview-protocol';
 
 	interface Props {
 		result: CompileResult | null;
@@ -20,6 +21,7 @@
 		previewError: string;
 		autoPreview: boolean;
 		previewStale: boolean;
+		rendererMode: PreviewRendererMode;
 		onTabChange: (tab: TabId) => void;
 		onToggleAutoPreview: () => void;
 		onRefreshPreview: () => void;
@@ -34,6 +36,7 @@
 		previewError,
 		autoPreview,
 		previewStale,
+		rendererMode,
 		onTabChange,
 		onToggleAutoPreview,
 		onRefreshPreview,
@@ -188,6 +191,14 @@
 		{/each}
 	</div>
 		<div class="preview-controls" class:inactive={active !== 'preview'}>
+			<span
+				class="renderer"
+				title={rendererMode === 'browser'
+					? 'Rendered in a Web Worker in this browser (no server call)'
+					: 'Rendered on the server via /api/render (Cloudflare Worker Loader)'}
+			>
+				{rendererMode}
+			</span>
 			<label class="switch" title="Render the preview automatically after each edit">
 				<input
 					type="checkbox"
@@ -341,6 +352,15 @@
 	}
 	.preview-controls.inactive {
 		opacity: 0.45;
+	}
+	.renderer {
+		font-size: 0.65rem;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--muted);
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		padding: 0.05rem 0.45rem;
 	}
 	.switch {
 		display: inline-flex;

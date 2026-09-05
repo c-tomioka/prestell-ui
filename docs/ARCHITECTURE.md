@@ -6,13 +6,14 @@
 [ブラウザ]  apps/playground（Astro 7 + Svelte 5）
   ├─ エディタ（CodeMirror 6 + @prestell/codemirror-astro）
   ├─ Astro コンパイラ（@astrojs/compiler の WASM を Web Worker で実行）
+  ├─ プレビューレンダラー（既定 = browser: astro/container を Web Worker で実行、サーバー通信なし）
   ├─ 出力タブ（Preview / JS / CSS / Scripts / Metadata / Diagnostics / AST / Source map）
   └─ AI チャットパネル（@ai-sdk/svelte、プロバイダー・モデル選択、提案カード）
             │ fetch / SSE（同一オリジン）
             ▼
 [Cloudflare Workers ランタイム（astro dev = workerd / 本番 Workers）]
-  ├─ POST /api/render     … コンパイル済み JS を Worker Loader で動的 Worker として起動し
-  │                          Astro Container API で HTML にレンダリング（上流と同方式）
+  ├─ POST /api/render     … PUBLIC_PREVIEW_RENDERER=server のときだけ使用。コンパイル済み JS を
+  │                          Worker Loader で動的 Worker として起動し Astro Container API で HTML 化（上流と同方式）
   ├─ POST /api/chat       … AI SDK streamText。プロバイダー切替、Astro Docs MCP の tools / inject
   ├─ GET  /api/models     … プロバイダー一覧・ローカルモデル一覧
   └─ POST /api/mcp-proxy  … Astro Docs MCP の search_astro_docs を1回呼ぶブリッジ
@@ -31,7 +32,7 @@
 - `withastro/astro-playground` は **WebContainer を使っていない**。ブラウザ内の WASM コンパイラと、Cloudflare **Worker Loader（Dynamic Workers）** 上での Astro Container API レンダリングでプレビューを実現している。
 - プレビューは **単一 `.astro` コンポーネント**のみ。`import`、フレームワークコンポーネント、`client:*`、外部 `<script src>`、Server Islands は `validatePreview()` で弾かれる。
 - `astro dev` が Cloudflare Vite plugin 経由で workerd を起動するため、`wrangler dev` を別途動かす必要はない。`/api/*` も同じプロセスで動く。
-- Dynamic Workers はローカル（miniflare）では無料で動くが、本番は **Workers Paid 限定**（open beta、$0.002/Worker/日、beta 中は免除）。Phase 1 はローカル限定なので影響なし。
+- Dynamic Workers はローカル（miniflare）では無料で動くが、本番は **Workers Paid 限定**（open beta、$0.002/Worker/日、beta 中は免除）。このため本プロダクトは **ブラウザ内レンダリングを既定**にし、Worker Loader 版は `server` モードとして残している（詳細・比較表は `PREVIEW_RENDERING.md`）。
 
 ## コンポーネント別詳細
 
@@ -41,11 +42,18 @@
 - 提案コードの反映: `src/lib/ai/extract-code.ts` で応答の ```astro フェンスを抽出 → `src/lib/ai/apply.ts` がコンパイラで検証（診断エラー・Preview 非対応構文を拒否）→ 合格なら `Playground.svelte` の通常経路でエディタ置換 → 再コンパイル → Preview 更新。
 - 設定（プロバイダー、モデル、docsMode、自動適用、パネル開閉）は localStorage に保持。
 
+### 1b. プレビューレンダラー（`src/lib/preview.ts`）
+- `PreviewRenderer` インターフェース（`render(request, signal)`）を 2 実装が満たす。
+  - `BrowserPreviewRenderer`（既定）: `astro.config.ts` が rolldown で `astro/compiler-runtime` と `astro/container` をブラウザ向け ES モジュール文字列にバンドル（仮想モジュール `virtual:preview-browser-bundles`）。`preview-browser.worker.ts` がそれらと compiled component を Blob URL から `import()` し、`AstroContainer.renderToString` する。生成コードの無限ループ等はタイムアウト時に Worker を `terminate()` して次回再生成。
+  - `ServerPreviewRenderer`: `POST /api/render`（Worker Loader）。
+- 切替は build/dev 時の環境変数 `PUBLIC_PREVIEW_RENDERER`（`pnpm dev` = browser、`pnpm dev:server` = server）。出力ペインのバッジで現在のモードを表示。
+- マニフェスト生成（`preview-manifest.ts`）は両実装で共用。`Astro.request.url` は両方 `https://preview.astro.build/` に固定。
+
 ### 2. バックエンド（`apps/playground/src/pages/api`, `src/server/ai`）
 - `POST /api/chat`: `{ messages, provider, model, docsMode, filename, source }` を受け取り、AI SDK の `streamText` で UI message stream（SSE）を返す。現在のエディタ内容は毎回 system prompt に埋め込む。
 - `GET /api/models`: プロバイダー一覧（設定済みかどうか）と、ローカルサーバーの `/v1/models` を中継。
 - `POST /api/mcp-proxy`: `search_astro_docs` を1回実行して結果を返す（inject モードと手動検索用）。
-- `POST /api/render`: 上流同等のプレビューレンダラー。
+- `POST /api/render`: 上流同等のサーバー側プレビューレンダラー（`server` モード時のみ利用）。
 - 環境変数は `.dev.vars`（`astro dev` が自動ロード）を `cloudflare:workers` の `env` から読む。
 
 ### 3. LLM プロバイダー層（`src/server/ai/providers.ts`）
@@ -64,10 +72,19 @@
 - Phase 1: `src/lib/export.ts`。Chromium は File System Access API（保存先を選択）、それ以外は `<a download>`。
 - Worker 側の `/api/files` は実装しない（workerd はローカル FS に書けない）。複数ファイル化時に ZIP export を検討。
 
-## Phase 4以降（SaaS化）の追加構成
+## Phase 4（静的ホスト版）の構成
 
 ```
-[Cloudflare Workers 本番環境（Workers Paid: Worker Loader 利用のため必須）]
+[静的ホスティング（Cloudflare Pages 等の無料枠）]  … フロント一式 + ブラウザ内レンダリング
+[別オリジンのプレビューサンドボックス]            … sandbox iframe + CSP（connect-src 'none'）
+[Workers Free の最小 API]                          … Astro Docs MCP 中継のみ（Worker Loader 不要）
+[ブラウザ → LLM 直接（BYOK）]                      … Ollama / LM Studio / Anthropic / OpenAI / Google
+```
+
+## Phase 5以降（SaaS化）の追加構成
+
+```
+[Cloudflare Workers 本番環境（`server` レンダラーを使う場合は Workers Paid）]
   ├─ Durable Objects … ユーザーごとのセッション状態・チャット履歴・クレジット残高
   ├─ R2 … 生成ファイルの永続化
   ├─ Cloudflare Containers … サーバーサイドでの Astro dev 実行（必要時のみ）
@@ -81,6 +98,7 @@
 |---|---|---|
 | ベース | withastro/astro-playground（参考） | MIT、Astro 公式、WASM コンパイラ + Worker Loader のプレビュー基盤 |
 | フロント | Astro 7 + Svelte 5 + CodeMirror 6 | 上流と同じ構成で移植コストを最小化 |
+| プレビュー実行 | astro/container を Web Worker で実行（既定）/ Worker Loader（任意） | 無料枠で配信可能、往復なし。隔離実行が必要なら server に切替 |
 | LLM 呼び出し | Vercel AI SDK（ai / @ai-sdk/openai-compatible / @ai-sdk/svelte / @ai-sdk/mcp） | ストリーミング・tool loop・MCP を SDK に委譲 |
 | LLM 抽象化 | Cloudflare AI Gateway Unified API + ローカル直結 | クラウドは1エンドポイント、ローカルは無料・キー不要 |
 | Astro 知識源 | Astro Docs MCP Server | 常に最新の Astro 構文・API |
@@ -92,3 +110,5 @@
 - プレビューは単一コンポーネント・自己完結が前提。複数ファイル（相対 import）対応は Worker Loader の `modules` に複数モジュールを同梱する方式で Phase 1 後半に検証する。
 - WASM コンパイラのため COOP/COEP（`credentialless`）ヘッダーが必須。同一オリジンの `/api/*` には影響しない。
 - ブラウザから Astro Docs MCP / ローカル LLM に直接接続しない（CORS）。常に Worker を経由する。
+- browser レンダラーでは生成コードがユーザーのブラウザ（同一オリジンの Worker）で実行される。個人利用では許容するが、公開時は別オリジンの sandbox iframe + CSP で隔離する（Phase 4）。`server` レンダラーは Cloudflare 側の隔離環境で通信遮断済み。
+- browser レンダラーのバンドルに `node:*` 依存が混入した場合は `astro.config.ts` がビルドを失敗させる（Astro 更新時の検知）。

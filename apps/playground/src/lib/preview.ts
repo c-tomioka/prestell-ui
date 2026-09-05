@@ -1,11 +1,24 @@
 // Derived from withastro/astro-playground (MIT). See THIRD_PARTY_NOTICES.md at the repository root.
+//
+// Preview pipeline: validate the compile result, hand the prepared code to a
+// renderer, and wrap the rendered HTML into a sandboxed document.
+//
+// Two renderers implement the same contract:
+//   - BrowserPreviewRenderer: astro/container inside a Web Worker (default, no server)
+//   - ServerPreviewRenderer:  POST /api/render → Worker Loader dynamic Worker
+// The active one is chosen at build time via PUBLIC_PREVIEW_RENDERER (see config.ts).
 import type { CompileResult } from "@astrojs/compiler-binding";
 import type { ParsedAst } from "./compiler-protocol";
-import { PREVIEW_TIMEOUT_MS } from "./config";
+import { PREVIEW_RENDERER, PREVIEW_TIMEOUT_MS } from "./config";
 import type {
+	PreviewRendererMode,
 	PreviewRenderRequest,
 	PreviewRenderResponse,
+	PreviewWorkerRequest,
+	PreviewWorkerResponse,
 } from "./preview-protocol";
+
+export type { PreviewRendererMode };
 
 interface ActiveRender {
 	controller: AbortController;
@@ -117,22 +130,180 @@ export function preparePreviewCode(code: string): string {
 	return code.replace(STYLE_IMPORT, "");
 }
 
-export interface PreviewClientOptions {
+export function toPreviewRequest(result: CompileResult): PreviewRenderRequest {
+	return {
+		code: preparePreviewCode(result.code),
+		scripts: result.scripts.map((script) =>
+			script.type === "inline"
+				? { type: "inline", code: script.code }
+				: { type: "external", src: script.src },
+		),
+		containsHead: result.containsHead,
+		propagation: result.propagation,
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Renderers
+// ---------------------------------------------------------------------------
+
+export interface PreviewRenderer {
+	readonly mode: PreviewRendererMode;
+	/** Render the prepared request. Must reject with `signal.reason` when aborted. */
+	render(request: PreviewRenderRequest, signal: AbortSignal): Promise<string>;
+	dispose(): void;
+}
+
+export interface ServerPreviewRendererOptions {
 	endpoint?: string;
 	fetch?: typeof globalThis.fetch;
+}
+
+/** Renders via `POST /api/render` (Cloudflare Worker Loader). */
+export class ServerPreviewRenderer implements PreviewRenderer {
+	readonly mode = "server" as const;
+	#endpoint: string;
+	#fetch: typeof globalThis.fetch;
+
+	constructor(options: ServerPreviewRendererOptions = {}) {
+		this.#endpoint = options.endpoint ?? "/api/render";
+		this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+	}
+
+	async render(
+		request: PreviewRenderRequest,
+		signal: AbortSignal,
+	): Promise<string> {
+		const response = await this.#fetch(this.#endpoint, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(request),
+			signal,
+		});
+		const payload = (await response.json()) as PreviewRenderResponse;
+		if (!payload || typeof payload !== "object" || !("ok" in payload)) {
+			throw new Error("The preview server returned an invalid response.");
+		}
+		if (!response.ok || !payload.ok) {
+			throw new Error(
+				"error" in payload
+					? payload.error
+					: "The preview server returned an error.",
+			);
+		}
+		return payload.html;
+	}
+
+	dispose(): void {}
+}
+
+interface PendingRender {
+	resolve: (html: string) => void;
+	reject: (reason: unknown) => void;
+}
+
+/**
+ * Renders inside a dedicated Web Worker running `astro/container`.
+ *
+ * Generated code cannot be interrupted once it is executing, so an abort (user
+ * edit, timeout on an infinite loop) terminates the Worker; the next render
+ * spawns a fresh one — the same recovery strategy as `CompilerClient`.
+ */
+export class BrowserPreviewRenderer implements PreviewRenderer {
+	readonly mode = "browser" as const;
+	#worker: Worker | null = null;
+	#seq = 0;
+	#pending = new Map<number, PendingRender>();
+
+	#spawn(): Worker {
+		const worker = new Worker(
+			new URL("./preview-browser.worker.ts", import.meta.url),
+			{ type: "module", name: "astro-preview" },
+		);
+		worker.onmessage = (event: MessageEvent<PreviewWorkerResponse>) => {
+			const pending = this.#pending.get(event.data.id);
+			if (!pending) return;
+			this.#pending.delete(event.data.id);
+			if (event.data.ok) pending.resolve(event.data.html);
+			else pending.reject(new Error(event.data.error));
+		};
+		worker.onerror = (event) =>
+			this.#crash(new Error(event.message || "The preview worker crashed."));
+		worker.onmessageerror = () =>
+			this.#crash(new Error("The preview worker sent an invalid message."));
+		this.#worker = worker;
+		return worker;
+	}
+
+	#crash(reason: unknown) {
+		this.#worker?.terminate();
+		this.#worker = null;
+		for (const pending of this.#pending.values()) pending.reject(reason);
+		this.#pending.clear();
+	}
+
+	render(request: PreviewRenderRequest, signal: AbortSignal): Promise<string> {
+		if (signal.aborted) return Promise.reject(signal.reason);
+		const worker = this.#worker ?? this.#spawn();
+		const id = ++this.#seq;
+		return new Promise<string>((resolve, reject) => {
+			const onAbort = () => {
+				if (this.#pending.has(id)) this.#crash(signal.reason);
+			};
+			signal.addEventListener("abort", onAbort, { once: true });
+			this.#pending.set(id, {
+				resolve: (html) => {
+					signal.removeEventListener("abort", onAbort);
+					resolve(html);
+				},
+				reject: (reason) => {
+					signal.removeEventListener("abort", onAbort);
+					reject(reason);
+				},
+			});
+			const message: PreviewWorkerRequest = { id, ...request };
+			worker.postMessage(message);
+		});
+	}
+
+	dispose(): void {
+		this.#crash(new Error("Preview renderer disposed."));
+	}
+}
+
+export function createPreviewRenderer(
+	mode: PreviewRendererMode,
+): PreviewRenderer {
+	return mode === "server"
+		? new ServerPreviewRenderer()
+		: new BrowserPreviewRenderer();
+}
+
+// ---------------------------------------------------------------------------
+// Client
+// ---------------------------------------------------------------------------
+
+export interface PreviewClientOptions extends ServerPreviewRendererOptions {
+	renderer?: PreviewRenderer;
 	timeoutMs?: number;
 }
 
 export class PreviewClient {
 	#active: ActiveRender | null = null;
-	#endpoint: string;
-	#fetch: typeof globalThis.fetch;
+	#renderer: PreviewRenderer;
 	#timeoutMs: number;
 
 	constructor(options: PreviewClientOptions = {}) {
-		this.#endpoint = options.endpoint ?? "/api/render";
-		this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+		this.#renderer =
+			options.renderer ??
+			(options.fetch || options.endpoint
+				? new ServerPreviewRenderer(options)
+				: createPreviewRenderer(PREVIEW_RENDERER));
 		this.#timeoutMs = options.timeoutMs ?? PREVIEW_TIMEOUT_MS;
+	}
+
+	get mode(): PreviewRendererMode {
+		return this.#renderer.mode;
 	}
 
 	async render(result: CompileResult): Promise<string> {
@@ -146,36 +317,11 @@ export class PreviewClient {
 		}, this.#timeoutMs);
 		this.#active = { controller, timer };
 
-		const request: PreviewRenderRequest = {
-			code: preparePreviewCode(result.code),
-			scripts: result.scripts.map((script) =>
-				script.type === "inline"
-					? { type: "inline", code: script.code }
-					: { type: "external", src: script.src },
-			),
-			containsHead: result.containsHead,
-			propagation: result.propagation,
-		};
-
 		try {
-			const response = await this.#fetch(this.#endpoint, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(request),
-				signal: controller.signal,
-			});
-			const payload = (await response.json()) as PreviewRenderResponse;
-			if (!payload || typeof payload !== "object" || !("ok" in payload)) {
-				throw new Error("The preview server returned an invalid response.");
-			}
-			if (!response.ok || !payload.ok) {
-				throw new Error(
-					"error" in payload
-						? payload.error
-						: "The preview server returned an error.",
-				);
-			}
-			return payload.html;
+			return await this.#renderer.render(
+				toPreviewRequest(result),
+				controller.signal,
+			);
 		} catch (error) {
 			if (
 				controller.signal.aborted &&
@@ -200,6 +346,7 @@ export class PreviewClient {
 
 	dispose(): void {
 		this.cancel();
+		this.#renderer.dispose();
 	}
 }
 

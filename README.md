@@ -8,7 +8,7 @@ Astro公式Playgroundをベースに、自然言語でUI・ページ・コンポ
 ## 特徴
 
 - AIチャットによるAstroコンポーネント・ページの生成と編集
-- ブラウザ上でのライブプレビュー
+- ブラウザ上でのライブプレビュー（既定はブラウザ内レンダリング。サーバー側レンダリングにも切替可）
 - 複数LLMプロバイダーの切り替え
   - Anthropic Claude
   - OpenAI
@@ -51,7 +51,23 @@ cp apps/playground/.dev.vars.example apps/playground/.dev.vars
 pnpm dev
 ```
 
-`astro dev` は Cloudflare Workers ランタイム（workerd）上で動き、`/api/*` も同じプロセスで提供されるため、`wrangler dev` を別途起動する必要はありません。dev サーバーは daemon 化されるので、停止は `pnpm --filter @prestell/playground run dev:stop` です。
+`astro dev` は Cloudflare Workers ランタイム（workerd）上で動き、`/api/*` も同じプロセスで提供されるため、`wrangler dev` を別途起動する必要はありません。dev サーバーは daemon 化されるので、停止は `pnpm dev:stop` です。
+
+### プレビューのレンダリング場所
+
+既定では **ブラウザ内の Web Worker** が Astro コンポーネントをレンダリングします（サーバー呼び出しなし、静的ホスティングでも動く構成）。上流の Astro Playground と同じ **サーバー側レンダリング**（Cloudflare Worker Loader、`/api/render`）に切り替えたい場合は環境変数で指定します。
+
+```bash
+# ブラウザ内レンダリング（既定）
+pnpm dev
+
+# サーバー側レンダリング
+pnpm dev:server
+# または
+PUBLIC_PREVIEW_RENDERER=server pnpm dev
+```
+
+現在のモードは出力ペイン右上のバッジ（`browser` / `server`）で確認できます。
 
 ## 環境変数
 
@@ -171,7 +187,7 @@ lms load qwen/qwen2.5-coder-7b-instruct -y
 8. 終了する
 
    ```bash
-   pnpm --filter @prestell/playground run dev:stop
+   pnpm dev:stop
    # LM Studio を CLI で起動した場合
    lms unload --all && lms server stop
    ```
@@ -210,6 +226,7 @@ Astro Docs を参照させたい場合は「Astro docs」を `inject`（ロー�
 - [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md): システム構成と技術選定
 - [`ROADMAP.md`](./docs/ROADMAP.md): 開発フェーズとロードマップ
 - [`LOCAL_LLM.md`](./docs/LOCAL_LLM.md): OllamaなどローカルLLMとの接続
+- [`PREVIEW_RENDERING.md`](./docs/PREVIEW_RENDERING.md): プレビューのレンダリング方式（browser / server）と比較
 - [`DEVELOPMENT.md`](./docs/DEVELOPMENT.md): ローカル開発環境の詳細
 
 ## ライセンス
