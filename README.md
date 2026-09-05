@@ -79,11 +79,16 @@ OLLAMA_BASE_URL=http://localhost:11434/v1
 LMSTUDIO_BASE_URL=http://localhost:1234/v1
 
 # Cloudflare AI Gateway（外部LLMを使う場合）
-# https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}
+# ダッシュボードに表示される REST API の URL を貼る（末尾の /run は付いていてもよい）
+#   https://api.cloudflare.com/client/v4/accounts/<account_id>/ai
 CF_AI_GATEWAY_URL=
+# 「Account > Workers AI > Read」権限の Cloudflare API トークン
 CF_AI_GATEWAY_TOKEN=
+# Gateway 名（例: default）。Workers AI を使う場合は必須
+CF_AI_GATEWAY_ID=
 
-# 外部LLM（AI Gateway に BYOK 登録していない場合のみ）
+# 外部LLM のキー。ここに書くと Gateway 経由でそのままプロバイダーへ渡す（BYOK パススルー）。
+# 空のままなら AI Gateway 側の設定（BYOK Provider Keys または Unified Billing 残高）が使われる
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
 GOOGLE_API_KEY=

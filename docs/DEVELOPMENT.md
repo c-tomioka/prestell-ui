@@ -19,7 +19,7 @@ NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 2. `pnpm install`
 3. `cp apps/playground/.dev.vars.example apps/playground/.dev.vars` を作成し、必要な値を設定
    - ローカル LLM だけなら変更不要（`OLLAMA_BASE_URL` / `LMSTUDIO_BASE_URL` は既定値でよい）
-   - 外部 LLM を使う場合は `CF_AI_GATEWAY_URL`（`https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}`）と `CF_AI_GATEWAY_TOKEN`、BYOK を Gateway に登録していなければ各 `*_API_KEY`
+   - 外部 LLM を使う場合は `CF_AI_GATEWAY_URL`（ダッシュボードの REST API URL `https://api.cloudflare.com/client/v4/accounts/{account_id}/ai`）、`CF_AI_GATEWAY_TOKEN`（Workers AI Read 権限の API トークン）、`CF_AI_GATEWAY_ID`（Gateway 名。Workers AI では必須）。外部プロバイダーのキーは Gateway 側の BYOK / Unified Billing で管理する。旧形式 `gateway.ai.cloudflare.com/v1/...` も受け付ける
 4. ローカル LLM を起動（詳細は `LOCAL_LLM.md`）
    - Ollama: `ollama serve` と `ollama pull qwen2.5-coder:7b` など
    - LM Studio: Developer タブで Start Server、モデルをロード
@@ -50,8 +50,7 @@ NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 5. ローカル保存（File System Access API / ダウンロード）
 
 残タスク:
-- AI Gateway 経由の外部 LLM（Claude 等）での E2E 確認（Ollama qwen2.5-coder:7b と LM Studio google/gemma-4-e4b は確認済み）
-- AI Gateway 経由での `stream` / `tools` 透過の実測（不可なら provider-native endpoint に切替）
+- AI Gateway 経由の Claude での生成 E2E（Gateway 通過は確認済み、Anthropic 側の残高投入待ち）。Workers AI llama-4-scout は tools 含め確認済み
 - 複数ファイル（相対 import）対応の検証（ストレッチ）
 - AI direct モード（ブラウザから LLM を直接呼ぶ BYOK 構成）は Phase 4 で実装（`ROADMAP.md`）
 

@@ -59,7 +59,7 @@
 ### 3. LLM プロバイダー層（`src/server/ai/providers.ts`）
 - すべて OpenAI 互換 `/chat/completions` なので `@ai-sdk/openai-compatible` 1本で統一。
 - ローカル: Ollama / LM Studio へ Worker から直接 fetch（API キー不要）。
-- クラウド: AI Gateway Unified API `{CF_AI_GATEWAY_URL}/compat`、モデルは `anthropic/…`, `openai/…`, `google-ai-studio/…`, `workers-ai/…`。認証は `cf-aig-authorization`（Gateway）+ 任意の `Authorization`（BYOK 未登録時のプロバイダーキー）。
+- クラウド: AI Gateway の REST API `https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/chat/completions`（OpenAI 互換）。認証は Cloudflare API トークン（`Authorization`、Workers AI Read 権限）、Gateway 指定は `cf-aig-gateway-id`。モデルは `anthropic/…`, `openai/…`, `google/…`、Workers AI は `@cf/…`。外部プロバイダーのキーは Gateway 側の BYOK / Unified Billing。旧 `gateway.ai.cloudflare.com/.../compat` 形式も `gatewayConfig()` が判別して対応。
 - AI Gateway の Custom Providers は HTTPS 必須のため localhost の Ollama は登録できない（`LOCAL_LLM.md` 参照）。
 
 ### 4. MCP 連携（`src/server/ai/mcp.ts`）

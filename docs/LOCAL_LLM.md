@@ -16,7 +16,8 @@ Cloudflare AI Gateway の Custom Providers は **base URL が HTTPS 必須**の�
 provider: "ollama"     → Worker → ${OLLAMA_BASE_URL}/chat/completions   (既定 http://localhost:11434/v1)
 provider: "lmstudio"   → Worker → ${LMSTUDIO_BASE_URL}/chat/completions (既定 http://localhost:1234/v1)
 provider: "anthropic" / "openai" / "google" / "workers-ai"
-                       → Worker → AI Gateway ${CF_AI_GATEWAY_URL}/compat/chat/completions
+                       → Worker → AI Gateway REST API …/accounts/{account_id}/ai/v1/chat/completions
+                         （旧形式 ${CF_AI_GATEWAY_URL}/compat/chat/completions も可）
 ```
 
 すべて OpenAI 互換 `/chat/completions` なので、実装は `@ai-sdk/openai-compatible` 1本（`apps/playground/src/server/ai/providers.ts`）。
@@ -49,6 +50,23 @@ provider: "anthropic" / "openai" / "google" / "workers-ai"
   - `inject`: 直近のユーザー発話で `search_astro_docs` を先に1回実行し、上位数件を system prompt に埋め込む（ローカルモデル推奨）
   - `tools`: MCP tools を `streamText` に渡し、モデル自身が検索する（クラウドモデル推奨）
 - MCP 接続失敗時はドキュメントなしでチャットを継続する
+
+## Cloudflare AI Gateway（外部 LLM）の接続仕様
+
+`apps/playground/src/server/ai/providers.ts` の `gatewayConfig()` が `.dev.vars` から接続方式を決める。
+
+| 設定 | 経路 | 認証 | 用途 |
+|---|---|---|---|
+| `CF_AI_GATEWAY_URL` が `api.cloudflare.com/client/v4/accounts/{id}/ai…`（REST、現行） | `…/ai/v1/chat/completions` | `Authorization: Bearer CF_AI_GATEWAY_TOKEN`、`cf-aig-gateway-id: CF_AI_GATEWAY_ID` | Workers AI と、Gateway 側に BYOK 保存済み / Unified Billing 残高のある外部モデル |
+| REST URL + `.dev.vars` に `ANTHROPIC_API_KEY` 等がある | 自動で旧 compat `gateway.ai.cloudflare.com/v1/{id}/{gateway}/compat` | `cf-aig-authorization: Bearer CF_AI_GATEWAY_TOKEN` + `Authorization: Bearer <プロバイダーキー>` | ローカルのキーをそのまま使う BYOK パススルー（実測で Anthropic まで到達） |
+| `CF_AI_GATEWAY_URL` が `gateway.ai.cloudflare.com/v1/…`（旧形式） | compat | 同上 | 既存設定との互換 |
+
+- モデル ID は REST カタログ表記で指定する（`anthropic/claude-sonnet-4.5`、`anthropic/claude-opus-5`、`google/gemini-3-flash`、`openai/gpt-5.2`、Workers AI は `@cf/…`）。Anthropic は compat 経路ではハイフン表記（`claude-sonnet-4-5`）に自動変換する。
+- 実測（2026-09-06）:
+  - Workers AI `@cf/meta/llama-4-scout-17b-16e-instruct`: ストリーミング、`docsMode: tools`（`search_astro_docs` 呼び出し → 結果を踏まえた回答）まで動作。`@cf/meta/llama-3.3-70b-instruct-fp8-fast` はストリーミング可だが tool 結果の送り返しで 400。`@cf/moonshotai/kimi-k2.6` は 403（プリペイドクレジットが必要）。
+  - Workers AI は `delta.content` を数値で返すチャンクを混ぜることがあるため、`sanitizingFetch()` で文字列化してから AI SDK に渡している。
+  - REST で第三者モデルを呼ぶには Gateway 側の残高か BYOK 保存キーが必要（無いと 402）。`.dev.vars` のキーは REST には渡らないため、上記のパススルーで compat に切り替える。
+  - Anthropic のキーが有効でも Anthropic アカウント側の残高が無いと「credit balance is too low」で失敗する（Cloudflare 側の問題ではない）。
 
 ## 環境変数一覧（ローカル LLM 関連, `apps/playground/.dev.vars`）
 | 変数名 | 用途 | デフォルト |
