@@ -29,9 +29,13 @@ provider: "anthropic" / "openai" / "google" / "workers-ai"
 - ストリーミング・tool calling（`tools`）対応。`tool_choice` は未対応
 
 ### LM Studio
-- アプリの Developer タブ → Start Server（既定 `http://localhost:1234/v1`）、または `lms server start`
-- `/v1/models` にロード済みモデルが列挙される。tool use 対応モデルなら `tools` も使える
-- CORS は不要（Worker 経由のため）。ブラウザ直結モードを試す場合のみ `lms server start --cors`
+- アプリの Developer タブ → Start Server（既定 `http://localhost:1234/v1`）、または同梱 CLI で `lms server start --port 1234`
+  - CLI は `/Applications/LM Studio.app/Contents/Resources/app/.webpack/lms`。`lms bootstrap` で `~/.lmstudio/bin` に入る
+  - モデル取得は `lms get <owner/model> -y`、ロードは `lms load <model> -y`、確認は `lms ls` / `lms ps`
+- `/v1/models` にはダウンロード済みモデル（埋め込みモデル含む）が列挙される。モデル ID は LM Studio の識別子（例: `google/gemma-4-e4b`）
+- JIT ロードが有効なら未ロードのモデルでも初回リクエストで自動ロードされる（初回応答が遅くなる）
+- tool use 対応モデルなら `tools` も使える。CORS は不要（Worker 経由のため）。ブラウザ直結モードを試す場合のみ `lms server start --cors`
+- 実機確認済み: LM Studio 0.3.31 + `google/gemma-4-e4b` で「生成 → 検証 → 適用 → Preview」が動作
 
 ## フロントエンドのプロバイダー選択 UI
 - チャットパネルのドロップダウンでプロバイダーを選択。未設定（AI Gateway 未構成）のプロバイダーは選択不可で理由を表示

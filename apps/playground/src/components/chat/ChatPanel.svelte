@@ -62,7 +62,10 @@
 			if (provider !== settings.provider) return;
 			if (payload.ok) {
 				models = payload.models;
-				if (!settings.models[provider] && models[0]) {
+				// Adopt the first listed model when nothing is chosen yet, or when the
+				// remembered id no longer exists on the server (e.g. model was removed).
+				const chosen = settings.models[provider];
+				if (models[0] && (!chosen || !models.includes(chosen))) {
 					settings.models[provider] = models[0];
 				}
 				if (models.length === 0 && providers.find((p) => p.id === provider)?.kind === 'local') {

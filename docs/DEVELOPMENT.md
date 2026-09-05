@@ -48,7 +48,7 @@ NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 5. ローカル保存（File System Access API / ダウンロード）
 
 残タスク:
-- LM Studio と AI Gateway 経由の外部 LLM（Claude 等）での E2E 確認（Ollama qwen2.5-coder:7b は確認済み）
+- AI Gateway 経由の外部 LLM（Claude 等）での E2E 確認（Ollama qwen2.5-coder:7b と LM Studio google/gemma-4-e4b は確認済み）
 - AI Gateway 経由での `stream` / `tools` 透過の実測（不可なら provider-native endpoint に切替）
 - 複数ファイル（相対 import）対応の検証（ストレッチ）
 

@@ -8,7 +8,7 @@
 - [ ] Cloudflare AI Gateway をローカルから接続し、最低1つの外部LLM（例: Claude）で動作確認（コードは実装済み、要 `.dev.vars` 設定と実測）
 - [x] Astro Docs MCP Server を接続し、tool calling（`docsMode: tools`）と事前検索埋め込み（`docsMode: inject`）を実装
 - [x] LLM の生成コードをコンパイラで検証してエディタに反映し、Preview が更新されることを確認
-- [x] Ollama のローカルモデル（qwen2.5-coder:7b）で「プロンプト→生成→検証→適用→Preview」を確認。LM Studio は接続実装済み・実機未確認（`LOCAL_LLM.md` 参照）
+- [x] Ollama（qwen2.5-coder:7b）と LM Studio（google/gemma-4-e4b）のローカルモデルで「プロンプト→生成→検証→適用→Preview」と切替を確認（`LOCAL_LLM.md` 参照）
 - [x] 生成コードをローカルファイルシステムに書き出す機能を実装（File System Access API / ダウンロード）
 - [ ] （ストレッチ）複数ファイル・相対 import 対応の検証
 

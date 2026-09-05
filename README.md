@@ -88,13 +88,21 @@ ollama pull qwen2.5-coder:7b
 ollama serve
 ```
 
-LM Studio の場合は Developer タブで Start Server を押し、モデルをロードしてください。アプリ上でプロバイダーとして「Ollama (local)」または「LM Studio (local)」を選ぶと、利用可能なモデルが候補に出ます。詳細は [`docs/LOCAL_LLM.md`](./docs/LOCAL_LLM.md) を参照してください。
+```bash
+# LM Studio: 同梱の lms CLI でモデルを取得し、サーバー起動とロードを行う（GUI でも可）
+alias lms="/Applications/LM Studio.app/Contents/Resources/app/.webpack/lms"   # 初回に lms bootstrap を実行すると PATH に入る
+lms get qwen/qwen2.5-coder-7b-instruct -y
+lms server start --port 1234
+lms load qwen/qwen2.5-coder-7b-instruct -y
+```
 
-## ローカルLLMでの動作確認手順（Ollama）
+アプリ上でプロバイダーとして「Ollama (local)」または「LM Studio (local)」を選ぶと、利用可能なモデルが候補に出ます。どちらも Worker から直接接続するため、CORS 設定は不要です。詳細は [`docs/LOCAL_LLM.md`](./docs/LOCAL_LLM.md) を参照してください。
 
-外部 API キーなしで「プロンプト → 生成 → 検証 → 適用 → Preview」のループが動くことを目視で確認する手順です。
+## ローカルLLMでの動作確認手順（Ollama / LM Studio）
 
-1. モデルを取得して Ollama を起動する（初回のみ pull、約 4.7GB）
+外部 API キーなしで「プロンプト → 生成 → 検証 → 適用 → Preview」のループが動くことを目視で確認する手順です。手順 1 は使うサーバーに合わせて A（Ollama）か B（LM Studio）のどちらかを行います。
+
+1-A. Ollama: モデルを取得してサーバーを起動する（初回のみ pull、約 4.7GB）
 
    ```bash
    ollama pull qwen2.5-coder:7b
@@ -102,6 +110,25 @@ LM Studio の場合は Developer タブで Start Server を押し、モデルを
    ```
 
    別ターミナルで `curl http://localhost:11434/v1/models` を実行し、`qwen2.5-coder:7b` が含まれていれば準備完了です。
+
+1-B. LM Studio: モデルをロードしてローカルサーバーを起動する
+
+   GUI の場合:
+   - LM Studio を起動し、Discover（虫眼鏡）からコード向けモデル（例: `qwen2.5-coder-7b-instruct`）をダウンロードする
+   - 左のナビゲーションで Developer（`<>` アイコン）を開き、上部のトグルで **Start Server**（既定ポート 1234）
+   - 「Select a model to load」でモデルをロードする（JIT ロードが有効なら未ロードでも初回リクエスト時に自動でロードされる）
+
+   CLI の場合（アプリ同梱の `lms` を使う。`lms bootstrap` を一度実行すると `~/.lmstudio/bin/lms` が作られ PATH に入る）:
+
+   ```bash
+   alias lms="/Applications/LM Studio.app/Contents/Resources/app/.webpack/lms"
+   lms get qwen/qwen2.5-coder-7b-instruct -y   # ダウンロード（既にあるモデルは lms ls で確認）
+   lms server start --port 1234                # CORS 指定は不要（Worker から直接接続するため）
+   lms load qwen/qwen2.5-coder-7b-instruct -y  # メモリにロード
+   lms ps                                      # ロード済みモデルと識別子を確認
+   ```
+
+   `curl http://localhost:1234/v1/models` にモデルが含まれていれば準備完了です。モデル ID は LM Studio が表示する識別子（例: `google/gemma-4-e4b`）をそのまま使います。
 
 2. dev サーバーを起動してブラウザで開く
 
@@ -112,9 +139,9 @@ LM Studio の場合は Developer タブで Start Server を押し、モデルを
    http://localhost:4321 を開くと、左にエディタ、中央に Preview、右に AI chat パネルが表示されます。
    AI chat パネルが閉じている場合はツールバー右上の「AI chat」を押してください。
 
-3. AI chat パネルで Provider を「Ollama (local)」にする
-   - Model 欄に `qwen2.5-coder:7b` が自動で入ります（候補は `/api/models` が Ollama から取得）
-   - 「Ollama が起動していません」等のヒントが出る場合は手順 1 を確認してください
+3. AI chat パネルで Provider を「Ollama (local)」または「LM Studio (local)」にする
+   - Model 欄にサーバーの先頭モデル（例: `qwen2.5-coder:7b` / `google/gemma-4-e4b`）が自動で入ります（候補は `/api/models` が各サーバーの `/v1/models` から取得）。以前選んだモデルがサーバーに無い場合も先頭候補に置き換わります
+   - 「Ollama が起動していません」「LM Studio のサーバーが起動していません」等のヒントが出る場合は手順 1 を確認してください
    - 「Auto-apply valid proposals」がオンになっていることを確認します
 
 4. プロンプトを送る（⌘/Ctrl+Enter でも送信できます）
@@ -126,7 +153,7 @@ LM Studio の場合は Developer タブで Start Server を押し、モデルを
 5. 次の順に変化することを目視で確認する
    - Assistant の返答がストリーミングで表示され、「Component proposal」カードに「Generating…」と行数が出る
    - 生成完了後にカードが「Validating…」→「Applied to editor」に変わる
-   - 左のエディタが生成コードに置き換わり、中央の Preview が再描画される（7B モデルで 20〜40 秒程度）
+   - 左のエディタが生成コードに置き換わり、中央の Preview が再描画される（7B クラスのモデルで 10〜40 秒程度）
    - Preview タブ以外（JS / CSS / Diagnostics）でもコンパイル結果が確認できる
 
 6. 検証が働くことを確認する（任意）
@@ -144,9 +171,11 @@ LM Studio の場合は Developer タブで Start Server を押し、モデルを
 
    ```bash
    pnpm --filter @prestell/playground run dev:stop
+   # LM Studio を CLI で起動した場合
+   lms unload --all && lms server stop
    ```
 
-LM Studio の場合は、アプリの Developer タブで Start Server を押してモデルをロードし、手順 3 で「LM Studio (local)」を選びます。Astro Docs を参照させたい場合は「Astro docs」を `inject`（ローカルモデル推奨）にしてください。
+Astro Docs を参照させたい場合は「Astro docs」を `inject`（ローカルモデル推奨）にしてください。
 
 ## 使い方
 
