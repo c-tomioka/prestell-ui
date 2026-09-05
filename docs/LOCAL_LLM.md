@@ -66,7 +66,7 @@ provider: "anthropic" / "openai" / "google" / "workers-ai"
   - Workers AI `@cf/meta/llama-4-scout-17b-16e-instruct`: ストリーミング、`docsMode: tools`（`search_astro_docs` 呼び出し → 結果を踏まえた回答）まで動作。`@cf/meta/llama-3.3-70b-instruct-fp8-fast` はストリーミング可だが tool 結果の送り返しで 400。`@cf/moonshotai/kimi-k2.6` は 403（プリペイドクレジットが必要）。
   - Workers AI は `delta.content` を数値で返すチャンクを混ぜることがあるため、`sanitizingFetch()` で文字列化してから AI SDK に渡している。
   - REST で第三者モデルを呼ぶには Gateway 側の残高か BYOK 保存キーが必要（無いと 402）。`.dev.vars` のキーは REST には渡らないため、上記のパススルーで compat に切り替える。
-  - Anthropic のキーが有効でも Anthropic アカウント側の残高が無いと「credit balance is too low」で失敗する（Cloudflare 側の問題ではない）。
+  - Anthropic `claude-sonnet-4.5`（BYOK パススルー）: ストリーミング（約 27 秒で 6,000 文字）と `docsMode: tools`（`search_astro_docs` を 2 回呼んでから回答）まで動作。Anthropic アカウント側の残高が無いと「credit balance is too low」で失敗する（Cloudflare 側の問題ではない）。
 
 ## 環境変数一覧（ローカル LLM 関連, `apps/playground/.dev.vars`）
 | 変数名 | 用途 | デフォルト |

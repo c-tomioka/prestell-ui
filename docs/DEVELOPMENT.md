@@ -50,7 +50,7 @@ NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 5. ローカル保存（File System Access API / ダウンロード）
 
 残タスク:
-- AI Gateway 経由の Claude での生成 E2E（Gateway 通過は確認済み、Anthropic 側の残高投入待ち）。Workers AI llama-4-scout は tools 含め確認済み
+- （Phase 1 の残タスクなし。Ollama / LM Studio / AI Gateway 経由の Claude と Workers AI で E2E 確認済み）
 - 複数ファイル（相対 import）対応の検証（ストレッチ）
 - AI direct モード（ブラウザから LLM を直接呼ぶ BYOK 構成）は Phase 4 で実装（`ROADMAP.md`）
 

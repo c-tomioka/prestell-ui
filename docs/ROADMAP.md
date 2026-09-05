@@ -5,7 +5,7 @@
 
 - [x] `withastro/astro-playground` を参考に `apps/playground` を構築し、`pnpm dev`（astro dev = workerd）でエディタ + Preview が動くことを確認
 - [x] チャットUIパネルを追加（プロンプト入力→送信→ストリーミング表示）
-- [x] Cloudflare AI Gateway をローカルから接続して実測（2026-09-06）。Workers AI（`@cf/meta/llama-4-scout-17b-16e-instruct`）でストリーミングと `docsMode: tools` の tool calling → MCP 検索 → 回答まで確認。Anthropic は `.dev.vars` のキーを Gateway 経由でパススルーし Anthropic まで到達（応答は Anthropic 側の残高不足）。詳細は `LOCAL_LLM.md` の「Cloudflare AI Gateway」節
+- [x] Cloudflare AI Gateway をローカルから接続して実測（2026-09-06）。Anthropic（`claude-sonnet-4.5`、BYOK パススルー）と Workers AI（`@cf/meta/llama-4-scout-17b-16e-instruct`）でストリーミングと `docsMode: tools`（`search_astro_docs` → 回答）を確認。詳細は `LOCAL_LLM.md` の「Cloudflare AI Gateway」節
 - [x] Astro Docs MCP Server を接続し、tool calling（`docsMode: tools`）と事前検索埋め込み（`docsMode: inject`）を実装
 - [x] LLM の生成コードをコンパイラで検証してエディタに反映し、Preview が更新されることを確認
 - [x] Ollama（qwen2.5-coder:7b）と LM Studio（google/gemma-4-e4b）のローカルモデルで「プロンプト→生成→検証→適用→Preview」と切替を確認（`LOCAL_LLM.md` 参照）
