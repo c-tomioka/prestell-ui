@@ -61,6 +61,8 @@ NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 | `PREVIEW_TIMEOUT_MS` | 5000 | プレビューのタイムアウト |
 | `COMPILER_TIMEOUT_MS` | 8000 | コンパイラ Worker のタイムアウト（超過で再起動） |
 
+UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にすると手入力編集での自動レンダリング自体を止められる（↻ で手動描画、設定は localStorage `prestell.preview.auto` に保存。`src/lib/preview-settings.ts`）。コンパイルと Diagnostics は常に自動。
+
 ## コーディング規約・注意点
 
 - 言語: TypeScript。Workers 側（`src/pages/api`, `src/server`）も TypeScript

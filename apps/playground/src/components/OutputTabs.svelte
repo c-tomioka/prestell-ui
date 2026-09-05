@@ -18,7 +18,11 @@
 		previewStatus: 'idle' | 'rendering' | 'ready' | 'error' | 'unsupported';
 		previewDocument: string;
 		previewError: string;
+		autoPreview: boolean;
+		previewStale: boolean;
 		onTabChange: (tab: TabId) => void;
+		onToggleAutoPreview: () => void;
+		onRefreshPreview: () => void;
 	}
 
 	let {
@@ -28,7 +32,11 @@
 		previewStatus,
 		previewDocument,
 		previewError,
+		autoPreview,
+		previewStale,
 		onTabChange,
+		onToggleAutoPreview,
+		onRefreshPreview,
 	}: Props = $props();
 
 	type TabId =
@@ -157,6 +165,7 @@
 </script>
 
 <div class="outputs">
+	<div class="output-head">
 	<div class="tablist" role="tablist" aria-label="Compiler output">
 		{#each TABS as tab (tab.id)}
 			<button
@@ -178,6 +187,42 @@
 			</button>
 		{/each}
 	</div>
+		<div class="preview-controls" class:inactive={active !== 'preview'}>
+			<label class="switch" title="Render the preview automatically after each edit">
+				<input
+					type="checkbox"
+					role="switch"
+					aria-checked={autoPreview}
+					checked={autoPreview}
+					disabled={active !== 'preview'}
+					onchange={onToggleAutoPreview}
+				/>
+				<span class="track" aria-hidden="true"></span>
+				<span class="switch-label">Auto</span>
+			</label>
+			<button
+				type="button"
+				class="refresh"
+				class:stale={previewStale}
+				class:spinning={previewStatus === 'rendering'}
+				aria-label={previewStale ? 'Render preview now (changes not rendered)' : 'Render preview now'}
+				title={previewStale ? 'Changes not rendered' : 'Render preview now'}
+				disabled={active !== 'preview' || previewStatus === 'rendering'}
+				onclick={onRefreshPreview}
+			>
+				<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+					<path
+						d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.6"
+						stroke-linecap="round"
+					/>
+					<path d="M13.6 1.6v3.2h-3.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+				</svg>
+			</button>
+		</div>
+	</div>
 
 	<!-- biome-ignore lint/a11y/noNoninteractiveTabindex: false-positive. A tabpanel must have a tab index -->
 	<div class="panel" id="output-panel" role="tabpanel" aria-labelledby={`tab-${active}`} tabindex="0">
@@ -185,6 +230,11 @@
 
 		{#if active === 'preview'}
 			<div class="preview">
+				{#if previewStatus === 'ready' && previewStale}
+					<div class="stale-banner" role="status">
+						Changes not rendered — press ↻ or enable Auto.
+					</div>
+				{/if}
 				{#if previewStatus === 'ready'}
 					<iframe
 						class="preview-frame"
@@ -262,15 +312,134 @@
 		height: 100%;
 		min-height: 0;
 	}
-	.tablist {
+	.output-head {
 		display: flex;
+		align-items: center;
 		flex: none;
-		gap: 0.125rem;
 		height: 40px;
-		padding: 0 0.25rem;
-		overflow-x: auto;
 		border-bottom: 1px solid var(--border);
 		background: var(--panel);
+	}
+	.tablist {
+		display: flex;
+		flex: 1 1 auto;
+		min-width: 0;
+		align-items: center;
+		gap: 0.125rem;
+		height: 100%;
+		padding: 0 0.25rem;
+		overflow-x: auto;
+	}
+	.preview-controls {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0 0.5rem;
+		flex: none;
+		border-left: 1px solid var(--border);
+		height: 100%;
+	}
+	.preview-controls.inactive {
+		opacity: 0.45;
+	}
+	.switch {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.72rem;
+		color: var(--muted);
+		cursor: pointer;
+		position: relative;
+	}
+	.switch input {
+		position: absolute;
+		opacity: 0;
+		width: 0;
+		height: 0;
+	}
+	.switch .track {
+		width: 26px;
+		height: 14px;
+		border-radius: 999px;
+		background: var(--border);
+		position: relative;
+		transition: background 0.15s;
+	}
+	.switch .track::after {
+		content: '';
+		position: absolute;
+		top: 2px;
+		left: 2px;
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		background: var(--bg);
+		transition: transform 0.15s;
+	}
+	.switch input:checked + .track {
+		background: var(--accent);
+	}
+	.switch input:checked + .track::after {
+		transform: translateX(12px);
+	}
+	.switch input:focus-visible + .track {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+	.switch input:disabled ~ * {
+		cursor: default;
+	}
+	.refresh {
+		appearance: none;
+		display: inline-grid;
+		place-items: center;
+		width: 26px;
+		height: 26px;
+		border-radius: 6px;
+		border: 1px solid var(--border);
+		background: transparent;
+		color: var(--muted);
+		cursor: pointer;
+		position: relative;
+	}
+	.refresh:not(:disabled):hover {
+		color: var(--fg);
+		border-color: var(--accent);
+	}
+	.refresh:disabled {
+		cursor: default;
+		opacity: 0.6;
+	}
+	.refresh.stale::after {
+		content: '';
+		position: absolute;
+		top: -3px;
+		right: -3px;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: var(--accent);
+		border: 1px solid var(--panel);
+	}
+	.refresh.spinning svg {
+		animation: spin 0.9s linear infinite;
+	}
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	.stale-banner {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		z-index: 1;
+		padding: 0.3rem 0.75rem;
+		font-size: 0.72rem;
+		color: var(--on-accent);
+		background: color-mix(in srgb, var(--accent) 85%, white);
+		border-bottom: 1px solid var(--border);
 	}
 	.tab {
 		appearance: none;
@@ -320,6 +489,7 @@
 		height: 100%;
 	}
 	.preview {
+		position: relative;
 		background: #fff;
 	}
 	.preview-frame {

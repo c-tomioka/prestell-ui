@@ -15,6 +15,7 @@
 		preview,
 		validatePreview,
 	} from '../lib/preview';
+	import { loadAutoPreview, saveAutoPreview } from '../lib/preview-settings';
 	import { DEFAULT_SOURCE } from '../lib/samples';
 	import { readSharedState, shareUrl, writeSharedState } from '../lib/share';
 	import { applyTheme, initialTheme, type Theme } from '../lib/theme';
@@ -46,6 +47,15 @@
 	);
 	let previewDocument = $state('');
 	let previewError = $state('');
+	/** Render the preview automatically after each edit (false = manual ↻ only). */
+	let autoPreview = $state(loadAutoPreview());
+	/** True when the source changed since the last successful render. */
+	let previewStale = $state(false);
+	/** One-shot: render after the next compile even when Auto is off (AI apply). */
+	let renderAfterCompile = false;
+	$effect(() => {
+		saveAutoPreview(autoPreview);
+	});
 
 	const diagnostics = $derived(
 		result ? toCodeMirrorDiagnostics(source, result.diagnostics) : [],
@@ -95,6 +105,7 @@
 			if (current !== previewRunId) return;
 			previewDocument = createPreviewDocument(html, renderable.css);
 			previewStatus = 'ready';
+			previewStale = false;
 		} catch (error) {
 			if (current !== previewRunId) return;
 			previewStatus = 'error';
@@ -119,8 +130,13 @@
 			compileMs = Math.round(performance.now() - start);
 			status = 'ready';
 			errorMessage = '';
-			if (previewActive) {
+			// Manual mode still renders once on first load (nothing attempted yet).
+			const firstRender = previewStatus === 'idle';
+			if (previewActive && (autoPreview || renderAfterCompile || firstRender)) {
+				renderAfterCompile = false;
 				schedulePreview(compiled, parsed, compileSource, compileOptions);
+			} else if (previewDocument) {
+				previewStale = true;
 			}
 		} catch (error) {
 			if (current !== runId) return;
@@ -150,15 +166,31 @@
 			clearTimeout(previewTimer);
 			previewRunId++;
 			preview.cancel();
-			previewStatus = 'rendering';
+			if (autoPreview || renderAfterCompile) {
+				previewStatus = 'rendering';
+			} else if (previewDocument) {
+				previewStale = true;
+			}
 		}
 		scheduleCompile();
+	}
+
+	/** Manual render (↻). Works in both modes; in Auto mode it doubles as a retry. */
+	function refreshPreview() {
+		clearTimeout(previewTimer);
+		void runPreview();
+	}
+
+	function toggleAutoPreview() {
+		autoPreview = !autoPreview;
+		if (autoPreview && previewActive && previewStale) refreshPreview();
 	}
 
 	function handleOutputTabChange(tab: string) {
 		previewActive = tab === 'preview';
 		if (previewActive) {
-			void runPreview();
+			// Manual mode keeps the last render on screen; render once if there is none yet.
+			if (autoPreview || !previewDocument || previewStatus !== 'ready') void runPreview();
 		} else {
 			clearTimeout(previewTimer);
 			previewRunId++;
@@ -187,6 +219,8 @@
 
 	/** Replace the editor contents with an AI proposal; recompiles + previews via the normal path. */
 	function applyProposal(code: string) {
+		// Applying is an explicit action, so render once even when Auto is off.
+		renderAfterCompile = !autoPreview;
 		handleSourceChange(code);
 	}
 
@@ -325,7 +359,11 @@
 				{previewStatus}
 				{previewDocument}
 				{previewError}
+				{autoPreview}
+				{previewStale}
 				onTabChange={handleOutputTabChange}
+				onToggleAutoPreview={toggleAutoPreview}
+				onRefreshPreview={refreshPreview}
 			/>
 		</section>
 	</div>
