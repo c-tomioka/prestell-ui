@@ -1,13 +1,13 @@
 # OVERVIEW.md
 
 ## プロダクト名（仮）
-Astro AI Playground（仮称）
+Prestell UI
 
 ## 一言コンセプト
 Astro公式Playground（`play.astro.build` / `withastro/astro-playground`）をフォークし、AIチャットでUIコードを生成・編集できる「Astro版 v0 / bolt.new」を構築する。
 
 ## 背景
-- `withastro/astro-playground` はMITライセンスのAstro公式リポジトリで、ブラウザ内でAstroコードを即時プレビューできる実行環境（WebContainer相当）を既に持つ。
+- `withastro/astro-playground` はMITライセンスのAstro公式リポジトリで、ブラウザ内のWASMコンパイラとCloudflare Worker Loader（Dynamic Workers）によるAstroコンポーネントの即時プレビュー基盤を既に持つ（WebContainerは使っていない。詳細は `ARCHITECTURE.md`）。
 - v0.app（Vercel）やbolt.new（StackBlitz）は同様の「チャット→コード生成→ライブプレビュー→デプロイ/Git反映」フローを他フレームワークで実現している。
 - Astro特化のAIビルダーは市場にまだ確立されておらず、Astro Docs MCP Serverと組み合わせることでAstro固有の最新構文に基づいた高品質なコード生成が可能になる。
 
@@ -22,7 +22,7 @@ Astro公式Playground（`play.astro.build` / `withastro/astro-playground`）を�
 
 ## コア機能要件
 - チャットベースのUIでAstroコンポーネント・ページを生成/編集する
-- 生成コードをブラウザ内でライブプレビュー表示する
+- 生成コードをブラウザ内でライブプレビュー表示する（Phase 1 は単一 `.astro` コンポーネント）
 - 満足したらローカルファイルへの反映、または任意のGitHubリポジトリへpush（Phase 3以降）
 - LLMは複数プロバイダーから選択可能（Claude, OpenAI, Google, Workers AI, Ollamaローカルモデル等）
 - Astro Docs MCP Serverを接続し、常に最新のAstro知識に基づいたコード生成を行う

@@ -1,0 +1,15 @@
+# Copy to `.dev.vars` (git-ignored). Loaded automatically by `astro dev` (Cloudflare adapter).
+# Slice 1 (local LLM, no API key needed)
+OLLAMA_BASE_URL=http://localhost:11434/v1
+LMSTUDIO_BASE_URL=http://localhost:1234/v1
+
+# Slice 2 (Cloudflare AI Gateway) — https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}
+CF_AI_GATEWAY_URL=
+CF_AI_GATEWAY_TOKEN=
+# BYOK keys (optional if stored in AI Gateway)
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+GOOGLE_API_KEY=
+
+# Slice 3 (Astro Docs MCP)
+ASTRO_DOCS_MCP_URL=https://mcp.docs.astro.build/mcp

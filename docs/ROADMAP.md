@@ -3,13 +3,14 @@
 ## Phase 1: ローカルMVP（個人利用）
 **目標**: Cloudflare無料枠内で完結する、自分専用のAstro AIビルダーを動かす。
 
-- [ ] `withastro/astro-playground` をフォークし、ローカルで `wrangler dev` 起動できることを確認
-- [ ] チャットUIパネルを追加（プロンプト入力→送信→レスポンス表示）
-- [ ] Cloudflare AI Gatewayをローカルから接続し、最低1つの外部LLM（例: Claude）で動作確認
-- [ ] Astro Docs MCP Serverを接続し、tool callingでAstro知識を参照できることを確認
-- [ ] LLMの生成コードをWebContainer上に反映し、ライブプレビューが更新されることを確認
-- [ ] Ollamaのローカルサーバーをカスタムプロバイダーとして登録し、切替動作を確認（`LOCAL_LLM.md`参照）
-- [ ] 生成コードをローカルファイルシステムに書き出す機能を実装
+- [x] `withastro/astro-playground` を参考に `apps/playground` を構築し、`pnpm dev`（astro dev = workerd）でエディタ + Preview が動くことを確認
+- [x] チャットUIパネルを追加（プロンプト入力→送信→ストリーミング表示）
+- [ ] Cloudflare AI Gateway をローカルから接続し、最低1つの外部LLM（例: Claude）で動作確認（コードは実装済み、要 `.dev.vars` 設定と実測）
+- [x] Astro Docs MCP Server を接続し、tool calling（`docsMode: tools`）と事前検索埋め込み（`docsMode: inject`）を実装
+- [x] LLM の生成コードをコンパイラで検証してエディタに反映し、Preview が更新されることを確認
+- [x] Ollama のローカルモデル（qwen2.5-coder:7b）で「プロンプト→生成→検証→適用→Preview」を確認。LM Studio は接続実装済み・実機未確認（`LOCAL_LLM.md` 参照）
+- [x] 生成コードをローカルファイルシステムに書き出す機能を実装（File System Access API / ダウンロード）
+- [ ] （ストレッチ）複数ファイル・相対 import 対応の検証
 
 **完了条件**: 自分ひとりで「プロンプト→コード生成→プレビュー確認→ローカル保存」のループが問題なく回ること。
 

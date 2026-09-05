@@ -1,0 +1,22 @@
+{
+	"name": "prestell-ui",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"packageManager": "pnpm@11.5.0",
+	"engines": {
+		"node": ">=24"
+	},
+	"scripts": {
+		"dev": "pnpm --filter @prestell/playground run dev",
+		"build": "pnpm --filter @prestell/playground run build",
+		"check": "pnpm --filter @prestell/playground --filter @prestell/codemirror-astro run check",
+		"test": "pnpm --filter @prestell/playground run test",
+		"lint": "biome check",
+		"lint:fix": "biome check --write",
+		"lang:build": "pnpm --filter @prestell/codemirror-astro run build"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.7"
+	}
+}

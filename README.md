@@ -1,5 +1,5 @@
-# prestell-ui
-Astro 版 v0 ライクツール (Astro AI Playground)
+# Prestell UI
+Astro 版 v0 ライクツール
 
 > AIチャットでAstroサイトを生成・編集し、ブラウザ上で即座にプレビューできる開発環境。
 
@@ -14,7 +14,7 @@ Astro公式Playgroundをベースに、自然言語でUI・ページ・コンポ
   - OpenAI
   - Google Gemini
   - Cloudflare Workers AI
-  - OllamaなどのローカルLLM
+  - Ollama / LM Studio などのローカルLLM
 - Astro Docs MCP Serverを利用したAstro固有の知識参照
 - 生成したプロジェクトのローカル保存
 - 将来的なGitHubリポジトリ連携・SaaS提供を予定
@@ -25,14 +25,14 @@ Astro公式Playgroundをベースに、自然言語でUI・ページ・コンポ
 
 ## 必要環境
 
-- Node.js（推奨: 現行LTS）
-- pnpm（またはリポジトリで指定するパッケージマネージャー）
+- Node.js 24 以上
+- pnpm 11（`packageManager` フィールドにより自動選択）
 - Cloudflareアカウント（AI GatewayまたはWorkers AIを使用する場合）
 - 任意のLLM APIキー
   - Anthropic APIキー
   - OpenAI APIキー
   - Google AI APIキー
-- Ollama（ローカルLLMを使用する場合）
+- Ollama または LM Studio（ローカルLLMを使用する場合）
 
 ## セットアップ
 
@@ -44,66 +44,119 @@ cd <your-repo>
 # 依存関係をインストール
 pnpm install
 
-# 環境変数を作成
-cp .env.example .env
+# 環境変数を作成（ローカルLLMだけなら編集不要）
+cp apps/playground/.dev.vars.example apps/playground/.dev.vars
 
-# 開発サーバーを起動
+# 開発サーバーを起動（http://localhost:4321）
 pnpm dev
 ```
 
-Cloudflare Workers APIをローカルで起動する構成の場合は、別ターミナルで以下を実行します。
-
-```bash
-wrangler dev
-```
+`astro dev` は Cloudflare Workers ランタイム（workerd）上で動き、`/api/*` も同じプロセスで提供されるため、`wrangler dev` を別途起動する必要はありません。dev サーバーは daemon 化されるので、停止は `pnpm --filter @prestell/playground run dev:stop` です。
 
 ## 環境変数
 
-`.env.example` をコピーして `.env` を作成し、利用するプロバイダーに応じて設定してください。
+`apps/playground/.dev.vars.example` をコピーして `apps/playground/.dev.vars` を作成し、利用するプロバイダーに応じて設定してください（`astro dev` が自動で読み込みます）。
 
 ```dotenv
-# Cloudflare AI Gateway
+# ローカルLLM（既定値のままでよい）
+OLLAMA_BASE_URL=http://localhost:11434/v1
+LMSTUDIO_BASE_URL=http://localhost:1234/v1
+
+# Cloudflare AI Gateway（外部LLMを使う場合）
+# https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}
 CF_AI_GATEWAY_URL=
 CF_AI_GATEWAY_TOKEN=
 
-# 外部LLM（必要なものだけ設定）
+# 外部LLM（AI Gateway に BYOK 登録していない場合のみ）
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
 GOOGLE_API_KEY=
 
-# ローカルLLM（Ollama）
-OLLAMA_BASE_URL=http://localhost:11434/v1
-OLLAMA_DEFAULT_MODEL=
-
 # Astro Docs MCP Server
-ASTRO_DOCS_MCP_URL=
+ASTRO_DOCS_MCP_URL=https://mcp.docs.astro.build/mcp
 ```
 
-APIキーやトークンをGitにコミットしないでください。`.env` は必ず`.gitignore`に含めます。
+APIキーやトークンをGitにコミットしないでください。`.env` と `.dev.vars` は `.gitignore` に含まれています。
 
-## Ollamaを使う
+## ローカルLLM（Ollama / LM Studio）を使う
 
-Ollamaを使うと、外部LLM APIを使わずにローカルモデルでコード生成を試せます。
+外部LLM APIを使わずにローカルモデルでコード生成を試せます。
 
 ```bash
-# Ollamaをインストール後、コード向けモデルを取得する例
-ollama pull qwen2.5-coder
-
-# 必要に応じてOllamaサーバーを起動
+# Ollama: コード向けモデルを取得してサーバーを起動
+ollama pull qwen2.5-coder:7b
 ollama serve
 ```
 
-アプリケーション上でプロバイダーとして「Ollama」を選び、利用可能なローカルモデルを指定してください。ローカルLLM対応の詳細は [`LOCAL_LLM.md`](./LOCAL_LLM.md) を参照してください。
+LM Studio の場合は Developer タブで Start Server を押し、モデルをロードしてください。アプリ上でプロバイダーとして「Ollama (local)」または「LM Studio (local)」を選ぶと、利用可能なモデルが候補に出ます。詳細は [`docs/LOCAL_LLM.md`](./docs/LOCAL_LLM.md) を参照してください。
+
+## ローカルLLMでの動作確認手順（Ollama）
+
+外部 API キーなしで「プロンプト → 生成 → 検証 → 適用 → Preview」のループが動くことを目視で確認する手順です。
+
+1. モデルを取得して Ollama を起動する（初回のみ pull、約 4.7GB）
+
+   ```bash
+   ollama pull qwen2.5-coder:7b
+   ollama serve
+   ```
+
+   別ターミナルで `curl http://localhost:11434/v1/models` を実行し、`qwen2.5-coder:7b` が含まれていれば準備完了です。
+
+2. dev サーバーを起動してブラウザで開く
+
+   ```bash
+   pnpm dev
+   ```
+
+   http://localhost:4321 を開くと、左にエディタ、中央に Preview、右に AI chat パネルが表示されます。
+   AI chat パネルが閉じている場合はツールバー右上の「AI chat」を押してください。
+
+3. AI chat パネルで Provider を「Ollama (local)」にする
+   - Model 欄に `qwen2.5-coder:7b` が自動で入ります（候補は `/api/models` が Ollama から取得）
+   - 「Ollama が起動していません」等のヒントが出る場合は手順 1 を確認してください
+   - 「Auto-apply valid proposals」がオンになっていることを確認します
+
+4. プロンプトを送る（⌘/Ctrl+Enter でも送信できます）
+
+   ```text
+   Make a pricing section with three tiers and a highlighted middle plan. Use a blue accent.
+   ```
+
+5. 次の順に変化することを目視で確認する
+   - Assistant の返答がストリーミングで表示され、「Component proposal」カードに「Generating…」と行数が出る
+   - 生成完了後にカードが「Validating…」→「Applied to editor」に変わる
+   - 左のエディタが生成コードに置き換わり、中央の Preview が再描画される（7B モデルで 20〜40 秒程度）
+   - Preview タブ以外（JS / CSS / Diagnostics）でもコンパイル結果が確認できる
+
+6. 検証が働くことを確認する（任意）
+
+   ```text
+   Reuse a Card component imported from ./Card.astro
+   ```
+
+   `import` は Preview 非対応のため、カードが「Cannot render」となり、エディタは変更されません。「Apply anyway」で強制適用もできます。
+
+7. 保存を確認する（任意）
+   - ツールバーの「Save」を押すと `.astro` ファイルとして保存できます（Chromium は保存先ダイアログ、他ブラウザはダウンロード）
+
+8. 終了する
+
+   ```bash
+   pnpm --filter @prestell/playground run dev:stop
+   ```
+
+LM Studio の場合は、アプリの Developer タブで Start Server を押してモデルをロードし、手順 3 で「LM Studio (local)」を選びます。Astro Docs を参照させたい場合は「Astro docs」を `inject`（ローカルモデル推奨）にしてください。
 
 ## 使い方
 
 1. 開発サーバーを起動します
 2. ブラウザでPlaygroundを開きます
-3. 使用するLLMプロバイダーとモデルを選択します
-4. チャットに作りたいUIやページを入力します
-5. 生成されたコードとライブプレビューを確認します
+3. 右側の AI chat パネルで LLM プロバイダーとモデルを選択します（「Astro docs」で MCP の使い方を切替）
+4. チャットに作りたいコンポーネントを入力します
+5. 提案されたコードは Astro コンパイラで検証され、問題なければ自動でエディタに反映されて Preview が更新されます
 6. 追加の指示でデザインや実装を調整します
-7. 満足したらプロジェクトをローカルへエクスポートします
+7. 満足したらツールバーの「Save」で `.astro` ファイルをローカルへ保存します
 
 ### プロンプト例
 
@@ -130,7 +183,9 @@ ollama serve
 
 ## ライセンス
 
-ライセンスは公開時に決定します。フォーク元および利用する依存パッケージのライセンスも確認してください。
+このリポジトリは [Apache License 2.0](./LICENSE.txt) で提供します。
+
+一部のコードは [Astro Playground](https://github.com/withastro/astro-playground)（MIT License, Copyright (c) 2022 Astro）から派生しています。派生ファイルには由来を示すヘッダーコメントを付け、MIT ライセンス全文を [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) に収録しています。
 
 ## 謝辞
 

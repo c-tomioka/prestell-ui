@@ -1,47 +1,57 @@
 # LOCAL_LLM.md
 
-ローカルLLM（Ollama等）をCloudflare AI Gateway経由で組み込むための設計仕様。
+ローカル LLM（Ollama / LM Studio）を組み込むための設計仕様。
 
 ## 目的
-- APIキー・外部通信不要で完全ローカルに動作するモードを提供する
-- 外部LLM（Claude, GPT, Gemini等）とローカルLLMをUI上で同一インターフェースから切替可能にする
-- 個人利用時のAPIコストをゼロにする選択肢を常に用意する
+- API キー・外部通信不要で完全ローカルに動作するモードを提供する
+- 外部 LLM（Claude, GPT, Gemini, Workers AI）とローカル LLM を UI 上で同一インターフェースから切替可能にする
+- 個人利用時の API コストをゼロにする選択肢を常に用意する
 
-## 前提: Ollamaのセットアップ
-- Ollamaはデフォルトで `http://localhost:11434` でHTTPサーバーを起動する
-- OpenAI互換エンドポイント `http://localhost:11434/v1/chat/completions` を提供している
-- 事前に `ollama pull <model名>`（例: `qwen2.5-coder`, `deepseek-coder-v2` 等コード生成向けモデル）でモデルを取得しておく
+## 接続方式（重要: AI Gateway は経由しない）
 
-## Cloudflare AI Gatewayとの接続方式
-Cloudflare AI GatewayのCustom Providers機能を使い、Ollamaを一つのプロバイダーとして登録する。
-
-- Custom Provider名: `ollama-local`
-- Base URL: `${OLLAMA_BASE_URL}`（環境変数、デフォルト `http://localhost:11434/v1`）
-- 認証: 不要（ローカル通信のため）、Gateway側では空文字またはダミートークンを設定
-
-Workers側の `/api/chat` は `provider` パラメータに応じてAI Gatewayへのリクエスト先を切り替える。
+Cloudflare AI Gateway の Custom Providers は **base URL が HTTPS 必須**のため、`http://localhost:11434` の Ollama を登録できない。
+そのため Phase 1 では **Worker（`astro dev` の workerd）からローカルサーバーへ直接 fetch** する。ブラウザから直接叩かないので、Ollama / LM Studio 側の CORS 設定は不要。
 
 ```
-provider: "anthropic"   → AI Gateway → Anthropic API（BYOKキー使用）
-provider: "openai"      → AI Gateway → OpenAI API（BYOKキー使用）
-provider: "workers-ai"  → AI Gateway → Cloudflare Workers AI（無料枠）
-provider: "ollama"      → AI Gateway → Custom Provider "ollama-local"
+provider: "ollama"     → Worker → ${OLLAMA_BASE_URL}/chat/completions   (既定 http://localhost:11434/v1)
+provider: "lmstudio"   → Worker → ${LMSTUDIO_BASE_URL}/chat/completions (既定 http://localhost:1234/v1)
+provider: "anthropic" / "openai" / "google" / "workers-ai"
+                       → Worker → AI Gateway ${CF_AI_GATEWAY_URL}/compat/chat/completions
 ```
 
-## フロントエンドのプロバイダー選択UI
-- ドロップダウンで上記4種類（+将来追加分）を選択可能にする
-- Ollama選択時は、事前に `GET http://localhost:11434/api/tags` 等でモデル一覧を取得し、利用可能なモデルをサブ選択させる
-- Ollamaサーバーが起動していない場合は明確なエラーメッセージ（「Ollamaが起動していません。`ollama serve` を実行してください」等）を表示する
+すべて OpenAI 互換 `/chat/completions` なので、実装は `@ai-sdk/openai-compatible` 1本（`apps/playground/src/server/ai/providers.ts`）。
 
-## MCP連携とローカルLLMの相性に関する注意
-- ローカルLLM（特に小型モデル）はtool calling（MCP経由のドキュメント参照）の精度が外部の大型モデルより低い場合がある
-- Astro Docs MCP Serverへの接続自体はプロバイダーに依存せず共通のロジックで行うが、ローカルモデル使用時はtool callingが機能しないケースを想定したフォールバック（プレーンなプロンプトへのドキュメント抜粋の埋め込み等）を検討する
+## 前提: ローカルサーバーのセットアップ
 
-## 環境変数一覧（ローカルLLM関連）
+### Ollama
+- `ollama serve` で `http://localhost:11434` に起動（OpenAI 互換: `/v1/chat/completions`, `/v1/models`）
+- 事前に `ollama pull <model>`（例: `qwen2.5-coder:7b`, `qwen2.5-coder:1.5b` など）
+- ストリーミング・tool calling（`tools`）対応。`tool_choice` は未対応
+
+### LM Studio
+- アプリの Developer タブ → Start Server（既定 `http://localhost:1234/v1`）、または `lms server start`
+- `/v1/models` にロード済みモデルが列挙される。tool use 対応モデルなら `tools` も使える
+- CORS は不要（Worker 経由のため）。ブラウザ直結モードを試す場合のみ `lms server start --cors`
+
+## フロントエンドのプロバイダー選択 UI
+- チャットパネルのドロップダウンでプロバイダーを選択。未設定（AI Gateway 未構成）のプロバイダーは選択不可で理由を表示
+- ローカルプロバイダー選択時は `GET /api/models?provider=ollama|lmstudio` が `/v1/models` を中継し、モデル候補（datalist）を出す
+- サーバー未起動・モデルなしの場合は「`ollama serve` を実行してください」「モデルをロードしてください」等のヒントを表示
+- モデル ID は自由入力も可能（候補にない ID を指定できる）
+
+## MCP 連携とローカル LLM の相性
+- ローカル（特に小型）モデルは tool calling の精度が低いため、`docsMode` を3段階で切替可能にしている
+  - `off`: ドキュメント参照なし
+  - `inject`: 直近のユーザー発話で `search_astro_docs` を先に1回実行し、上位数件を system prompt に埋め込む（ローカルモデル推奨）
+  - `tools`: MCP tools を `streamText` に渡し、モデル自身が検索する（クラウドモデル推奨）
+- MCP 接続失敗時はドキュメントなしでチャットを継続する
+
+## 環境変数一覧（ローカル LLM 関連, `apps/playground/.dev.vars`）
 | 変数名 | 用途 | デフォルト |
 |---|---|---|
-| `OLLAMA_BASE_URL` | OllamaのOpenAI互換エンドポイント | `http://localhost:11434/v1` |
-| `OLLAMA_DEFAULT_MODEL` | デフォルトで使用するローカルモデル名 | 未設定（UI側で選択必須） |
+| `OLLAMA_BASE_URL` | Ollama の OpenAI 互換エンドポイント | `http://localhost:11434/v1` |
+| `LMSTUDIO_BASE_URL` | LM Studio の OpenAI 互換エンドポイント | `http://localhost:1234/v1` |
 
-## 将来的な拡張（Phase 4以降を見据えて）
-- SaaS化時、ユーザー側のローカルOllamaに運営サーバーから直接接続することはできない（ネットワーク的に不可能）ため、SaaS版では常に外部LLM/Workers AIのみを提供し、Ollama対応はOSS版（ローカル実行版）限定の機能として明確に区別する
+## 将来的な拡張（Phase 4 以降を見据えて）
+- SaaS 化時、ユーザー側のローカル Ollama に運営サーバーから直接接続することはできない（ネットワーク的に不可能）ため、SaaS 版では常に外部 LLM / Workers AI のみを提供し、ローカル LLM 対応は OSS 版（ローカル実行版）限定の機能として明確に区別する
+- どうしてもローカルモデルを AI Gateway のログに載せたい場合は `cloudflared tunnel` で HTTPS 公開して Custom Provider に登録する手もあるが、個人利用では推奨しない

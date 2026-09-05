@@ -1,0 +1,382 @@
+<script lang="ts">
+	import { Chat } from '@ai-sdk/svelte';
+	import { DefaultChatTransport, type UIMessage } from 'ai';
+	import { onMount } from 'svelte';
+	import { validateProposal } from '../../lib/ai/apply';
+	import { extractAstroCode } from '../../lib/ai/extract-code';
+	import {
+		type ChatSettings,
+		type DocsMode,
+		loadSettings,
+		saveSettings,
+	} from '../../lib/ai/settings';
+	import type { Proposal, ProviderInfo } from '../../lib/ai/types';
+	import MessageList from './MessageList.svelte';
+	import ProviderSelect from './ProviderSelect.svelte';
+
+	interface Props {
+		/** Current editor contents (read at request time so edits are incremental). */
+		getSource: () => string;
+		filename: string;
+		onApply: (code: string) => void;
+		onClose: () => void;
+	}
+
+	let { getSource, filename, onApply, onClose }: Props = $props();
+
+	// --- settings (persisted) ---
+	let settings = $state<ChatSettings>(loadSettings());
+	$effect(() => {
+		saveSettings($state.snapshot(settings));
+	});
+	const model = $derived(settings.models[settings.provider] ?? '');
+
+	// --- providers / models ---
+	let providers = $state<ProviderInfo[]>([]);
+	let models = $state<string[]>([]);
+	let modelsError = $state('');
+	let loadingModels = $state(false);
+
+	async function loadProviders() {
+		try {
+			const response = await fetch('/api/models');
+			const payload = (await response.json()) as { providers?: ProviderInfo[] };
+			providers = payload.providers ?? [];
+			if (!providers.some((p) => p.id === settings.provider && p.configured)) {
+				settings.provider = providers.find((p) => p.configured)?.id ?? settings.provider;
+			}
+		} catch (error) {
+			modelsError = `Could not load providers: ${error instanceof Error ? error.message : String(error)}`;
+		}
+	}
+
+	async function loadModels() {
+		const provider = settings.provider;
+		loadingModels = true;
+		modelsError = '';
+		try {
+			const response = await fetch(`/api/models?provider=${encodeURIComponent(provider)}`);
+			const payload = (await response.json()) as
+				| { ok: true; models: string[] }
+				| { ok: false; error: string; hint: string };
+			if (provider !== settings.provider) return;
+			if (payload.ok) {
+				models = payload.models;
+				if (!settings.models[provider] && models[0]) {
+					settings.models[provider] = models[0];
+				}
+				if (models.length === 0 && providers.find((p) => p.id === provider)?.kind === 'local') {
+					modelsError = 'No models found on the local server. Pull or load a model, then reload.';
+				}
+			} else {
+				models = [];
+				modelsError = payload.hint;
+			}
+		} catch (error) {
+			models = [];
+			modelsError = error instanceof Error ? error.message : String(error);
+		} finally {
+			if (provider === settings.provider) loadingModels = false;
+		}
+	}
+
+	function setProvider(provider: string) {
+		settings.provider = provider;
+		void loadModels();
+	}
+
+	onMount(() => {
+		void loadProviders().then(loadModels);
+	});
+
+	// --- chat ---
+	let input = $state('');
+	let proposals = $state<Record<string, Proposal>>({});
+
+	const chat = new Chat({
+		transport: new DefaultChatTransport({
+			api: '/api/chat',
+			body: () => ({
+				provider: settings.provider,
+				model,
+				docsMode: settings.docsMode,
+				filename,
+				source: getSource(),
+			}),
+		}),
+		onFinish: ({ message, isAbort, isError }) => {
+			if (isAbort || isError) return;
+			void finalizeProposal(message);
+		},
+	});
+
+	const busy = $derived(chat.status === 'submitted' || chat.status === 'streaming');
+	const canSend = $derived(!busy && input.trim() !== '' && model.trim() !== '');
+
+	function assistantText(message: UIMessage): string {
+		return message.parts
+			.filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text')
+			.map((part) => part.text)
+			.join('');
+	}
+
+	// While a reply streams, derive a provisional card from the partial text so
+	// the code is visible as it arrives. Finalized proposals live in `proposals`.
+	const streamingProposal = $derived.by((): [string, Proposal] | null => {
+		const last = chat.messages.at(-1);
+		if (!last || last.role !== 'assistant' || !busy) return null;
+		if (proposals[last.id]) return null;
+		const extracted = extractAstroCode(assistantText(last));
+		return extracted ? [last.id, { code: extracted.code, status: 'streaming' }] : null;
+	});
+	const visibleProposals = $derived<Record<string, Proposal>>(
+		streamingProposal ? { ...proposals, [streamingProposal[0]]: streamingProposal[1] } : proposals,
+	);
+
+	async function finalizeProposal(message: UIMessage) {
+		const extracted = extractAstroCode(assistantText(message));
+		if (!extracted) {
+			delete proposals[message.id];
+			return;
+		}
+		proposals[message.id] = { code: extracted.code, status: 'validating' };
+		const result = await validateProposal(extracted.code, { filename });
+		if (result.ok) {
+			proposals[message.id] = { code: extracted.code, status: 'valid', warnings: result.warnings };
+			if (settings.autoApply) applyProposal(message.id);
+		} else {
+			proposals[message.id] = { code: extracted.code, status: 'invalid', error: result.error };
+		}
+	}
+
+	function applyProposal(messageId: string) {
+		const proposal = proposals[messageId];
+		if (!proposal) return;
+		onApply(proposal.code);
+		proposals[messageId] = { ...proposal, status: 'applied' };
+	}
+
+	function send(event?: Event) {
+		event?.preventDefault();
+		if (!canSend) return;
+		const text = input.trim();
+		input = '';
+		void chat.sendMessage({ text });
+	}
+
+	function onKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) send(event);
+	}
+
+	function clear() {
+		chat.messages = [];
+		proposals = {};
+		chat.clearError();
+	}
+</script>
+
+<section class="chat" aria-label="AI chat">
+	<div class="chat-head">
+		<span class="title">AI chat</span>
+		<div class="head-actions">
+			<button type="button" class="ghost" onclick={clear} disabled={busy || chat.messages.length === 0}>Clear</button>
+			<button type="button" class="ghost" aria-label="Close chat panel" onclick={onClose}>✕</button>
+		</div>
+	</div>
+
+	<div class="settings">
+		<ProviderSelect
+			{providers}
+			provider={settings.provider}
+			{model}
+			{models}
+			{modelsError}
+			{loadingModels}
+			disabled={busy}
+			onProviderChange={setProvider}
+			onModelChange={(value) => (settings.models[settings.provider] = value)}
+			onRefresh={loadModels}
+		/>
+		<div class="toggles">
+			<label>
+				<input type="checkbox" bind:checked={settings.autoApply} />
+				<span>Auto-apply valid proposals</span>
+			</label>
+			<label>
+				<span>Astro docs</span>
+				<select
+					value={settings.docsMode}
+					disabled={busy}
+					onchange={(e) => (settings.docsMode = e.currentTarget.value as DocsMode)}
+				>
+					<option value="off">off</option>
+					<option value="inject">inject (search first)</option>
+					<option value="tools">tools (tool calling)</option>
+				</select>
+			</label>
+		</div>
+	</div>
+
+	<MessageList messages={chat.messages} proposals={visibleProposals} streaming={busy} onApply={applyProposal} />
+
+	{#if chat.error}
+		<div class="error" role="alert">
+			<span>{chat.error.message}</span>
+			<button type="button" class="ghost" onclick={() => chat.clearError()}>Dismiss</button>
+		</div>
+	{/if}
+
+	<form class="composer" onsubmit={send}>
+		<label class="visually-hidden" for="chat-input">Message</label>
+		<textarea
+			id="chat-input"
+			bind:value={input}
+			rows="3"
+			placeholder="Describe the component or the change you want… (⌘/Ctrl+Enter to send)"
+			onkeydown={onKeydown}
+			disabled={busy}
+		></textarea>
+		<div class="composer-actions">
+			{#if busy}
+				<button type="button" class="ghost" onclick={() => chat.stop()}>Stop</button>
+			{/if}
+			<button type="submit" class="send" disabled={!canSend}>Send</button>
+		</div>
+	</form>
+</section>
+
+<style>
+	.chat {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		min-height: 0;
+		border-left: 1px solid var(--border);
+		background: var(--bg);
+	}
+	.chat-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		height: 40px;
+		flex: none;
+		padding: 0 0.75rem;
+		border-bottom: 1px solid var(--border);
+		background: var(--panel);
+		font-size: 0.78rem;
+	}
+	.title {
+		font-weight: 600;
+	}
+	.head-actions {
+		display: flex;
+		gap: 0.3rem;
+	}
+	.settings {
+		flex: none;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding: 0.6rem 0.75rem;
+		border-bottom: 1px solid var(--border);
+	}
+	.toggles {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem 1rem;
+		font-size: 0.72rem;
+		color: var(--muted);
+	}
+	.toggles label {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+	.toggles select {
+		font-size: 0.72rem;
+		color: var(--fg);
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 0.15rem 0.3rem;
+	}
+	.error {
+		flex: none;
+		display: flex;
+		justify-content: space-between;
+		gap: 0.5rem;
+		margin: 0 0.75rem;
+		padding: 0.5rem 0.6rem;
+		border-radius: 6px;
+		background: rgba(248, 113, 113, 0.12);
+		color: var(--err);
+		font-size: 0.75rem;
+		white-space: pre-wrap;
+	}
+	.composer {
+		flex: none;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		padding: 0.6rem 0.75rem;
+		border-top: 1px solid var(--border);
+		background: var(--panel);
+	}
+	textarea {
+		width: 100%;
+		resize: vertical;
+		min-height: 3.5rem;
+		font: inherit;
+		font-size: 0.8rem;
+		color: var(--fg);
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 0.45rem 0.55rem;
+	}
+	textarea:focus {
+		outline: none;
+		border-color: var(--accent);
+	}
+	.composer-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 0.4rem;
+	}
+	button {
+		appearance: none;
+		cursor: pointer;
+		font-size: 0.74rem;
+		border-radius: 6px;
+		padding: 0.3rem 0.7rem;
+		border: 1px solid var(--border);
+	}
+	button:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.ghost {
+		background: transparent;
+		color: var(--muted);
+	}
+	.ghost:not(:disabled):hover {
+		color: var(--fg);
+	}
+	.send {
+		background: var(--accent);
+		color: var(--on-accent);
+		border-color: transparent;
+		font-weight: 600;
+	}
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+</style>
