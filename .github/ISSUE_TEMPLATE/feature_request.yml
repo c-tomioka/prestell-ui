@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Roadmap phase
+      description: See docs/ROADMAP.md. Phases 4–6 (static host, SaaS, billing) are not accepting pull requests yet, but ideas are welcome.
+      options:
+        - Local app (Phases 1–3)
+        - Static-host / SaaS (Phases 4–6)
+        - Not sure
