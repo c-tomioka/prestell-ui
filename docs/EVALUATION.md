@@ -66,7 +66,7 @@ Astro 5 で変わった、または間違えやすい API を問う。`must`（�
 | llama-4-scout | 8/8 | 7/8（landing が fix 2 回でも不合格） | 6/8（1 回目の実行。pricing / navbar が `Unexpected token`） |
 | qwen2.5-coder-32b | 7/8（pricing） | 7/8（pricing） | 測定不可（レート制限） |
 
-- どの行も pass@0 = pass@fix で、**fix ループが不合格を合格に変えた例は 0 件**だった。fix 依頼は使われている（平均 0.25〜0.5 回）が、`Unexpected token (line N)` のような診断だけでは小型モデルは直せていない。次の改善候補は fix 依頼に該当行の本文を添えること。今回の実行から生成コードを生の JSON に残すようにしたので、次回は原因を特定できる。
+- どの行も pass@0 = pass@fix で、**fix ループが不合格を合格に変えた例は 0 件**だった。fix 依頼は使われている（平均 0.25〜0.5 回）が、`Unexpected token (line N)` のような診断だけでは小型モデルは直せていない。次の改善候補は fix 依頼に該当行の本文を添えること（2026-09-07 に反映。`formatCompilerErrors` が `(line N)` の下に該当行を添える。効果は次回の評価で確認する）。今回の実行から生成コードを生の JSON に残すようにしたので、次回は原因を特定できる。
 - Haiku は tools モードで 1 件だけコードブロックを返さなかった（検索結果の説明で終わった）。コード生成では inject の方が安定している。
 - llama-4-scout の tools 列は 1 回目の実行の値。再実行が Workers AI の日次無料枠（レート制限 429）に当たり、当時のマージ処理が失敗結果で上書きしたため、記録ファイル上は通信失敗になっている（マージは通信失敗で実結果を上書きしないよう修正済み）。無料枠が戻ったら `EVAL_MERGE=1 EVAL_DOCS_MODES=tools EVAL_MODELS="workers-ai:@cf/meta/llama-4-scout-17b-16e-instruct,workers-ai:@cf/qwen/qwen2.5-coder-32b-instruct" pnpm eval` で埋め直す。
 

@@ -4,6 +4,7 @@ import { compileAstroSync, parseAstroSync } from "@astrojs/compiler-binding";
 import type { ProposalValidation } from "../../src/lib/ai/apply";
 import { extractAstroCode } from "../../src/lib/ai/extract-code";
 import { buildFixPrompt } from "../../src/lib/ai/fix-loop";
+import { formatCompilerErrors } from "../../src/lib/ai/format-diagnostics";
 import { validatePreview } from "../../src/lib/preview";
 import type { CodeCase, KnowledgeCase } from "./cases";
 import { scoreKnowledge } from "./score";
@@ -209,15 +210,7 @@ export function validateCode(
 		};
 		const errors = result.diagnostics.filter((d) => d.severity === "error");
 		if (errors.length > 0) {
-			return {
-				ok: false,
-				error: errors
-					.map((d) => {
-						const label = d.labels?.[0];
-						return label ? `${d.text} (line ${label.line})` : d.text;
-					})
-					.join("\n"),
-			};
+			return { ok: false, error: formatCompilerErrors(code, errors) };
 		}
 		const unsupported = validatePreview(result, ast);
 		if (unsupported) return { ok: false, error: unsupported };

@@ -5,6 +5,7 @@ import { compiler } from "../compiler";
 import type { CompileOptions } from "../compiler-protocol";
 import { DEFAULT_COMPILE_OPTIONS } from "../options";
 import { validatePreview } from "../preview";
+import { formatCompilerErrors } from "./format-diagnostics";
 
 export type ProposalValidation =
 	| { ok: true; warnings: string[] }
@@ -22,15 +23,7 @@ export async function validateProposal(
 		]);
 		const errors = result.diagnostics.filter((d) => d.severity === "error");
 		if (errors.length > 0) {
-			return {
-				ok: false,
-				error: errors
-					.map((d) => {
-						const label = d.labels?.[0];
-						return label ? `${d.text} (line ${label.line})` : d.text;
-					})
-					.join("\n"),
-			};
+			return { ok: false, error: formatCompilerErrors(code, errors) };
 		}
 		const unsupported = validatePreview(result, parsed);
 		if (unsupported) return { ok: false, error: unsupported };
