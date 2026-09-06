@@ -11,6 +11,8 @@ docs/                   # 設計ドキュメント
 saas/                   # SaaS 専用ロジックの境界を示すプレースホルダー（実装は private リポジトリ prestell-ui-saas。docs/OSS_SCOPE.md）
 tmp/upstream/           # withastro/astro-playground のスナップショット（git 管理外、参考用）
 NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
+.github/                # Issue / PR テンプレート、CI（lint → check → test）
+README.md, README.ja.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md  # 公開向けドキュメント
 ```
 
 ## セットアップ手順（Phase 1）
@@ -122,3 +124,4 @@ resolveModel を再利用し、レスポンスは AI SDK の UI message stream �
 - `LOCAL_LLM.md`: ローカル LLM（Ollama / LM Studio）接続の仕様
 - `PREVIEW_RENDERING.md`: プレビューレンダラーの設計と比較
 - `OSS_SCOPE.md`: OSS 公開範囲・SaaS 境界・シークレット点検記録
+- `../CONTRIBUTING.md`: 外部コントリビューター向けの手順と規約（英語）

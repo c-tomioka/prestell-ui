@@ -78,6 +78,7 @@ git grep -nE '(/Users/|accounts/[0-9a-f]{32})' -- ':!pnpm-lock.yaml'
 git log --format='%an <%ae>' | sort -u
 ```
 
-### TODO（Phase 3 の残り項目で扱う）
-- gitleaks 等のシークレットスキャンを pre-commit / CI に追加（public 化の前）
-- CONTRIBUTING / SECURITY.md / `.github/` テンプレート、`package.json` の `license` フィールド
+### TODO（Phase 3 項目 5「public 化」で扱う）
+- gitleaks 等のシークレットスキャンを pre-commit / CI に追加
+- リポジトリ設定で Private Vulnerability Reporting を有効化（`SECURITY.md` と Issue テンプレートがこの導線を前提にしている）
+- 完了済み（2026-09-07）: CONTRIBUTING / CODE_OF_CONDUCT / SECURITY.md / `.github/`（テンプレート・CI）、`package.json` の `license` フィールド
