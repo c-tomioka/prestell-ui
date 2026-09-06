@@ -8,6 +8,13 @@
 //               (fallback for local models with weak/no tool calling)
 import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
 import { type AiEnv, DEFAULT_ASTRO_DOCS_MCP_URL, readEnv } from "./providers";
+import {
+	MCP_CONNECT_TIMEOUT_MS,
+	MCP_RETRIES,
+	MCP_RETRY_DELAY_MS,
+	MCP_TOOL_TIMEOUT_MS,
+	withRetry,
+} from "./resilience";
 
 export const DOCS_TOOL_NAME = "search_astro_docs";
 
@@ -15,9 +22,23 @@ export function docsMcpUrl(env: AiEnv): string {
 	return readEnv(env, "ASTRO_DOCS_MCP_URL") ?? DEFAULT_ASTRO_DOCS_MCP_URL;
 }
 
-export function connectDocsMcp(env: AiEnv): Promise<MCPClient> {
+export interface ConnectOptions {
+	/** Bound on transport start + the initialize handshake. */
+	timeoutMs?: number;
+}
+
+export function connectDocsMcp(
+	env: AiEnv,
+	options: ConnectOptions = {},
+): Promise<MCPClient> {
 	return createMCPClient({
 		name: "prestell-playground",
+		// An unreachable docs host must not stall the whole chat request.
+		initializationOptions: {
+			timeout: options.timeoutMs ?? MCP_CONNECT_TIMEOUT_MS,
+		},
+		// Transient tools/call failures (JSON-RPC application errors are not retried).
+		maxRetries: MCP_RETRIES,
 		transport: {
 			type: "http",
 			url: docsMcpUrl(env),
@@ -53,34 +74,62 @@ export interface DocsSearchOptions {
 	maxHits?: number;
 	maxCharsPerHit?: number;
 	timeoutMs?: number;
+	/** Injectable connection factory (tests). Default: `connectDocsMcp(env)`. */
+	connect?: () => Promise<MCPClient>;
+	/** Injectable retry sleep (tests). */
+	sleep?: (ms: number) => Promise<void>;
 }
 
-/** Run `search_astro_docs` once and normalise the result. Never throws. */
+/** Text content of a tool result, joined. */
+function toolResultText(result: unknown): string {
+	const content = (result as { content?: unknown }).content;
+	return (Array.isArray(content) ? (content as unknown[]) : [])
+		.map((part) =>
+			part &&
+			typeof part === "object" &&
+			"text" in part &&
+			typeof (part as { text: unknown }).text === "string"
+				? (part as { text: string }).text
+				: "",
+		)
+		.join("\n");
+}
+
+/**
+ * Run `search_astro_docs` and normalise the result. Connection or call
+ * failures are retried once (`MCP_RETRIES`); a malformed payload is not.
+ * Never throws.
+ */
 export async function searchAstroDocs(
 	env: AiEnv,
 	query: string,
 	options: DocsSearchOptions = {},
 ): Promise<DocsSearchResult> {
-	const { maxHits = 5, maxCharsPerHit = 1500, timeoutMs = 10_000 } = options;
-	let client: MCPClient | undefined;
+	const {
+		maxHits = 5,
+		maxCharsPerHit = 1500,
+		timeoutMs = MCP_TOOL_TIMEOUT_MS,
+		connect = () => connectDocsMcp(env),
+		sleep,
+	} = options;
 	try {
-		client = await connectDocsMcp(env);
-		const result = await client.callTool({
-			name: DOCS_TOOL_NAME,
-			arguments: { query },
-			options: { timeout: timeoutMs },
-		});
-		const content = (result as { content?: unknown }).content;
-		const text = (Array.isArray(content) ? (content as unknown[]) : [])
-			.map((part) =>
-				part &&
-				typeof part === "object" &&
-				"text" in part &&
-				typeof (part as { text: unknown }).text === "string"
-					? (part as { text: string }).text
-					: "",
-			)
-			.join("\n");
+		const text = await withRetry(
+			async () => {
+				let client: MCPClient | undefined;
+				try {
+					client = await connect();
+					const result = await client.callTool({
+						name: DOCS_TOOL_NAME,
+						arguments: { query },
+						options: { timeout: timeoutMs },
+					});
+					return toolResultText(result);
+				} finally {
+					await client?.close().catch(() => {});
+				}
+			},
+			{ attempts: MCP_RETRIES + 1, delayMs: MCP_RETRY_DELAY_MS, sleep },
+		);
 		let payload: KapaSearchPayload;
 		try {
 			payload = JSON.parse(text) as KapaSearchPayload;
@@ -113,8 +162,6 @@ export async function searchAstroDocs(
 			ok: false,
 			error: error instanceof Error ? error.message : String(error),
 		};
-	} finally {
-		await client?.close().catch(() => {});
 	}
 }
 

@@ -54,7 +54,7 @@
 - マニフェスト生成（`preview-manifest.ts`）は両実装で共用。`Astro.request.url` は両方 `https://preview.astro.build/` に固定。
 
 ### 2. バックエンド（`apps/playground/src/pages/api`, `src/server/ai`）
-- `POST /api/chat`: `{ messages, provider, model, docsMode, filename, source }` を受け取り、AI SDK の `streamText` で UI message stream（SSE）を返す。現在のエディタ内容は毎回 system prompt に埋め込む。
+- `POST /api/chat`: `{ messages, provider, model, docsMode, filename, source }` を受け取り、AI SDK の `streamText` で UI message stream（SSE）を返す。現在のエディタ内容は毎回 system prompt に埋め込む。`streamText` には `maxRetries`（ストリーム前 2 回）と `timeout`（最初のトークン 60 秒、以降の無応答 30 秒）を渡す。docs を使えなかったときは `data-notice` パート（`ChatNotice`）を先頭に書き込んでから本文をマージする（`createUIMessageStream`）。定数は `src/server/ai/resilience.ts`。
 - `GET /api/models`: プロバイダー一覧（設定済みかどうか）と、ローカルサーバーの `/v1/models` を中継。
 - `POST /api/mcp-proxy`: `search_astro_docs` を1回実行して結果を返す（inject モードと手動検索用）。
 - `POST /api/render`: 上流同等のサーバー側プレビューレンダラー（`server` モード時のみ利用）。
@@ -70,7 +70,12 @@
 - `@ai-sdk/mcp` の `createMCPClient({ transport: { type: "http", url } })`。
 - `docsMode: "tools"`: `mcp.tools()` を `streamText` に渡す（最大5ステップ）。
 - `docsMode: "inject"`: 直近のユーザー発話で検索し、上位数件を system prompt に埋め込む（tool calling が弱いローカルモデル向け）。
-- MCP 接続失敗時はドキュメントなしで継続（グレースフルデグラデーション）。
+- MCP 接続は 8 秒でタイムアウトし、接続・検索は 1 回リトライする（`resilience.ts` の `withRetry`）。それでも失敗したらドキュメントなしで継続し、チャットに「Astro docs unavailable」の通知行を残す（グレースフルデグラデーション）。
+
+### 4b. エラー処理（`src/lib/ai/errors.ts`, ChatPanel）
+- サーバーの `errorResponse` は AI SDK の transport がそのまま `Error.message` にするため、クライアントの `describeChatError` が JSON を剥がして種類（local-down / network / timeout / rate-limit / server / request）を判定する。
+- network / timeout / rate-limit / server は「一時的」とみなし、1.5 秒後に `chat.regenerate()` で自動リトライを 1 回だけ行う（バナーに「Retrying…」）。fix ループ中なら「auto-fixing…」のカードを保ったまま再試行する。
+- 自動リトライ後も失敗、または一時的でないエラー（ローカル LLM 未起動など）はバナーに `Retry` と、設定でフォールバック先を選んでいれば `Retry with <プロバイダー>` を出す。フォールバックは自動では切り替えない（ユーザー確認済み）。
 
 ### 5. コード保存
 - Phase 1: `src/lib/export.ts`。Chromium は File System Access API（保存先を選択）、それ以外は `<a download>`。

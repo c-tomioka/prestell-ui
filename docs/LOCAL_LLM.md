@@ -41,7 +41,7 @@ provider: "anthropic" / "openai" / "google" / "workers-ai"
 ## フロントエンドのプロバイダー選択 UI
 - チャットパネルのドロップダウンでプロバイダーを選択。未設定（AI Gateway 未構成）のプロバイダーは選択不可で理由を表示
 - ローカルプロバイダー選択時は `GET /api/models?provider=ollama|lmstudio` が `/v1/models` を中継し、モデル候補（datalist）を出す
-- サーバー未起動・モデルなしの場合は「`ollama serve` を実行してください」「モデルをロードしてください」等のヒントを表示
+- サーバー未起動・モデルなしの場合は「`ollama serve` を実行してください」「モデルをロードしてください」等のヒントを表示。送信して失敗した場合もチャットのエラーバナーに同じヒントが出て、`Retry` と（設定していれば）`Retry with <フォールバック先>` で再送できる
 - モデル ID は自由入力も可能（候補にない ID を指定できる）
 
 ## MCP 連携とローカル LLM の相性
@@ -49,7 +49,7 @@ provider: "anthropic" / "openai" / "google" / "workers-ai"
   - `off`: ドキュメント参照なし
   - `inject`: 直近のユーザー発話で `search_astro_docs` を先に1回実行し、上位数件を system prompt に埋め込む（ローカルモデル推奨）
   - `tools`: MCP tools を `streamText` に渡し、モデル自身が検索する（クラウドモデル推奨）
-- MCP 接続失敗時はドキュメントなしでチャットを継続する
+- MCP 接続は 8 秒タイムアウト + 1 回リトライ。失敗時はドキュメントなしでチャットを継続し、返答の先頭に「Astro docs unavailable」の通知行を出す
 
 ## Cloudflare AI Gateway（外部 LLM）の接続仕様
 

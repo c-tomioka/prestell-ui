@@ -15,6 +15,8 @@ export interface ChatSettings {
 	autoFix: boolean;
 	/** Upper bound of fix requests per user message (1–5). */
 	maxFixAttempts: number;
+	/** Provider offered as "Retry with …" after a failed request ("" = none). */
+	fallbackProvider: string;
 }
 
 const STORAGE_KEY = "prestell.chat.settings";
@@ -27,6 +29,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
 	chatOpen: true,
 	autoFix: true,
 	maxFixAttempts: DEFAULT_MAX_FIX_ATTEMPTS,
+	fallbackProvider: "",
 };
 
 export function loadSettings(): ChatSettings {

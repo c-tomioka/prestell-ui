@@ -3,6 +3,12 @@
 	import { DefaultChatTransport, type UIMessage } from 'ai';
 	import { onMount, untrack } from 'svelte';
 	import { validateProposal } from '../../lib/ai/apply';
+	import {
+		AUTO_RETRY_DELAY_MS,
+		type ChatErrorInfo,
+		describeChatError,
+		MAX_AUTO_RETRIES,
+	} from '../../lib/ai/errors';
 	import { extractAstroCode } from '../../lib/ai/extract-code';
 	import {
 		buildFixPrompt,
@@ -122,15 +128,79 @@
 				body: { ...body, id, trigger, messageId, messages: trimForRequest(messages) },
 			}),
 		}),
+		onError: (error) => {
+			const info = describeChatError(error);
+			lastError = info;
+			// One automatic retry for errors that may clear on their own; anything
+			// else waits for the user (Retry / Retry with fallback).
+			if (info.transient && autoRetries < MAX_AUTO_RETRIES) {
+				autoRetries++;
+				retryPending = true;
+				clearTimeout(retryTimer);
+				retryTimer = setTimeout(() => void regenerate(), AUTO_RETRY_DELAY_MS);
+			}
+		},
 		onFinish: ({ message, isAbort, isError }) => {
 			if (isAbort || isError) {
-				settleRetrying('gave-up');
+				// Keep the "auto-fixing…" card alive while an automatic retry is pending.
+				if (!retryPending) settleRetrying('gave-up');
 				void persistChat();
 				return;
 			}
+			autoRetries = 0;
+			lastError = null;
 			void finalizeProposal(message);
 		},
 	});
+
+	// --- errors, retry, fallback ---
+	let lastError = $state<ChatErrorInfo | null>(null);
+	/** True from the moment an automatic retry is scheduled until it is sent. */
+	let retryPending = $state(false);
+	let autoRetries = 0;
+	let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+	const fallbackInfo = $derived(
+		providers.find(
+			(p) => p.id === settings.fallbackProvider && p.configured && p.id !== settings.provider,
+		) ?? null,
+	);
+
+	function cancelAutoRetry() {
+		clearTimeout(retryTimer);
+		retryTimer = undefined;
+		retryPending = false;
+	}
+
+	/** Re-request the last reply (the AI SDK drops a partial assistant message first). */
+	async function regenerate() {
+		cancelAutoRetry();
+		lastError = null;
+		chat.clearError();
+		if (chat.messages.length === 0) return;
+		await chat.regenerate();
+	}
+
+	function retryNow() {
+		autoRetries = 0;
+		void regenerate();
+	}
+
+	async function retryWithFallback() {
+		const fallback = fallbackInfo;
+		if (!fallback) return;
+		settings.provider = fallback.id;
+		await loadModels();
+		if (!settings.models[fallback.id]) return; // modelsError explains why
+		autoRetries = 0;
+		await regenerate();
+	}
+
+	function dismissError() {
+		cancelAutoRetry();
+		lastError = null;
+		chat.clearError();
+	}
 
 	// --- per-project history (IndexedDB) ---
 	let chatReady = $state(false);
@@ -146,6 +216,9 @@
 			loadedProjectId = id;
 			const current = ++generation;
 			chatReady = false;
+			cancelAutoRetry();
+			lastError = null;
+			autoRetries = 0;
 			void chat.stop();
 			chat.messages = [];
 			proposals = {};
@@ -274,6 +347,9 @@
 		if (!canSend) return;
 		const text = input.trim();
 		input = '';
+		cancelAutoRetry();
+		lastError = null;
+		autoRetries = 0;
 		void chat.sendMessage({ text }).finally(() => void persistChat());
 	}
 
@@ -282,6 +358,9 @@
 	}
 
 	function clear() {
+		cancelAutoRetry();
+		lastError = null;
+		autoRetries = 0;
 		chat.messages = [];
 		proposals = {};
 		chat.clearError();
@@ -332,6 +411,20 @@
 				<span>tries</span>
 			</label>
 			<label>
+				<span>Fallback</span>
+				<select
+					value={settings.fallbackProvider}
+					disabled={busy}
+					aria-label="Fallback provider offered after a failed request"
+					onchange={(e) => (settings.fallbackProvider = e.currentTarget.value)}
+				>
+					<option value="">none</option>
+					{#each providers.filter((p) => p.configured) as p (p.id)}
+						<option value={p.id}>{p.label}</option>
+					{/each}
+				</select>
+			</label>
+			<label>
 				<span>Astro docs</span>
 				<select
 					value={settings.docsMode}
@@ -348,10 +441,22 @@
 
 	<MessageList messages={chat.messages} proposals={visibleProposals} streaming={busy} onApply={applyProposal} />
 
-	{#if chat.error}
+	{#if lastError || chat.error}
 		<div class="error" role="alert">
-			<span>{chat.error.message}</span>
-			<button type="button" class="ghost" onclick={() => chat.clearError()}>Dismiss</button>
+			<span>{lastError?.message ?? chat.error?.message}</span>
+			<div class="error-actions">
+				{#if retryPending}
+					<span class="retrying">Retrying…</span>
+				{:else}
+					<button type="button" class="ghost" onclick={retryNow} disabled={busy}>Retry</button>
+					{#if fallbackInfo}
+						<button type="button" class="ghost" onclick={() => void retryWithFallback()} disabled={busy}>
+							Retry with {fallbackInfo.label}
+						</button>
+					{/if}
+					<button type="button" class="ghost" onclick={dismissError}>Dismiss</button>
+				{/if}
+			</div>
 		</div>
 	{/if}
 
@@ -441,8 +546,8 @@
 	.error {
 		flex: none;
 		display: flex;
-		justify-content: space-between;
-		gap: 0.5rem;
+		flex-direction: column;
+		gap: 0.4rem;
 		margin: 0 0.75rem;
 		padding: 0.5rem 0.6rem;
 		border-radius: 6px;
@@ -450,6 +555,16 @@
 		color: var(--err);
 		font-size: 0.75rem;
 		white-space: pre-wrap;
+	}
+	.error-actions {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: 0.3rem;
+	}
+	.retrying {
+		color: var(--muted);
+		align-self: center;
 	}
 	.composer {
 		flex: none;

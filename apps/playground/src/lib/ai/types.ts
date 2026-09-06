@@ -22,6 +22,12 @@ export interface ProposalFix {
 	state: "retrying" | "resolved" | "gave-up";
 }
 
+/** Server-side notice streamed as a `data-notice` part (kept in the history). */
+export interface ChatNotice {
+	kind: "docs-unavailable";
+	message: string;
+}
+
 export interface Proposal {
 	code: string;
 	status: ProposalStatus;

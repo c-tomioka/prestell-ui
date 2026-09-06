@@ -3,7 +3,7 @@
 	import { tick } from 'svelte';
 	import { stripAstroFences } from '../../lib/ai/extract-code';
 	import { fixMetadataOf } from '../../lib/ai/fix-loop';
-	import type { Proposal } from '../../lib/ai/types';
+	import type { ChatNotice, Proposal } from '../../lib/ai/types';
 	import CodeProposal from './CodeProposal.svelte';
 
 	interface Props {
@@ -28,6 +28,12 @@
 		return message.parts.filter(
 			(part) => part.type === 'dynamic-tool' || part.type.startsWith('tool-'),
 		) as Array<{ type: string; toolName?: string; state?: string; input?: unknown }>;
+	}
+
+	function noticeParts(message: UIMessage): ChatNotice[] {
+		return message.parts
+			.filter((part) => part.type === 'data-notice')
+			.map((part) => (part as { data: ChatNotice }).data);
 	}
 
 	function toolLabel(part: { type: string; toolName?: string; input?: unknown }): string {
@@ -65,6 +71,9 @@
 		{:else}
 		<article class="message" data-role={message.role}>
 			<header>{message.role === 'user' ? 'You' : 'Assistant'}</header>
+			{#each noticeParts(message) as notice, index (index)}
+				<p class="tool notice">ℹ️ {notice.message}</p>
+			{/each}
 			{#each toolParts(message) as part, index (index)}
 				<p class="tool">🔎 {toolLabel(part)}{part.state && part.state !== 'output-available' ? ` (${part.state})` : ''}</p>
 			{/each}

@@ -67,6 +67,18 @@ Phase 2 で追加済み:
 | `PREVIEW_TIMEOUT_MS` | 5000 | プレビューのタイムアウト |
 | `COMPILER_TIMEOUT_MS` | 8000 | コンパイラ Worker のタイムアウト（超過で再起動） |
 | `PROJECT_SAVE_DEBOUNCE_MS` | 500 | 最後の編集からプロジェクトを IndexedDB に保存するまでの待ち時間（切替・離脱時は即時保存） |
+
+リトライ・タイムアウト（`apps/playground/src/server/ai/resilience.ts`、クライアント側は `src/lib/ai/errors.ts`）:
+
+| 定数 | 既定値 | 意味 |
+|---|---|---|
+| `LLM_MAX_RETRIES` | 2 | ストリーム開始前（接続・HTTP 失敗）のリトライ回数 |
+| `LLM_FIRST_CHUNK_TIMEOUT_MS` | 60000 | 最初のトークンまでの待ち時間（ローカルモデルのロードを許容） |
+| `LLM_CHUNK_TIMEOUT_MS` | 30000 | ストリーム中の無応答で打ち切るまでの時間 |
+| `MCP_CONNECT_TIMEOUT_MS` | 8000 | Astro Docs MCP の接続タイムアウト |
+| `MCP_TOOL_TIMEOUT_MS` | 10000 | `search_astro_docs` 1 回のタイムアウト |
+| `MCP_RETRIES` | 1 | MCP 接続・検索の追加試行回数 |
+| `AUTO_RETRY_DELAY_MS` / `MAX_AUTO_RETRIES` | 1500 / 1 | クライアントの自動リトライ（一時的エラーのみ） |
 | `PREVIEW_RENDERER` | `browser` | どこでレンダリングするか。環境変数 `PUBLIC_PREVIEW_RENDERER=browser\|server` から `astro.config.ts` が注入（`apps/playground/.env` にも書ける） |
 
 UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にすると手入力編集での自動レンダリング自体を止められる（↻ で手動描画、設定は localStorage `prestell.preview.auto` に保存。`src/lib/preview-settings.ts`）。コンパイルと Diagnostics は常に自動。
@@ -84,7 +96,8 @@ UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にする
 ## テスト・動作確認の指針
 - 各プロバイダー（Ollama / LM Studio / Anthropic / OpenAI / Workers AI）で最低1回はチャット→コード生成→プレビュー反映の E2E 確認を行う
 - MCP 接続が失敗した場合でもチャット機能自体は継続動作すること（グレースフルデグラデーション）を確認する
-- ローカル LLM が未起動のとき、UI に分かりやすいヒントが出ることを確認する
+- ローカル LLM が未起動のとき、UI に分かりやすいヒントが出ることを確認する。送信時のエラーバナーが JSON の生表示にならず、`Retry` と `Retry with <フォールバック先>`（チャット設定の Fallback で選択）から再送できること
+- Astro Docs MCP が到達不能（`.dev.vars` の `ASTRO_DOCS_MCP_URL` を無効な URL にする）でも `docsMode: tools | inject` の返答が 10 秒以内に始まり、「Astro docs unavailable」の通知行が出ること
 - 提案コードに `import` や `client:*` が含まれる場合、適用前に「Cannot render」として拒否されることを確認する
 - fix ループ: 拒否された提案に対して「🔧 Auto-fix request 1/N」が自動送信され、修正案が valid になれば適用、上限到達で「auto-fix gave up」で止まること。Stop で中断できること。チャット設定の「Auto-fix errors」を OFF にすると従来どおり invalid で止まること
 - プロジェクト: New / Rename / Delete と切替でエディタとチャット履歴が入れ替わり、リロード後に最後のプロジェクトが復元されること。Share で得た `#code=` URL を開くと「Shared <filename>」として取り込まれ、ハッシュが消えること
