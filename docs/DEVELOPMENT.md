@@ -19,6 +19,7 @@ NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 2. `pnpm install`
 3. `cp apps/playground/.dev.vars.example apps/playground/.dev.vars` を作成し、必要な値を設定
    - ローカル LLM だけなら変更不要（`OLLAMA_BASE_URL` / `LMSTUDIO_BASE_URL` は既定値でよい）
+   - `PUBLIC_PREVIEW_RENDERER` だけは Vite の `.env` から読む。変えたいときは `apps/playground/.env.example` を `.env` にコピーする（シークレットは書かない）
    - 外部 LLM を使う場合は `CF_AI_GATEWAY_URL`（ダッシュボードの REST API URL `https://api.cloudflare.com/client/v4/accounts/{account_id}/ai`）、`CF_AI_GATEWAY_TOKEN`（Workers AI Read 権限の API トークン）、`CF_AI_GATEWAY_ID`（Gateway 名。Workers AI では必須）。外部プロバイダーのキーは Gateway 側の BYOK / Unified Billing で管理する。旧形式 `gateway.ai.cloudflare.com/v1/...` も受け付ける
 4. ローカル LLM を起動（詳細は `LOCAL_LLM.md`）
    - Ollama: `ollama serve` と `ollama pull qwen2.5-coder:7b` など
@@ -88,7 +89,7 @@ UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にする
 
 - 言語: TypeScript。Workers 側（`src/pages/api`, `src/server`）も TypeScript
 - Biome（タブインデント、ダブルクォート）。`pnpm lint:fix` で整形
-- シークレットは `apps/playground/.dev.vars` のみ（git 管理外）。`.env` / `.dev.vars` をコミットしない
+- シークレットは `apps/playground/.dev.vars` のみ（git 管理外）。`.env` / `.dev.vars` をコミットしない。`astro build` は `.dev.vars` を `dist/server/` にコピーするので、`dist/` を配布・zip・共有しない（点検記録は `OSS_SCOPE.md`）
 - 上流由来のファイルには `Derived from withastro/astro-playground (MIT)` ヘッダーを残す
 - LLM 生成コードは必ず `src/lib/ai/apply.ts` の `validateProposal`（コンパイラ診断 + `validatePreview`）を通してからエディタに反映する
 - SaaS 専用ロジック（課金、マルチユーザー管理）は `saas/` に分離し、Phase 1〜3 では `apps/` から参照しない
