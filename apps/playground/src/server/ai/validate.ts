@@ -22,7 +22,7 @@ export const chatRequestSchema = z.object({
 	messages: z.array(uiMessageSchema).min(1).max(MAX_MESSAGES),
 	provider: z.enum(PROVIDER_IDS),
 	model: z.string().trim().min(1).max(200),
-	docsMode: z.enum(DOCS_MODES).default("off"),
+	docsMode: z.enum(DOCS_MODES).default("inject"),
 	filename: z.string().trim().min(1).max(200).default("index.astro"),
 	source: z.string().max(200_000).default(""),
 });

@@ -197,7 +197,7 @@ lms load qwen/qwen2.5-coder-7b-instruct -y
    lms unload --all && lms server stop
    ```
 
-Astro Docs を参照させたい場合は「Astro docs」を `inject`（ローカルモデル推奨）にしてください。
+Astro Docs の参照（「Astro docs」セレクト）は既定で `inject`（送信前に一度検索して結果を埋め込む）です。tool calling が安定するクラウドモデルでは `tools`、参照を止めたいときは `off` に切り替えられます。
 
 ## 使い方
 

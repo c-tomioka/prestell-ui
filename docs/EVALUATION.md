@@ -78,7 +78,7 @@ Astro 5 で変わった、または間違えやすい API を問う。`must`（�
 | qwen2.5-coder-32b | 25% / 2 | 63% / 0 | 測定不可（レート制限） |
 
 - **inject は 3 モデルすべてでハルシネーションを 0 にし、正答率を 2〜2.5 倍にした。** off で出た誤りは `<ViewTransitions />`（Astro 5 で `ClientRouter` に置換）、`output: 'hybrid'`（廃止）、`Astro.glob()`（非推奨）と、いずれも「学習時点の古い API」。
-- tools が inject を上回るのはモデルが実際に検索を呼ぶ場合だけ。Haiku は 8 問で 10 回検索して全問正解、llama-4-scout は 1 回も呼ばず off とほぼ同じ結果になった。**既定は inject、Claude 系では tools** が妥当。
+- tools が inject を上回るのはモデルが実際に検索を呼ぶ場合だけ。Haiku は 8 問で 10 回検索して全問正解、llama-4-scout は 1 回も呼ばず off とほぼ同じ結果になった。**既定は inject、Claude 系では tools** が妥当（2026-09-07 に既定を inject へ変更済み。保存済みの `off` も移行する）。
 - inject でも残る誤答は `class:list`（式で書く一般解を返す）、`prerender = false`（`server:defer` や `server` ディレクティブと混同）、content collections の `glob()` ローダー（Astro 4 の `type: 'content'` 形式）。検索上位に該当ページが入らないケースで、質問文の言い換えか `maxHits` の調整で改善余地がある。
 
 ### 評価で見つかり、修正した不具合

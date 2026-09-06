@@ -5,6 +5,8 @@ import { clampFixAttempts, DEFAULT_MAX_FIX_ATTEMPTS } from "./fix-loop";
 export type { DocsMode };
 
 export interface ChatSettings {
+	/** Schema version of the stored blob; `loadSettings` migrates older ones. */
+	version: number;
 	provider: string;
 	/** Model id per provider id. */
 	models: Record<string, string>;
@@ -21,10 +23,19 @@ export interface ChatSettings {
 
 const STORAGE_KEY = "prestell.chat.settings";
 
+/**
+ * v1: no version field, docsMode defaulted to "off".
+ * v2 (2026-09-07): docsMode defaults to "inject" (the evaluation showed it
+ * removes hallucinations for every model). Stored "off" from v1 is migrated
+ * because v1 saved the blob eagerly, so it was rarely a deliberate choice.
+ */
+export const SETTINGS_VERSION = 2;
+
 export const DEFAULT_SETTINGS: ChatSettings = {
+	version: SETTINGS_VERSION,
 	provider: "ollama",
 	models: {},
-	docsMode: "off",
+	docsMode: "inject",
 	autoApply: true,
 	chatOpen: true,
 	autoFix: true,
@@ -32,12 +43,19 @@ export const DEFAULT_SETTINGS: ChatSettings = {
 	fallbackProvider: "",
 };
 
+function migrate(parsed: Partial<ChatSettings>): Partial<ChatSettings> {
+	const version = typeof parsed.version === "number" ? parsed.version : 1;
+	const next = { ...parsed };
+	if (version < 2 && next.docsMode === "off") next.docsMode = "inject";
+	return { ...next, version: SETTINGS_VERSION };
+}
+
 export function loadSettings(): ChatSettings {
 	if (typeof localStorage === "undefined") return { ...DEFAULT_SETTINGS };
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (!raw) return { ...DEFAULT_SETTINGS };
-		const parsed = JSON.parse(raw) as Partial<ChatSettings>;
+		const parsed = migrate(JSON.parse(raw) as Partial<ChatSettings>);
 		return {
 			...DEFAULT_SETTINGS,
 			...parsed,

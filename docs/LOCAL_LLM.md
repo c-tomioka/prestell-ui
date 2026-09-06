@@ -45,7 +45,7 @@ provider: "anthropic" / "openai" / "google" / "workers-ai"
 - モデル ID は自由入力も可能（候補にない ID を指定できる）
 
 ## MCP 連携とローカル LLM の相性
-- ローカル（特に小型）モデルは tool calling の精度が低いため、`docsMode` を3段階で切替可能にしている
+- ローカル（特に小型）モデルは tool calling の精度が低いため、`docsMode` を3段階で切替可能にしている。既定は `inject`（2026-09-07 に評価結果を受けて `off` から変更。旧設定で保存された `off` は初回ロード時に `inject` へ移行する。`EVALUATION.md`）
   - `off`: ドキュメント参照なし
   - `inject`: 直近のユーザー発話で `search_astro_docs` を先に1回実行し、上位数件を system prompt に埋め込む（ローカルモデル推奨）
   - `tools`: MCP tools を `streamText` に渡し、モデル自身が検索する（クラウドモデル推奨）

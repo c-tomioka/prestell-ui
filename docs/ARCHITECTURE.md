@@ -42,7 +42,7 @@
 - 上流の Playground を参考に再構成（派生ファイルには MIT 帰属ヘッダー）。上流スナップショットは `tmp/upstream/`（git 管理外）。
 - 追加要素: `src/components/chat/*`（ChatPanel / ProviderSelect / MessageList / CodeProposal）、Toolbar の「AI chat」「Save」ボタン。
 - 提案コードの反映: `src/lib/ai/extract-code.ts` で応答の ```astro フェンスを抽出 → `src/lib/ai/apply.ts` がコンパイラで検証（診断エラー・Preview 非対応構文を拒否）→ 合格なら `Playground.svelte` の通常経路でエディタ置換 → 再コンパイル → Preview 更新。
-- 設定（プロバイダー、モデル、docsMode、自動適用、auto-fix の有無と上限、パネル開閉）は localStorage に保持。
+- 設定（プロバイダー、モデル、docsMode、自動適用、auto-fix の有無と上限、パネル開閉）は localStorage に保持。`version` を持ち、`loadSettings`（`src/lib/ai/settings.ts`）が旧形式を移行する（v2: docsMode の既定を `inject` に変更し、v1 で保存された `off` を `inject` へ）。
 - プロジェクト管理（`src/lib/projects/*`）: 1 プロジェクト = 1 コンポーネント + コンパイルオプション + 1 チャットスレッド。`ProjectStore` インターフェース（`types.ts`）を `IdbProjectStore`（IndexedDB `prestell`、ストア `projects` / `chats`）と `MemoryProjectStore`（フォールバック・テスト用）が実装する。エディタは `PROJECT_SAVE_DEBOUNCE_MS` でデバウンス保存、チャットは送信・返答完了・適用時に保存。最後に開いたプロジェクト id は localStorage。起動時の優先順位は `boot.ts` の `resolveInitialProject`（共有 URL の `#code=` > 前回のプロジェクト > 最新 > 新規）。URL ハッシュは Share ボタンを押したときだけ生成する（常時の書き戻しは廃止）。
 - プロンプトテンプレート（`src/lib/ai/templates.ts`、`TemplateMenu.svelte`）: Component / Layout / Style の 3 カテゴリ 18 種。コンポーザーに差し込むだけで送信は従来どおり。文面は system prompt の出力契約（props に既定値、単一ファイル、「the current component」）に合わせてある。
 - fix ループ（`src/lib/ai/fix-loop.ts`）: `validateProposal` が拒否した提案のエラー文を `buildFixPrompt` で user メッセージにして再送する（`metadata: { kind: "fix", attempt, max }`）。直近の手動メッセージ以降の fix 回数（`pendingFixAttempts`）が上限に達するか、返答にコードブロックがない、Stop / 通信エラーで止まる。エラー文は `format-diagnostics.ts` の `formatCompilerErrors` が診断ごとに該当行の本文（`N | …`）を添えて整形する（評価ハーネスの `validateCode` と共用）。サーバー側は無変更（metadata は `convertToModelMessages` が無視する）。送信するメッセージ数は `history.ts` の `trimForRequest` でサーバー上限（60）未満に切り詰め、ローカル履歴は全件残す。
@@ -70,7 +70,7 @@
 ### 4. MCP 連携（`src/server/ai/mcp.ts`）
 - `@ai-sdk/mcp` の `createMCPClient({ transport: { type: "http", url } })`。
 - `docsMode: "tools"`: `mcp.tools()` を `streamText` に渡す（最大5ステップ）。
-- `docsMode: "inject"`: 直近のユーザー発話で検索し、上位数件を system prompt に埋め込む（tool calling が弱いローカルモデル向け）。
+- `docsMode: "inject"`（既定）: 直近のユーザー発話で検索し、上位数件を system prompt に埋め込む（tool calling が弱いローカルモデル向け。全モデルでハルシネーションを減らしたため既定にした）。
 - MCP 接続は 8 秒でタイムアウトし、接続・検索は 1 回リトライする（`resilience.ts` の `withRetry`）。それでも失敗したらドキュメントなしで継続し、チャットに「Astro docs unavailable」の通知行を残す（グレースフルデグラデーション）。
 
 ### 4b. エラー処理（`src/lib/ai/errors.ts`, ChatPanel）
