@@ -48,6 +48,12 @@ const aiEnv = env as unknown as AiEnv;
 
 /** Max tool-calling rounds per reply (search → answer). */
 const MAX_STEPS = 5;
+/**
+ * Explicit output budget. Without it some providers apply a small default
+ * (Workers AI: 256 tokens) and cut the component off mid-`<style>`, which then
+ * fails compilation for a reason that has nothing to do with the model.
+ */
+const MAX_OUTPUT_TOKENS = 4096;
 
 /** Turn transport-level failures into something the chat panel can show. */
 function describeError(error: unknown, provider: ProviderId): string {
@@ -172,6 +178,7 @@ export const POST: APIRoute = async ({ request }) => {
 			messages: await convertToModelMessages(messages),
 			tools,
 			stopWhen: stepCountIs(MAX_STEPS),
+			maxOutputTokens: MAX_OUTPUT_TOKENS,
 			abortSignal: request.signal,
 			// Pre-stream failures are retried by the SDK; a silent stream is cut off
 			// so the panel can offer Retry instead of hanging.

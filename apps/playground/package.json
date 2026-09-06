@@ -12,7 +12,8 @@
 		"check": "tsc --noEmit",
 		"test": "vitest run",
 		"types": "wrangler types src/worker-configuration.d.ts --include-runtime false",
-		"astro": "astro"
+		"astro": "astro",
+		"eval": "cross-env PRESTELL_EVAL=1 vitest run scripts/eval --testTimeout=3600000"
 	},
 	"dependencies": {
 		"@ai-sdk/mcp": "^2.0.44",

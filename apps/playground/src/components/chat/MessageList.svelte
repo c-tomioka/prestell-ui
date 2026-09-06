@@ -53,7 +53,7 @@
 <div class="messages" bind:this={host}>
 	{#if messages.length === 0}
 		<p class="empty">
-			Describe the component you want — e.g. “A pricing section with three tiers and a highlighted middle plan”.
+			Describe the component you want — e.g. “A pricing section with three tiers and a highlighted middle plan” — or pick a template next to the Send button.
 			The reply is validated with the Astro compiler before it replaces the editor.
 		</p>
 	{/if}

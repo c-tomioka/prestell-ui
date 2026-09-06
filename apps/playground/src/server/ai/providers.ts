@@ -253,8 +253,9 @@ export function gatewayModelId(
 
 /**
  * Workers AI occasionally streams `delta.content` as a JSON number (e.g. a
- * bare `2`), which the OpenAI-compatible parser rejects. Coerce it to a string
- * on the way in so the stream keeps flowing.
+ * bare `2`) or, on the trailing usage chunk, as a boolean, which the
+ * OpenAI-compatible parser rejects. Coerce numbers to their text and booleans
+ * to an empty string on the way in so the stream keeps flowing.
  */
 export function sanitizingFetch(fetchImpl: typeof fetch = fetch): typeof fetch {
 	const fixLine = (line: string): string => {
@@ -273,6 +274,9 @@ export function sanitizingFetch(fetchImpl: typeof fetch = fetch): typeof fetch {
 				for (const part of [choice.delta, choice.message]) {
 					if (part && typeof part.content === "number") {
 						part.content = String(part.content);
+						changed = true;
+					} else if (part && typeof part.content === "boolean") {
+						part.content = "";
 						changed = true;
 					}
 				}

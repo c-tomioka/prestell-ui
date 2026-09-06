@@ -144,6 +144,25 @@ describe("sanitizingFetch", () => {
 		expect(text).toContain("data: [DONE]");
 	});
 
+	it("blanks boolean delta.content (Workers AI trailing usage chunk)", async () => {
+		const sse = [
+			'data: {"choices":[{"index":0,"delta":{"content":"hi"}}]}',
+			'data: {"choices":[{"index":0,"delta":{"content":false}}],"usage":{"completion_tokens":1}}',
+			"data: [DONE]",
+			"",
+		].join("\n");
+		const fetchImpl = (async () =>
+			new Response(sse, {
+				headers: { "content-type": "text/event-stream" },
+			})) as unknown as typeof fetch;
+		const text = await (
+			await sanitizingFetch(fetchImpl)("https://x/", {})
+		).text();
+		expect(text).toContain('"content":"hi"');
+		expect(text).toContain('"content":""');
+		expect(text).not.toContain('"content":false');
+	});
+
 	it("passes non-SSE responses through untouched", async () => {
 		const fetchImpl = (async () =>
 			Response.json({ ok: true })) as unknown as typeof fetch;

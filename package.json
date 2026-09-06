@@ -17,7 +17,8 @@
 		"test": "pnpm --filter @prestell/playground run test",
 		"lint": "biome check",
 		"lint:fix": "biome check --write",
-		"lang:build": "pnpm --filter @prestell/codemirror-astro run build"
+		"lang:build": "pnpm --filter @prestell/codemirror-astro run build",
+		"eval": "pnpm --filter @prestell/playground run eval"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.7"

@@ -39,6 +39,7 @@ NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 | `pnpm test` | Vitest |
 | `pnpm lint` / `pnpm lint:fix` | Biome |
 | `pnpm build` | `astro build` |
+| `pnpm eval` | LLM 生成品質・MCP ハルシネーションの評価ハーネス（dev サーバー起動が前提。`EVALUATION.md`） |
 
 ## Phase 1 の実装状況と残タスク
 
@@ -99,6 +100,7 @@ UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にする
 - ローカル LLM が未起動のとき、UI に分かりやすいヒントが出ることを確認する。送信時のエラーバナーが JSON の生表示にならず、`Retry` と `Retry with <フォールバック先>`（チャット設定の Fallback で選択）から再送できること
 - Astro Docs MCP が到達不能（`.dev.vars` の `ASTRO_DOCS_MCP_URL` を無効な URL にする）でも `docsMode: tools | inject` の返答が 10 秒以内に始まり、「Astro docs unavailable」の通知行が出ること
 - 提案コードに `import` や `client:*` が含まれる場合、適用前に「Cannot render」として拒否されることを確認する
+- テンプレート: Send の左の Template… から選ぶとコンポーザーに文面が入り、最初の `[...]` が選択される。入力がある状態で選ぶと空行を挟んで追記。Style 系はそのまま Send で現在のコンポーネントが更新されること
 - fix ループ: 拒否された提案に対して「🔧 Auto-fix request 1/N」が自動送信され、修正案が valid になれば適用、上限到達で「auto-fix gave up」で止まること。Stop で中断できること。チャット設定の「Auto-fix errors」を OFF にすると従来どおり invalid で止まること
 - プロジェクト: New / Rename / Delete と切替でエディタとチャット履歴が入れ替わり、リロード後に最後のプロジェクトが復元されること。Share で得た `#code=` URL を開くと「Shared <filename>」として取り込まれ、ハッシュが消えること
 

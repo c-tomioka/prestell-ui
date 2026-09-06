@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Chat } from '@ai-sdk/svelte';
 	import { DefaultChatTransport, type UIMessage } from 'ai';
-	import { onMount, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { validateProposal } from '../../lib/ai/apply';
 	import {
 		AUTO_RETRY_DELAY_MS,
@@ -23,11 +23,13 @@
 		loadSettings,
 		saveSettings,
 	} from '../../lib/ai/settings';
+	import { insertTemplate, type PromptTemplate } from '../../lib/ai/templates';
 	import type { Proposal, ProviderInfo } from '../../lib/ai/types';
 	import { persistableProposals } from '../../lib/projects/record';
 	import { openProjectStore } from '../../lib/projects/store';
 	import MessageList from './MessageList.svelte';
 	import ProviderSelect from './ProviderSelect.svelte';
+	import TemplateMenu from './TemplateMenu.svelte';
 
 	interface Props {
 		/** Project whose chat thread is shown; switching it swaps the history. */
@@ -276,6 +278,9 @@
 		streamingProposal ? { ...proposals, [streamingProposal[0]]: streamingProposal[1] } : proposals,
 	);
 
+	const TRUNCATED_ERROR =
+		'The reply ended before the code block was closed (output limit reached). Ask for a smaller component or pick a model with a larger output limit.';
+
 	/** The fix request finished (reply, stop, or error): close the card that triggered it. */
 	function settleRetrying(state: 'resolved' | 'gave-up') {
 		for (const [id, proposal] of Object.entries(proposals)) {
@@ -296,6 +301,13 @@
 			return;
 		}
 		const code = extracted.code;
+		if (!extracted.complete) {
+			// The reply stopped before the closing fence (output limit reached):
+			// re-asking would be cut off the same way, so no auto-fix here.
+			proposals[message.id] = { code, status: 'invalid', error: TRUNCATED_ERROR };
+			void persistChat();
+			return;
+		}
 		proposals[message.id] = { code, status: 'validating' };
 		const result = await validateProposal(code, { filename });
 		if (current !== generation) return;
@@ -351,6 +363,19 @@
 		lastError = null;
 		autoRetries = 0;
 		void chat.sendMessage({ text }).finally(() => void persistChat());
+	}
+
+	let composerEl: HTMLTextAreaElement | undefined;
+
+	/** Insert a template into the composer and select its first `[...]` placeholder. */
+	async function applyTemplate(template: PromptTemplate) {
+		const { text, selection } = insertTemplate(input, template);
+		input = text;
+		await tick();
+		if (!composerEl) return;
+		composerEl.focus();
+		if (selection) composerEl.setSelectionRange(selection.start, selection.end);
+		else composerEl.setSelectionRange(text.length, text.length);
 	}
 
 	function onKeydown(event: KeyboardEvent) {
@@ -464,6 +489,7 @@
 		<label class="visually-hidden" for="chat-input">Message</label>
 		<textarea
 			id="chat-input"
+			bind:this={composerEl}
 			bind:value={input}
 			rows="3"
 			placeholder="Describe the component or the change you want… (⌘/Ctrl+Enter to send)"
@@ -471,6 +497,7 @@
 			disabled={busy}
 		></textarea>
 		<div class="composer-actions">
+			<TemplateMenu disabled={busy} onPick={(template) => void applyTemplate(template)} />
 			{#if busy}
 				<button type="button" class="ghost" onclick={() => chat.stop()}>Stop</button>
 			{/if}
@@ -593,8 +620,13 @@
 	}
 	.composer-actions {
 		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
 		justify-content: flex-end;
 		gap: 0.4rem;
+	}
+	.composer-actions > :global(.template) {
+		margin-right: auto;
 	}
 	button {
 		appearance: none;
