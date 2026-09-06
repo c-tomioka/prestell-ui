@@ -9,10 +9,16 @@ their original licenses, reproduced below.
 - Source: https://github.com/withastro/astro-playground
 - License: MIT
 - Derived files are marked with a header comment
-  `Derived from withastro/astro-playground (MIT)` and include, among others:
-  `packages/lang-astro/**`, `apps/playground/src/lib/**` (compiler, preview,
-  codemirror, diagnostics, share, theme), `apps/playground/src/components/{Playground,Editor,OutputTabs,Toolbar}.svelte`,
-  `apps/playground/src/pages/api/render.ts`, `apps/playground/astro.config.ts`.
+  `Derived from withastro/astro-playground (MIT)`. The header is authoritative;
+  list them with `git grep -l 'Derived from withastro/astro-playground'`. As of 2026-09-07:
+  - `packages/lang-astro/` (`package.json`, `scripts/build-grammar.mjs`, `src/index.ts`, `src/syntax.grammar`, `src/tokens.js`; the package keeps its upstream MIT `LICENSE`)
+  - `apps/playground/astro.config.ts`, `src/env.d.ts`, `src/pages/index.astro`, `src/pages/api/render.ts`
+  - `apps/playground/src/components/{Playground,Editor,OutputTabs,Toolbar}.svelte`
+  - `apps/playground/src/lib/`: `codemirror/index.ts`, `compiler-protocol.ts`, `compiler.ts`, `compiler.worker.ts`,
+    `diagnostics.ts`, `options.ts`, `preview-manifest.ts`, `preview-protocol.ts`, `preview-runtime.ts`,
+    `preview-worker.ts`, `preview.ts`, `preview.test.ts`, `samples.ts`, `share.ts`, `theme.ts`
+- Everything else in this repository (AI chat, providers, MCP, projects, fix loop, evaluation harness, docs)
+  is original work licensed under Apache-2.0.
 
 ```
 MIT License
