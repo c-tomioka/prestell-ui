@@ -8,7 +8,7 @@ Claude Code での開発時に参照するセットアップ手順・実装優�
 apps/playground/        # プロダクト本体（Astro 7 + Svelte 5 + Cloudflare Workers ランタイム）
 packages/lang-astro/    # CodeMirror 用 Astro 言語サポート（上流由来、MIT）
 docs/                   # 設計ドキュメント
-saas/                   # Phase 5 以降の SaaS 専用ロジック置き場（現在は空）
+saas/                   # SaaS 専用ロジックの境界を示すプレースホルダー（実装は private リポジトリ prestell-ui-saas。docs/OSS_SCOPE.md）
 tmp/upstream/           # withastro/astro-playground のスナップショット（git 管理外、参考用）
 NOTICE, THIRD_PARTY_NOTICES.md  # MIT 帰属表示
 ```
@@ -120,3 +120,4 @@ resolveModel を再利用し、レスポンスは AI SDK の UI message stream �
 - `ROADMAP.md`: フェーズごとのタスクリスト
 - `LOCAL_LLM.md`: ローカル LLM（Ollama / LM Studio）接続の仕様
 - `PREVIEW_RENDERING.md`: プレビューレンダラーの設計と比較
+- `OSS_SCOPE.md`: OSS 公開範囲・SaaS 境界・シークレット点検記録

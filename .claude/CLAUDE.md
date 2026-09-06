@@ -14,6 +14,7 @@ Astro公式Playground（`withastro/astro-playground`）をフォークし、AI�
 - `LOCAL_LLM.md`: Ollama等ローカルLLM接続の仕様
 - `PREVIEW_RENDERING.md`: プレビューレンダラー（browser / server）の設計・比較・セキュリティ方針
 - `EVALUATION.md`: LLM 生成品質・MCP ハルシネーションの評価ハーネス（`pnpm eval`）と最新の所見。記録は `docs/evaluations/`
+- `OSS_SCOPE.md`: OSS 公開範囲、SaaS 専用ロジック（private リポジトリ `prestell-ui-saas`）との境界、シークレット管理の点検記録
 - `DEVELOPMENT.md`: セットアップ手順・実装優先順・コーディング規約
 
 作業前に必ず `ARCHITECTURE.md` と `ROADMAP.md` の該当フェーズを確認し、現在のフェーズ範囲外の実装（特にSaaS化・課金関連）に着手しないこと。
@@ -38,4 +39,4 @@ Astro公式Playground（`withastro/astro-playground`）をフォークし、AI�
 不明点や設計判断が必要な場合は、実装前に選択肢を提示して確認を取ること。特にAI Gatewayのプロバイダー切替ロジックや、MCPサーバー接続方式など、アーキテクチャに影響する変更は独断で行わない。
 
 ## 現在のフェーズ
-Phase 1: ローカルMVP（個人利用、Cloudflare無料枠内、APIコストのみ発生）。フェーズの全体像は `ROADMAP.md` を参照。
+Phase 3: OSS 公開（Phase 1〜2 は完了）。公開範囲と境界は `OSS_SCOPE.md`、フェーズの全体像は `ROADMAP.md` を参照。Phase 4〜6（静的ホスト版・SaaS・課金）には着手しない。
