@@ -92,7 +92,7 @@ rm -rf /tmp/prestell-export && mkdir -p /tmp/prestell-export && git archive HEAD
 - [x] PR マージ後のブランチ自動削除、Dependabot alerts を有効化（`gh api`）
 - [x] `docs/`・スクリーンショット・`.claude/`・`docs/evaluations/` は公開前提で内容確認済み
 
-### 公開直後（private では設定できないもの。依頼があれば gh / API で代行する）
+### 公開直後（2026-09-07 に public 化。1〜8 は同日に gh / API で実施済み）
 1. Settings → Code security → **Private vulnerability reporting** を有効化（`SECURITY.md` と Issue テンプレートの `security/advisories/new` 導線が前提）
 2. 同ページで **Secret scanning** と **Push protection** を有効化（public では無料）
 3. 同ページで **Dependabot security updates** を有効化（alerts は公開前に有効化済み）

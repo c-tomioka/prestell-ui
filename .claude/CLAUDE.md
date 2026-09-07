@@ -41,4 +41,4 @@ Astro公式Playground（`withastro/astro-playground`）をフォークし、AI�
 不明点や設計判断が必要な場合は、実装前に選択肢を提示して確認を取ること。特にAI Gatewayのプロバイダー切替ロジックや、MCPサーバー接続方式など、アーキテクチャに影響する変更は独断で行わない。
 
 ## 現在のフェーズ
-Phase 3: OSS 公開（Phase 1〜2 は完了）。公開範囲と境界は `OSS_SCOPE.md`、フェーズの全体像は `ROADMAP.md` を参照。Phase 4〜6（静的ホスト版・SaaS・課金）には着手しない。
+Phase 3 完了（2026-09-07 に public 化、`v0.1.0`）。次は Phase 4「静的ホスト版（BYOK）」の準備。公開範囲と境界は `OSS_SCOPE.md`、フェーズの全体像は `ROADMAP.md` を参照。Phase 5〜6（SaaS・課金）には着手しない。
