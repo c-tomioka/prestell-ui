@@ -4,6 +4,8 @@
 	import type { Theme } from '../lib/codemirror';
 	import { COMPACT_OPTIONS, SCOPED_STYLE_STRATEGIES, SOURCEMAP_OPTIONS } from '../lib/options';
 	import type { ProjectSummary } from '../lib/projects/types';
+	import Icon from './Icon.svelte';
+	import IconButton from './IconButton.svelte';
 	import ProjectMenu from './ProjectMenu.svelte';
 
 	interface Props {
@@ -59,6 +61,17 @@
 		options.scopedStyleStrategy = value as CompileOptions['scopedStyleStrategy'];
 		onChange();
 	}
+
+	// Save / Share show transient feedback ("Saved!", "Copied!", "… failed") in
+	// place of their default label; mirror that in the icon and pin the tooltip.
+	type Feedback = 'idle' | 'done' | 'error';
+	function feedback(label: string, idle: string): Feedback {
+		if (label === idle) return 'idle';
+		return /failed/i.test(label) ? 'error' : 'done';
+	}
+	const saveState = $derived(feedback(saveLabel, 'Save'));
+	const shareState = $derived(feedback(shareLabel, 'Share'));
+	const feedbackIcon = { done: 'check', error: 'x' } as const;
 </script>
 
 <div class="toolbar">
@@ -111,29 +124,28 @@
 	</div>
 
 	<div class="actions">
-		<button
-			type="button"
-			class="ghost"
-			class:active={chatOpen}
-			aria-pressed={chatOpen}
-			onclick={onToggleChat}
+		<IconButton label={chatOpen ? 'Hide AI chat' : 'Show AI chat'} active={chatOpen} onclick={onToggleChat}>
+			<Icon name="sparkles" />
+		</IconButton>
+		<IconButton label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onclick={onToggleTheme}>
+			<Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+		</IconButton>
+		<IconButton
+			label={saveState === 'idle' ? 'Save component to disk' : saveLabel}
+			showTip={saveState !== 'idle'}
+			onclick={onSave}
 		>
-			AI chat
-		</button>
-		<button
-			type="button"
-			class="ghost"
-			aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-			onclick={onToggleTheme}
+			<Icon name={saveState === 'idle' ? 'save' : feedbackIcon[saveState]} />
+		</IconButton>
+		<IconButton
+			label={shareState === 'idle' ? 'Copy shareable link' : shareLabel}
+			showTip={shareState !== 'idle'}
+			variant="accent"
+			tipAlign="end"
+			onclick={onShare}
 		>
-			{theme === 'dark' ? 'Light' : 'Dark'} mode
-		</button>
-		<button type="button" class="ghost" aria-label="Save component to disk" onclick={onSave}>
-			{saveLabel}
-		</button>
-		<button type="button" class="share" aria-label="Copy shareable link" onclick={onShare}>
-			{shareLabel}
-		</button>
+			<Icon name={shareState === 'idle' ? 'share' : feedbackIcon[shareState]} />
+		</IconButton>
 	</div>
 
 	<span class="visually-hidden" role="status" aria-live="polite">
@@ -193,35 +205,6 @@
 		align-items: center;
 		gap: 0.5rem;
 		flex-wrap: wrap;
-	}
-	button {
-		appearance: none;
-		cursor: pointer;
-		font-size: 0.74rem;
-		border-radius: 6px;
-		padding: 0.3rem 0.7rem;
-		border: 1px solid var(--border);
-		white-space: nowrap;
-	}
-	.ghost {
-		background: transparent;
-		color: var(--muted);
-	}
-	.ghost:hover,
-	.ghost.active {
-		color: var(--fg);
-	}
-	.ghost.active {
-		border-color: var(--accent);
-	}
-	.share {
-		background: var(--accent);
-		color: var(--on-accent);
-		border-color: transparent;
-		font-weight: 600;
-	}
-	.share:hover {
-		filter: brightness(1.08);
 	}
 
 	@media (max-width: 800px) {

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { ProjectSummary } from '../lib/projects/types';
+	import Icon from './Icon.svelte';
+	import IconButton from './IconButton.svelte';
 
 	interface Props {
 		projects: ProjectSummary[];
@@ -42,9 +44,15 @@
 			{/each}
 		</select>
 	</label>
-	<button type="button" class="ghost" {disabled} onclick={onCreate}>New</button>
-	<button type="button" class="ghost" disabled={disabled || !current} onclick={rename}>Rename</button>
-	<button type="button" class="ghost" disabled={disabled || !current} onclick={remove}>Delete</button>
+	<IconButton label="New project" {disabled} onclick={onCreate}>
+		<Icon name="plus" />
+	</IconButton>
+	<IconButton label="Rename project" disabled={disabled || !current} onclick={rename}>
+		<Icon name="pencil" />
+	</IconButton>
+	<IconButton label="Delete project" disabled={disabled || !current} onclick={remove}>
+		<Icon name="trash" />
+	</IconButton>
 </div>
 
 <style>
@@ -73,26 +81,6 @@
 		padding: 0.15rem 0.3rem;
 		max-width: 12rem;
 		min-width: 6rem;
-	}
-	button {
-		appearance: none;
-		cursor: pointer;
-		font-size: 0.74rem;
-		border-radius: 6px;
-		padding: 0.3rem 0.6rem;
-		border: 1px solid var(--border);
-		white-space: nowrap;
-	}
-	button:disabled {
-		opacity: 0.5;
-		cursor: default;
-	}
-	.ghost {
-		background: transparent;
-		color: var(--muted);
-	}
-	.ghost:not(:disabled):hover {
-		color: var(--fg);
 	}
 	@media (max-width: 800px) {
 		.project-menu {
