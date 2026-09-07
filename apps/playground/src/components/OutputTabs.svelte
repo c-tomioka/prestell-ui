@@ -25,6 +25,12 @@
 		rendererMode: PreviewRendererMode;
 		/** False when generated code runs in a Worker of this origin (no sandbox origin). */
 		rendererIsolated: boolean;
+		/** `.astro` files that can be rendered (pages first); the select shows when there are several. */
+		entries: string[];
+		entry: string;
+		/** True when the active editor file is not an `.astro` file (no compiler output). */
+		activeIsAstro: boolean;
+		onEntryChange: (path: string) => void;
 		onTabChange: (tab: TabId) => void;
 		onToggleAutoPreview: () => void;
 		onRefreshPreview: () => void;
@@ -41,6 +47,10 @@
 		previewStale,
 		rendererMode,
 		rendererIsolated,
+		entries,
+		entry,
+		activeIsAstro,
+		onEntryChange,
 		onTabChange,
 		onToggleAutoPreview,
 		onRefreshPreview,
@@ -195,6 +205,21 @@
 		{/each}
 	</div>
 		<div class="preview-controls" class:inactive={active !== 'preview'}>
+			{#if entries.length > 1}
+				<label class="entry" title={$t('output.entryTitle')}>
+					<span>{$t('output.entry')}</span>
+					<select
+						name="entry"
+						value={entry}
+						disabled={active !== 'preview'}
+						onchange={(e) => onEntryChange(e.currentTarget.value)}
+					>
+						{#each entries as path (path)}
+							<option value={path}>{path.replace(/^src\/pages\//, '')}</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
 			<span
 				class="renderer"
 				class:unisolated={!rendererIsolated}
@@ -248,9 +273,13 @@
 
 	<!-- biome-ignore lint/a11y/noNoninteractiveTabindex: false-positive. A tabpanel must have a tab index -->
 	<div class="panel" id="output-panel" role="tabpanel" aria-labelledby={`tab-${active}`} tabindex="0">
-		<div class="code-host" bind:this={host} hidden={!isCodeTab}></div>
+		<div class="code-host" bind:this={host} hidden={!isCodeTab || !activeIsAstro}></div>
 
-		{#if active === 'preview'}
+		{#if !activeIsAstro && active !== 'preview'}
+			<div class="preview-state" role="status">
+				<p>{$t('output.notAstro')}</p>
+			</div>
+		{:else if active === 'preview'}
 			<div class="preview">
 				{#if previewStatus === 'ready' && previewStale}
 					<div class="stale-banner" role="status">
@@ -363,6 +392,23 @@
 	}
 	.preview-controls.inactive {
 		opacity: 0.45;
+	}
+	.entry {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.72rem;
+		color: var(--muted);
+	}
+	.entry select {
+		appearance: auto;
+		max-width: 11rem;
+		font-size: 0.72rem;
+		color: var(--fg);
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 0.1rem 0.25rem;
 	}
 	.renderer {
 		font-size: 0.65rem;

@@ -21,6 +21,8 @@ export const en = {
 	"toolbar.share": "Copy shareable link",
 	"toolbar.copied": "Copied!",
 	"toolbar.copyFailed": "Copy failed",
+	"toolbar.shareComponentOnly":
+		"Share links are available for Component projects only",
 
 	// --- project menu ---
 	"project.new": "New project",
@@ -28,6 +30,42 @@ export const en = {
 	"project.delete": "Delete project",
 	"project.namePrompt": "Project name",
 	"project.deleteConfirm": "Delete project “{name}” and its chat history?",
+	"project.newTitle": "New project…",
+	"project.mode.component": "Component",
+	"project.mode.component.hint": "One self-contained .astro file",
+	"project.mode.page": "Page",
+	"project.mode.page.hint": "An index page with a layout and global CSS",
+	"project.mode.site": "Site",
+	"project.mode.site.hint": "Pages, a layout, shared components",
+	"project.promote": "Convert to a Page project",
+	"project.promoteConfirm":
+		"Move “{file}” to src/components/ and render it from a new src/pages/index.astro with a layout?",
+	"project.cancel": "Cancel",
+
+	// --- file tree ---
+	"files.title": "Files",
+	"files.collapse": "Hide file tree",
+	"files.expand": "Show file tree",
+	"files.add": "New file",
+	"files.addPrompt": "File path (e.g. src/components/Card.astro)",
+	"files.rename": "Rename or move file",
+	"files.renamePrompt": "New path for {path}",
+	"files.delete": "Delete file",
+	"files.deleteConfirm": "Delete “{path}”?",
+	"files.entryBadge": "entry",
+	"files.entryTitle": "The file the preview renders",
+	"files.binary": "Binary file (not editable here)",
+	"files.invalidPath":
+		"Use a relative path made of letters, digits, dots, dashes and underscores, e.g. src/components/Card.astro.",
+	"files.componentPath":
+		"A Component project holds one top-level .astro file, e.g. Card.astro.",
+	"files.unsupportedType":
+		"Unsupported file type. Text files only: .astro, .css, .svg, .txt, .json, .xml, .html, .js, .webmanifest.",
+	"files.outsideRoots": "Files must live under src/ or public/.",
+	"files.astroOutsideSrc": ".astro files must live under src/.",
+	"files.exists": "A file named “{path}” already exists.",
+	"files.cannotDeleteEntry":
+		"“{path}” is the preview entry. Pick another entry in the Preview select first.",
 
 	// --- editor pane ---
 	"editor.filename": "Component filename",
@@ -36,6 +74,8 @@ export const en = {
 	"editor.compilerError": "Compiler error",
 	"editor.compiledIn": "Compiled in {ms} ms",
 	"editor.resize": "Resize editor and output panes",
+	"editor.tabs": "Open files",
+	"editor.closeTab": "Close {path}",
 
 	// --- output tabs ---
 	"tabs.preview": "Preview",
@@ -75,6 +115,9 @@ export const en = {
 	"output.styleErrors": "Style errors",
 	"output.nothingCompiled": "Nothing compiled yet.",
 	"output.noDiagnostics": "No diagnostics.",
+	"output.entry": "Page",
+	"output.entryTitle": "File the preview renders (pages first)",
+	"output.notAstro": "Select an .astro file to see its compiler output.",
 
 	// --- chat panel ---
 	"chat.title": "AI chat",
@@ -109,6 +152,8 @@ export const en = {
 	"chat.assistant": "Assistant",
 	"chat.fixRequest": "🔧 Auto-fix request {attempt}/{max}",
 	"chat.thinking": "Thinking…",
+	"chat.multiFileNote":
+		"The chat edits the active file ({path}) as one component; generating several files at once is coming later.",
 
 	// --- code proposal card ---
 	"proposal.title": "Component proposal",

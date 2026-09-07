@@ -2,16 +2,23 @@
 <script lang="ts">
 	import type { Diagnostic } from '@codemirror/lint';
 	import { onMount, untrack } from 'svelte';
-	import { createInputEditor, type InputEditorHandle, type Theme } from '../lib/codemirror';
+	import {
+		createInputEditor,
+		type EditorLanguage,
+		type InputEditorHandle,
+		type Theme,
+	} from '../lib/codemirror';
 
 	interface Props {
 		value: string;
 		diagnostics?: readonly Diagnostic[];
 		theme: Theme;
+		/** Syntax highlighting for the active file (default: Astro). */
+		language?: EditorLanguage;
 		onChange: (value: string) => void;
 	}
 
-	let { value, diagnostics = [], theme, onChange }: Props = $props();
+	let { value, diagnostics = [], theme, language = 'astro', onChange }: Props = $props();
 
 	let host: HTMLDivElement;
 	let handle: InputEditorHandle | undefined;
@@ -21,7 +28,7 @@
 		handle = createInputEditor({
 			parent: host,
 			doc: untrack(() => value),
-			language: 'astro',
+			language: untrack(() => language),
 			theme: untrack(() => theme),
 			ariaLabel: 'Astro source editor',
 			onChange,
@@ -42,6 +49,11 @@
 	// React to theme changes.
 	$effect(() => {
 		handle?.setTheme(theme);
+	});
+
+	// Switch highlighting when another file type becomes active.
+	$effect(() => {
+		handle?.setLanguage(language);
 	});
 </script>
 

@@ -12,8 +12,9 @@ Prestell UI は Astro 公式の [Astro Playground](https://github.com/withastro/
 
 ## 特徴
 
-- **チャットからコードへ** – 単一ファイルの Astro コンポーネントを生成・編集。提案は `@astrojs/compiler`（WASM）でコンパイルし、レンダリングできないコードはエディタに入る前に弾きます。
+- **チャットからコードへ** – Astro コンポーネントを生成・編集。提案は `@astrojs/compiler`（WASM）でコンパイルし、レンダリングできないコードはエディタに入る前に弾きます。
 - **ブラウザ内ライブプレビュー** – Web Worker 上の `astro/container` でレンダリング（サーバー往復なし）。Cloudflare Worker Loader によるサーバー側レンダリングにも切替可能。
+- **コンポーネント・ページ・サイト** – プロジェクトはファイルの集合です。**Component**（自己完結した `.astro` 1 本）、**Page**（index ページ + レイアウト + グローバル CSS）、**Site**（複数ページ・レイアウト・共有コンポーネント）から始められ、ファイルツリー・エディタのタブ・プレビューのページ切替が `.astro` / `.css` の相対 `import` を辿ります。
 - **ローカル / クラウド LLM** – Ollama・LM Studio（API キー不要）、または Cloudflare AI Gateway 経由の Anthropic Claude・OpenAI・Google Gemini・Workers AI（BYOK）。
 - **2 つの接続モード** – **Server** はこのアプリの `/api/chat` を経由（キーは `.dev.vars` に置く）、**Direct** はブラウザが自分のキーで Ollama・LM Studio・Anthropic・OpenAI・Google AI Studio を直接呼ぶ（API サーバー不要）。
 - **MCP による Astro 知識** – `inject`（既定）は送信前に Astro Docs を検索して埋め込み、`tools` はモデル自身に検索させます。評価では `inject` が全モデルで Astro API のハルシネーションを 0 にしました（[docs/EVALUATION.md](./docs/EVALUATION.md)）。
@@ -23,7 +24,7 @@ Prestell UI は Astro 公式の [Astro Playground](https://github.com/withastro/
 
 ## ステータス
 
-**2026-09-07 に公開（`v0.1.0`）**。[ロードマップ](./docs/ROADMAP.md) の Phase 3 は完了し、Phase 4「静的ホスト版（BYOK）」に着手中です。direct 接続モードは実装済みで、次は Astro docs の中継 Worker、別オリジンのプレビュー sandbox、静的ビルド構成です。メンテナーが日常的に単一コンポーネントの生成に使っています。プレビューは自己完結した 1 つの `.astro` コンポーネントが対象で、`import`・フレームワークコンポーネント・`client:*`・外部スクリプトには未対応です。静的ホスト版（BYOK）、複数ファイルのサイトビルダー（ページ・レイアウト・コンポーネント・CSS・画像を Astro プロジェクトとして出力）、SaaS 版は後のフェーズで、SaaS 専用コードはこのリポジトリの外にあります（[docs/OSS_SCOPE.md](./docs/OSS_SCOPE.md)）。
+**2026-09-07 に公開（`v0.1.0`）**。[ロードマップ](./docs/ROADMAP.md) の Phase 3 は完了し、Phase 4「静的ホスト版（BYOK）」に着手中です。direct 接続モードは実装済みで、次は Astro docs の中継 Worker、別オリジンのプレビュー sandbox、静的ビルド構成です。Phase 5「複数ファイルのサイトビルダー」に着手中です。プロジェクトモデル（Component / Page / Site）、ファイルツリー、相対 `import` を辿るページプレビューまで実装済みで、次は AI の多ファイル生成、画像アップロード、Astro プロジェクトの書き出し（ZIP / ディレクトリ）です。プレビューはフレームワークコンポーネント・`client:*`・npm / `astro:*` の import・外部スクリプトには未対応です。SaaS 版は後のフェーズで、SaaS 専用コードはこのリポジトリの外にあります（[docs/OSS_SCOPE.md](./docs/OSS_SCOPE.md)）。
 
 ## 必要環境
 
@@ -127,10 +128,11 @@ pnpm dev:server
 ## 使い方
 
 1. http://localhost:4321 を開く。左がエディタ、中央がプレビュー、右が AI chat（ツールバーの **AI chat** で開閉）。
-2. **Connection**（Server / Direct）、プロバイダー、モデルを選ぶ。**Astro docs** で MCP のモードを切り替える（既定は `inject`）。
-3. 作りたいコンポーネントを書くか、**Template…** からプロンプトテンプレートを選ぶ。`⌘/Ctrl+Enter` で送信。
-4. 検証に通った提案は自動でエディタに反映され、プレビューが更新される。通らなかった場合は自動 fix ループが動く（**Apply anyway** で強制適用も可）。
-5. 追加の指示で調整し、**Save** で `.astro` ファイルとして保存する。
+2. **新しいプロジェクト**（＋）でモードを選ぶ: **Component**（従来どおり 1 ファイル）、**Page**、**Site**。Page / Site では画面左端にファイルツリー（追加・改名/移動・削除）、エディタ上にタブ、プレビューに **ページ** の選択が出て、描画するページを切り替えられる。Component プロジェクトはツールバーから Page プロジェクトに変換できる。
+3. **Connection**（Server / Direct）、プロバイダー、モデルを選ぶ。**Astro docs** で MCP のモードを切り替える（既定は `inject`）。
+4. 作りたいコンポーネントを書くか、**Template…** からプロンプトテンプレートを選ぶ。`⌘/Ctrl+Enter` で送信。チャットはエディタで開いているファイルを編集する。
+5. 検証に通った提案は自動でエディタに反映され、プレビューが更新される。通らなかった場合は自動 fix ループが動く（**Apply anyway** で強制適用も可）。
+6. 追加の指示で調整し、**Save** でアクティブな `.astro` ファイルを保存する（共有リンクは Component プロジェクトで使える）。
 
 ローカル LLM での詳しい動作確認手順は [docs/LOCAL_LLM.md](./docs/LOCAL_LLM.md) にあります。
 

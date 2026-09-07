@@ -1,15 +1,16 @@
 // In-memory `ProjectStore`: fallback when IndexedDB is unavailable, and the
 // reference implementation for the store contract tests.
-import { sortByUpdated, toSummary } from "./record";
+import { sortByUpdated, toSummary, upgradeProjectRecord } from "./record";
 import type {
 	ChatRecord,
 	ProjectRecord,
 	ProjectStore,
 	ProjectSummary,
+	StoredProjectRecord,
 } from "./types";
 
 export class MemoryProjectStore implements ProjectStore {
-	#projects = new Map<string, ProjectRecord>();
+	#projects = new Map<string, StoredProjectRecord>();
 	#chats = new Map<string, ChatRecord>();
 
 	async list(): Promise<ProjectSummary[]> {
@@ -18,7 +19,12 @@ export class MemoryProjectStore implements ProjectStore {
 
 	async get(id: string): Promise<ProjectRecord | undefined> {
 		const record = this.#projects.get(id);
-		return record ? structuredClone(record) : undefined;
+		return record ? upgradeProjectRecord(structuredClone(record)) : undefined;
+	}
+
+	/** Test hook: store a record in an older schema. */
+	putStored(record: StoredProjectRecord): void {
+		this.#projects.set(record.id, structuredClone(record));
 	}
 
 	async put(record: ProjectRecord): Promise<void> {

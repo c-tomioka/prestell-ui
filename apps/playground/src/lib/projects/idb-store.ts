@@ -1,15 +1,16 @@
 // IndexedDB-backed `ProjectStore`. No library: one database, two object stores.
 //
-// Note (PREVIEW_RENDERING.md): the browser preview renderer runs generated
-// code on this same origin, so it can technically reach this database. Phase 4
-// moves the preview to an isolated origin; until then this is accepted for
-// personal use.
-import { sortByUpdated, toSummary } from "./record";
+// Records are upgraded to the current schema when read (`upgradeProjectRecord`)
+// instead of in `onupgradeneeded`: the shape changed in Phase 5 (one `source`
+// → a `files` map) but no index did, so the database version stays at 1 and
+// other open tabs are never blocked.
+import { sortByUpdated, toSummary, upgradeProjectRecord } from "./record";
 import type {
 	ChatRecord,
 	ProjectRecord,
 	ProjectStore,
 	ProjectSummary,
+	StoredProjectRecord,
 } from "./types";
 
 export const DB_NAME = "prestell";
@@ -74,16 +75,19 @@ export class IdbProjectStore implements ProjectStore {
 	async list(): Promise<ProjectSummary[]> {
 		const tx = this.#db.transaction(PROJECTS, "readonly");
 		const all = await request(
-			tx.objectStore(PROJECTS).getAll() as IDBRequest<ProjectRecord[]>,
+			tx.objectStore(PROJECTS).getAll() as IDBRequest<StoredProjectRecord[]>,
 		);
 		return sortByUpdated(all.map(toSummary));
 	}
 
 	async get(id: string): Promise<ProjectRecord | undefined> {
 		const tx = this.#db.transaction(PROJECTS, "readonly");
-		return request(
-			tx.objectStore(PROJECTS).get(id) as IDBRequest<ProjectRecord | undefined>,
+		const stored = await request(
+			tx.objectStore(PROJECTS).get(id) as IDBRequest<
+				StoredProjectRecord | undefined
+			>,
 		);
+		return stored && upgradeProjectRecord(stored);
 	}
 
 	async put(record: ProjectRecord): Promise<void> {

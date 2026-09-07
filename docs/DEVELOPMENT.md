@@ -63,7 +63,7 @@ Phase 2 で追加済み:
 
 残タスク:
 - （Phase 1 の残タスクなし。Ollama / LM Studio / AI Gateway 経由の Claude と Workers AI で E2E 確認済み）
-- 複数ファイル（相対 import）対応の検証（ストレッチ）
+- 複数ファイル（相対 import）対応は Phase 5 で実装済み（`src/lib/preview-graph.ts`、`src/lib/projects/*`、`ARCHITECTURE.md` 1 / 1b）
 - AI direct モード（ブラウザから LLM を直接呼ぶ BYOK 構成）は Phase 4 で実装済み（チャット設定の Connection。`ARCHITECTURE.md` 1c、`LOCAL_LLM.md`）
 
 ## チューニング用の定数（`apps/playground/src/lib/config.ts`）
@@ -120,7 +120,8 @@ UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にする
 - i18n: ヘッダーの「日本語」/「EN」でツールバー・出力タブ・チャットパネル・警告文が切り替わり、リロード後も保持されること（localStorage `prestell.locale`）。設定を消すとブラウザ言語（`ja*` なら日本語）で起動すること。`pnpm test` の `i18n.test.ts` が両言語の全キーを検証する
 - 静的ビルド: `PUBLIC_DOCS_PROXY_URL=http://localhost:8788/search pnpm build:static` → `pnpm relay:dev` と `pnpm preview:static` を起動して http://localhost:8790 を開く。チャットの Connection が select ではなく「Direct (browser → provider, BYOK)」の固定表示になり、Network に `/api/*` への要求が無く、`/preview/` は `127.0.0.1` か `[::1]` から読まれてバッジが「browser · sandboxed」になること。Ollama で送信すると docs が `localhost:8788/search`、生成が `localhost:11434` へ直接飛んで適用されること。`curl -I http://localhost:8790/preview/` に CSP と COOP / COEP / CORP が付くこと
 - 中継 Worker: `pnpm relay:dev` を起動し、`PUBLIC_DOCS_PROXY_URL=http://localhost:8788/search pnpm dev` で開いた direct モードの `inject` / `tools` が `localhost:8788/search` への preflight + POST で動くこと。`curl -X OPTIONS` で `Access-Control-Allow-Origin` が返り、`ALLOWED_ORIGINS` に無い Origin は 403、同じ IP から 60 秒に 31 回目は 429 になること
-- direct モードのクラウド 3 社（Anthropic / OpenAI / Google）は自分のキーで 1 回ずつ生成→適用を確認する。401 なら「rejected the API key」、429 なら「rate limiting」のバナーになり Retry できること
+- direct モードのクラウド 3 社（Anthropic / OpenAI / Google）は自分のキーで 1 回ずつ生成→適用を確認する。
+- 複数ファイル（Phase 5）: ＋ → Site で新規作成すると左端にツリー（`src/components`、`src/layouts`、`src/pages`、`src/styles`）が出て、プレビューが `index.astro` をレイアウト・Header・Footer 込みで描画すること。Preview の「ページ」で `about.astro` に切り替わること。`Header.astro` を編集すると入口ページが再描画されること。ツリーの「新しいファイル」で `src/components/Card.astro` を追加するとテンプレートが入りタブが開くこと、同名で「既にあります」、`public/x.astro` で「src/ の下に」の警告が出ること、改名でパスを変えると移動になること、入口ファイルの削除が拒否されること。Component プロジェクトの「Page プロジェクトに変換」で `src/components/<Name>.astro` + `Layout.astro` + `index.astro` になり描画されること。リロード後に Site プロジェクトのファイル・入口が復元され、Phase 2 で作った旧プロジェクト（IndexedDB の `schemaVersion: 1`）が Component モードとしてそのまま開けること。Component モードではツリーが出ず、Share が有効なこと（Page / Site では無効でツールチップ表示）401 なら「rejected the API key」、429 なら「rate limiting」のバナーになり Retry できること
 
 ## Claude Code への依頼例（プロンプトサンプル）
 
