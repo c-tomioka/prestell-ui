@@ -37,6 +37,8 @@ export interface ChatSettings {
 	connection: Connection;
 	/** Where the browser reaches the local servers in direct mode (not secret). */
 	directBaseUrls: Record<LocalProviderId, string>;
+	/** "How direct mode works" panel: open until the user closes it once. */
+	directHelpOpen: boolean;
 }
 
 const STORAGE_KEY = "prestell.chat.settings";
@@ -65,6 +67,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
 		ollama: DEFAULT_OLLAMA_BASE_URL,
 		lmstudio: DEFAULT_LMSTUDIO_BASE_URL,
 	},
+	directHelpOpen: true,
 };
 
 function migrate(parsed: Partial<ChatSettings>): Partial<ChatSettings> {

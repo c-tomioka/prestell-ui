@@ -1,9 +1,11 @@
 <script lang="ts">
-	import { CONNECTION_HINTS } from '../../lib/ai/messages';
+	import { CONNECTION_HINTS, KEY_FIELD_NOTE, keySavedLabel } from '../../lib/ai/messages';
+	import { isProviderId, type ProviderId } from '../../lib/ai/providers-catalog';
 	import type { Connection } from '../../lib/ai/settings';
 	import type { ProviderInfo } from '../../lib/ai/types';
 	import Icon from '../Icon.svelte';
 	import IconButton from '../IconButton.svelte';
+	import DirectModeHelp from './DirectModeHelp.svelte';
 
 	interface Props {
 		/** `server` = through /api/chat; `direct` = browser → provider (BYOK). */
@@ -21,6 +23,11 @@
 		apiKey: string;
 		/** Direct mode, local provider: where the browser reaches the server. */
 		baseUrl: string;
+		/** Page origin, for the local-server CORS instruction in the help panel. */
+		origin: string;
+		/** "How direct mode works" panel state (persisted). */
+		helpOpen: boolean;
+		onHelpToggle: (open: boolean) => void;
 		onConnectionChange: (connection: Connection) => void;
 		onProviderChange: (provider: string) => void;
 		onModelChange: (model: string) => void;
@@ -42,6 +49,9 @@
 		disabled,
 		apiKey,
 		baseUrl,
+		origin,
+		helpOpen,
+		onHelpToggle,
 		onConnectionChange,
 		onProviderChange,
 		onModelChange,
@@ -57,6 +67,7 @@
 	const needsKey = $derived(direct && current?.kind === 'direct');
 	/** Direct + local server: the browser needs the URL (and CORS on the server). */
 	const needsBaseUrl = $derived(direct && current?.kind === 'local');
+	const providerId = $derived<ProviderId>(isProviderId(provider) ? provider : 'ollama');
 	const listId = 'chat-model-options';
 </script>
 
@@ -95,6 +106,9 @@
 			{/each}
 		</select>
 	</label>
+	{#if direct}
+		<DirectModeHelp provider={providerId} {origin} open={helpOpen} onToggle={onHelpToggle} />
+	{/if}
 	{#if needsKey}
 		<label>
 			<span>API key</span>
@@ -112,6 +126,7 @@
 					<Icon name="trash" />
 				</IconButton>
 			</span>
+			<span class="hint" role="status">{apiKey ? keySavedLabel(apiKey) : KEY_FIELD_NOTE}</span>
 		</label>
 	{/if}
 	{#if needsBaseUrl}

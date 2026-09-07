@@ -90,6 +90,12 @@ describe("loadSettings", () => {
 		});
 	});
 
+	it("keeps the direct-mode help open until the user closes it", () => {
+		expect(loadSettings().directHelpOpen).toBe(true);
+		saveSettings({ ...DEFAULT_SETTINGS, directHelpOpen: false });
+		expect(loadSettings().directHelpOpen).toBe(false);
+	});
+
 	it("pins the connection when the build offers only one", () => {
 		saveSettings({ ...DEFAULT_SETTINGS, connection: "server" });
 		expect(loadSettings("direct").connection).toBe("direct");

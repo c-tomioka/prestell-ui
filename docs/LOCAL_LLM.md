@@ -153,7 +153,7 @@ Astro docs（inject / tools）     → ブラウザ → 中継 /api/mcp-proxy、
 | 誤った Server URL（`localhost:11435`） | Model 欄の下に「Cannot reach Ollama at … from the browser. Run `ollama serve`. Localhost origins are allowed by default …」の警告 |
 
 ## フロントエンドのプロバイダー選択 UI
-- チャットパネル上部の **Connection**（Server / Direct）で経路を選ぶ。Direct + クラウドでは API key 欄（password）と「Forget all keys」、Direct + ローカルでは Server URL 欄が出る。キー未入力の間は警告ボックスが出て Send が無効
+- チャットパネル上部の **Connection**（Server / Direct）で経路を選ぶ（静的ビルドでは Direct 固定のラベル）。Direct では Provider の下に折りたたみの「How direct mode works」（`DirectModeHelp.svelte`。経路・請求・キーの保持場所・各社のキー取得リンク、ローカルは CORS 手順。初回は開いた状態、閉じると記憶）が出る。Direct + クラウドでは API key 欄（password。保存済みなら末尾 4 文字の状態表示）と「Forget all keys」、Direct + ローカルでは Server URL 欄が出る。キー未入力の間は警告ボックスが出て Send が無効。文言はすべて `src/lib/ai/messages.ts`
 - チャットパネルのドロップダウンでプロバイダーを選択。未設定（AI Gateway 未構成）のプロバイダーは選択不可で理由を表示。Direct では Workers AI が「(server only)」で選択不可
 - ローカルプロバイダー選択時は `GET /api/models?provider=ollama|lmstudio` が `/v1/models` を中継し、モデル候補（datalist）を出す
 - サーバー未起動・モデルなしの場合は、モデル欄の下に警告ボックス（英語。「Run `ollama serve` …」「press Start Server, and load a model」等）を表示。サーバーは `code: "local-unreachable"` を返すだけで、文言はクライアント側の `src/lib/ai/messages.ts` が組み立てる。送信して失敗した場合もチャットのエラーバナーに同じ趣旨の文言が出て、`Retry` と（設定していれば）`Retry with <フォールバック先>` で再送できる

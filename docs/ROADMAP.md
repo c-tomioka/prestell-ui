@@ -46,7 +46,7 @@
 - [x] Astro Docs MCP 用の最小中継 Worker（Workers Free、Worker Loader 不要）を用意し、静的フロントから利用（`apps/playground/relay/`。`/api/mcp-proxy` と同じ契約、Origin 許可リスト + IP レート制限。フロントは `PUBLIC_DOCS_PROXY_URL` を向けるだけ。`ARCHITECTURE.md` の「1d. Astro docs 中継 Worker」）
 - [x] プレビュー用の別オリジン（例: `preview.<domain>`）+ sandbox iframe + CSP（`connect-src 'none'` 等）で生成コードを隔離（`src/pages/preview/index.astro` の非表示フレームでレンダリング Worker を動かす `SandboxPreviewRenderer`。dev は `localhost` ↔ `127.0.0.1` / `[::1]` を自動で試し、本番は `PUBLIC_PREVIEW_ORIGIN`。未設定時は同一オリジンで描画してバッジに「not isolated」。検証記録は `PREVIEW_RENDERING.md`）
 - [x] 静的ビルド構成（`/api/*` を切り離し、フロントを Cloudflare Pages 等の無料枠で配信）（`pnpm build:static` = `PUBLIC_AI_CONNECTIONS=direct` で `dist/client` だけを配信。`wrangler.static.jsonc` で Workers 静的アセットとして 2 つの Worker（アプリ + プレビュー用オリジン）にデプロイ。CI で静的ビルドを検証。手順は README「Deploy a static (BYOK) build」、設計は `ARCHITECTURE.md` 1e）
-- [ ] BYOK の説明 UI（レート制限・請求はユーザー自身のキーに紐づく旨）と、モード切替（server / direct）の設定 UI
+- [x] BYOK の説明 UI（レート制限・請求はユーザー自身のキーに紐づく旨）と、モード切替（server / direct）の設定 UI（切替は #9 の Connection select。説明は `DirectModeHelp.svelte` の折りたたみパネル「How direct mode works」: 経路・請求・キーの保持場所・各社のキー取得リンク / ローカルの CORS 手順。初回は開いた状態で、閉じると `directHelpOpen` に記憶。キー欄には保存状態（末尾 4 文字）と要点 1 行、空のチャットには direct モードの注記）
 - [ ] i18n: UI 文言を辞書化して日本語 UI を切替可能にする（JSON 辞書 + `t()` ヘルパー、`navigator.language` で初期値、ヘッダーで切替。エラー文言は `src/lib/ai/messages.ts` に集約済み。LLM の返答言語はプロンプト側で扱うかを併せて決める）
 
 **完了条件**: 運営側の固定費なし（静的配信 + Workers Free の中継のみ）で、第三者が自分のキーを入れて生成→プレビューできること。

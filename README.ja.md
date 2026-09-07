@@ -78,7 +78,7 @@ AI chat パネル上部の **Connection** でリクエストの経路を選び�
 | Server（既定） | ブラウザ → `/api/chat`（Workers ランタイム）→ プロバイダー | サーバーの `.dev.vars` | 上の表の全部 |
 | Direct | ブラウザ → プロバイダー（API サーバーを介さない） | パネルに貼り付け。このタブの `sessionStorage` にだけ保持し、`localStorage` や URL には置かない | Ollama、LM Studio、Anthropic、OpenAI、Google AI Studio |
 
-Direct モードは静的ホスト版の土台です。利用量やレート制限は自分のキーに課金され、Astro docs は MCP サーバーに CORS がないため小さな中継（今は `/api/mcp-proxy`、後に単体の Worker）経由で取得します。Cloudflare AI Gateway と Workers AI はブラウザから呼べない（preflight 応答に CORS ヘッダーがない。2026-09-07 確認）ため、Workers AI は Server モード限定です。
+Direct モードではパネルに折りたたみの「How direct mode works」が出て、請求とキー保持のルール、各社の API キー取得ページへのリンクを示します。Direct モードは静的ホスト版の土台です。利用量やレート制限は自分のキーに課金され、Astro docs は MCP サーバーに CORS がないため小さな中継（今は `/api/mcp-proxy`、後に単体の Worker）経由で取得します。Cloudflare AI Gateway と Workers AI はブラウザから呼べない（preflight 応答に CORS ヘッダーがない。2026-09-07 確認）ため、Workers AI は Server モード限定です。
 
 dev サーバーなしで Direct モードを使う（静的ホスト構成）には、docs 中継 Worker を自分の Cloudflare アカウントにデプロイし、フロントをそこへ向けます。
 

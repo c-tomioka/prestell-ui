@@ -6,6 +6,8 @@
 import type { CodedError, LocalProvider } from "./error-codes";
 import {
 	type DirectCloudProviderId,
+	isDirectCloudProvider,
+	isLocalProvider,
 	PROVIDER_NAMES,
 	type ProviderId,
 } from "./providers-catalog";
@@ -91,6 +93,85 @@ export function directLocalHint(
 /** Provider hint in direct mode for a cloud provider (BYOK). */
 export function directKeyHint(provider: DirectCloudProviderId): string {
 	return `Requests go from your browser straight to ${providerName(provider)} with your own API key, so usage and rate limits are billed to your account. The key is kept in this tab only (sessionStorage), never in localStorage or the URL.`;
+}
+
+/** One line under the API key field, always visible (the help panel has the details). */
+export const KEY_FIELD_NOTE =
+	"Billed to your own account. Kept in this tab only; never stored elsewhere.";
+
+/** Status line for a saved key: the last characters only, so keys stay recognisable but unrecoverable. */
+export function keySavedLabel(key: string): string {
+	const trimmed = key.trim();
+	if (trimmed.length < 12) return "Key saved for this tab.";
+	return `Key saved for this tab (…${trimmed.slice(-4)}).`;
+}
+
+/** Where to create an API key, per cloud provider. */
+export const KEY_LINKS: Record<
+	DirectCloudProviderId,
+	{ label: string; href: string }
+> = {
+	anthropic: {
+		label: "Get an Anthropic API key",
+		href: "https://console.anthropic.com/settings/keys",
+	},
+	openai: {
+		label: "Get an OpenAI API key",
+		href: "https://platform.openai.com/api-keys",
+	},
+	google: {
+		label: "Get a Google AI Studio API key",
+		href: "https://aistudio.google.com/app/apikey",
+	},
+};
+
+export const DIRECT_HELP_TITLE = "How direct mode works";
+
+export interface DirectHelp {
+	points: string[];
+	/** Cloud providers: where to create a key. */
+	link?: { label: string; href: string };
+}
+
+/**
+ * Contents of the "How direct mode works" panel for the chosen provider:
+ * what leaves the browser, who gets billed, where the key lives, and how to
+ * get set up. Local servers get the CORS instruction instead of a key link.
+ */
+export function directHelp(provider: ProviderId, origin: string): DirectHelp {
+	const name = providerName(provider);
+	if (isLocalProvider(provider)) {
+		return {
+			points: [
+				`Requests go from this browser straight to ${name} on your machine; this app has no server in between.`,
+				"Nothing is billed: the model runs locally. Astro docs searches go through a small relay that only sees the search text.",
+				`${START_LOCAL_SERVER[provider]}. ${corsInstruction(provider, origin)}`,
+			],
+		};
+	}
+	if (isDirectCloudProvider(provider)) {
+		return {
+			points: [
+				`Requests go from this browser straight to ${name}; this app has no server in between and never sees your key.`,
+				`Usage, rate limits, and billing are tied to your own ${name} account. Keep an eye on your usage there.`,
+				"The key stays in this tab (sessionStorage): it is gone when the tab closes and is never written to localStorage, the URL, or saved projects. “Forget all keys” removes it right away.",
+				"Astro docs searches go through a small relay that only sees the search text, never your key or your code.",
+			],
+			link: KEY_LINKS[provider],
+		};
+	}
+	return {
+		points: [
+			`${name} cannot be called from the browser (Cloudflare AI Gateway sends no CORS headers). Pick another provider, or use Connection: Server.`,
+		],
+	};
+}
+
+/** Extra line in the empty chat while direct mode is active. */
+export function emptyDirectNote(provider: ProviderId): string {
+	return isDirectCloudProvider(provider)
+		? `Direct mode: your prompt goes straight from this browser to ${providerName(provider)} with your own API key.`
+		: `Direct mode: your prompt goes straight from this browser to ${providerName(provider)}.`;
 }
 
 /** Warning under the model field while the key for the chosen provider is empty. */
