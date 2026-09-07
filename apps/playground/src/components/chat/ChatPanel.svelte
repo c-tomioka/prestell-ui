@@ -27,6 +27,8 @@
 	import type { Proposal, ProviderInfo } from '../../lib/ai/types';
 	import { persistableProposals } from '../../lib/projects/record';
 	import { openProjectStore } from '../../lib/projects/store';
+	import Icon from '../Icon.svelte';
+	import IconButton from '../IconButton.svelte';
 	import MessageList from './MessageList.svelte';
 	import ProviderSelect from './ProviderSelect.svelte';
 	import TemplateMenu from './TemplateMenu.svelte';
@@ -397,8 +399,12 @@
 	<div class="chat-head">
 		<span class="title">AI chat</span>
 		<div class="head-actions">
-			<button type="button" class="ghost" onclick={clear} disabled={busy || chat.messages.length === 0}>Clear</button>
-			<button type="button" class="ghost" aria-label="Close chat panel" onclick={onClose}>✕</button>
+			<IconButton label="Clear chat history" disabled={busy || chat.messages.length === 0} onclick={clear}>
+				<Icon name="eraser" />
+			</IconButton>
+			<IconButton label="Close chat panel" tipAlign="end" onclick={onClose}>
+				<Icon name="x" />
+			</IconButton>
 		</div>
 	</div>
 
@@ -499,9 +505,20 @@
 		<div class="composer-actions">
 			<TemplateMenu disabled={busy} onPick={(template) => void applyTemplate(template)} />
 			{#if busy}
-				<button type="button" class="ghost" onclick={() => chat.stop()}>Stop</button>
+				<IconButton label="Stop generating" tipSide="top" onclick={() => chat.stop()}>
+					<Icon name="square" />
+				</IconButton>
 			{/if}
-			<button type="submit" class="send" disabled={!canSend}>Send</button>
+			<IconButton
+				label="Send (⌘/Ctrl+Enter)"
+				type="submit"
+				variant="accent"
+				tipSide="top"
+				tipAlign="end"
+				disabled={!canSend}
+			>
+				<Icon name="send" />
+			</IconButton>
 		</div>
 	</form>
 </section>
@@ -646,12 +663,6 @@
 	}
 	.ghost:not(:disabled):hover {
 		color: var(--fg);
-	}
-	.send {
-		background: var(--accent);
-		color: var(--on-accent);
-		border-color: transparent;
-		font-weight: 600;
 	}
 	.visually-hidden {
 		position: absolute;

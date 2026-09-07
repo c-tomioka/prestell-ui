@@ -457,7 +457,8 @@
 		z-index: 1;
 		padding: 0.3rem 0.75rem;
 		font-size: 0.72rem;
-		color: var(--on-accent);
+		/* The banner background is a lightened accent, so dark text reads better than --on-accent. */
+		color: #1b0a26;
 		background: color-mix(in srgb, var(--accent) 85%, white);
 		border-bottom: 1px solid var(--border);
 	}
