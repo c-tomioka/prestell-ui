@@ -1,0 +1,21 @@
+{
+	// Static-host build (Phase 4): serves `dist/client` as Workers static assets,
+	// no Worker code, no secrets. Build with `pnpm build:static` first.
+	//   pnpm preview:static          → http://localhost:8790 (respects _headers)
+	//   pnpm deploy:static           → the app origin
+	//   pnpm deploy:static:preview   → the same build on a second origin for the
+	//                                  preview sandbox frame (PUBLIC_PREVIEW_ORIGIN)
+	// Accounts that protect workers.dev with Cloudflare Access by default need a
+	// Bypass policy on both Workers (see README).
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "prestell-ui-static",
+	"compatibility_date": "2026-06-22",
+	"assets": {
+		"directory": "./dist/client",
+		"html_handling": "auto-trailing-slash",
+		"not_found_handling": "404-page"
+	},
+	"observability": {
+		"enabled": true
+	}
+}

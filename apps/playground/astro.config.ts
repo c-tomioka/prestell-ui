@@ -46,6 +46,45 @@ function previewRenderer(): "browser" | "server" {
 const PREVIEW_RENDERER = previewRenderer();
 
 /**
+ * Static-host build: `PUBLIC_AI_CONNECTIONS=direct` (set by `pnpm build:static`)
+ * hides the Server / Direct switch and never calls `/api/*`, so `dist/client`
+ * can be served on its own. Validated here so a typo fails the build.
+ */
+function aiConnections(): "both" | "direct" | "server" {
+	const env = loadEnv(
+		process.env.NODE_ENV ?? "development",
+		process.cwd(),
+		"PUBLIC_",
+	);
+	const read = (key: string) => (env[key] ?? process.env[key] ?? "").trim();
+	const value = (read("PUBLIC_AI_CONNECTIONS") || "both").toLowerCase();
+	if (value !== "both" && value !== "direct" && value !== "server") {
+		throw new Error(
+			`PUBLIC_AI_CONNECTIONS must be "both", "direct" or "server" (got "${value}").`,
+		);
+	}
+	if (value === "direct") {
+		if (PREVIEW_RENDERER === "server") {
+			throw new Error(
+				"PUBLIC_AI_CONNECTIONS=direct (static build) cannot use PUBLIC_PREVIEW_RENDERER=server: the static site has no /api/render.",
+			);
+		}
+		if (!read("PUBLIC_PREVIEW_ORIGIN")) {
+			console.warn(
+				'[static build] PUBLIC_PREVIEW_ORIGIN is not set: the preview will render in the app\'s own origin (badge "not isolated"). Set it to the origin that serves the same build for /preview/ (see docs/PREVIEW_RENDERING.md).',
+			);
+		}
+		if (!read("PUBLIC_DOCS_PROXY_URL")) {
+			console.warn(
+				"[static build] PUBLIC_DOCS_PROXY_URL is not set: Astro docs will be unavailable because the static site has no /api/mcp-proxy. Point it at the docs relay Worker (apps/playground/relay).",
+			);
+		}
+	}
+	return value;
+}
+aiConnections();
+
+/**
  * The Rust compiler's WASM build (`wasm32-wasip1-threads`) instantiates a
  * SharedArrayBuffer + Web Worker, which requires the page to be
  * cross-origin isolated. In production these headers are served on the

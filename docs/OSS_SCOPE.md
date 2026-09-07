@@ -9,7 +9,7 @@ Phase 3「OSS 公開」で確定した **公開範囲と SaaS 専用ロジック
 | 領域 | パス | 内容 |
 |---|---|---|
 | フロントエンド | `apps/playground/src/components/**`, `src/lib/**`, `src/pages/index.astro` | エディタ（CodeMirror）、ブラウザ内コンパイル・プレビュー、AI チャットパネル、提案の検証・適用、fix ループ、プロジェクト管理（IndexedDB）、テンプレート |
-| Workers 設定・ルート | `apps/playground/wrangler.jsonc`, `astro.config.ts`, `src/pages/api/{chat,models,mcp-proxy,render}.ts`, `relay/**` | `astro dev`（workerd）で動く API と、Astro docs 中継 Worker（`relay/wrangler.jsonc`）。どちらの設定も account_id・シークレットを含まない（中継の `vars` は MCP の URL と Origin 許可リストだけ） |
+| Workers 設定・ルート | `apps/playground/wrangler.jsonc`, `wrangler.static.jsonc`, `astro.config.ts`, `src/pages/api/{chat,models,mcp-proxy,render}.ts`, `relay/**` | `astro dev`（workerd）で動く API、静的ホスト版の配信設定（`wrangler.static.jsonc`。`dist/client` の静的アセットだけで Worker コードなし）、Astro docs 中継 Worker（`relay/wrangler.jsonc`）。いずれの設定も account_id・シークレットを含まない（中継の `vars` は MCP の URL と Origin 許可リストだけ） |
 | MCP 接続ロジック | `apps/playground/src/server/ai/mcp.ts`, `src/lib/ai/resilience.ts` | Astro Docs MCP（Streamable HTTP）の接続、`tools` / `inject`、タイムアウト・リトライ・グレースフルデグラデーション |
 | LOCAL_LLM 連携・プロバイダー層 | `apps/playground/src/server/ai/providers.ts`, `validate.ts`, `src/lib/ai/providers-catalog.ts`, `prompt.ts`, `direct/**` | Ollama / LM Studio 直結、Cloudflare AI Gateway（BYOK パススルー含む）、system prompt、ブラウザ直接呼び出し（direct モード） |
 | 評価ハーネス | `apps/playground/scripts/eval/**`, `docs/evaluations/**` | `pnpm eval`（`EVALUATION.md`） |
@@ -63,9 +63,9 @@ SaaS 運営専用ロジックは **このリポジトリには置かず**、priv
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` | `src/server/ai/providers.ts` | 任意（BYOK パススルー。空なら Gateway 側の設定） |
 | `ASTRO_DOCS_MCP_URL` | `src/server/ai/mcp.ts` | 任意（既定 `https://mcp.docs.astro.build/mcp`） |
 
-`.dev.vars` ではなく Vite の `.env` から読む変数: `PUBLIC_PREVIEW_RENDERER`（`astro.config.ts`）と `PUBLIC_DOCS_PROXY_URL`（direct モードの Astro docs 中継先。既定 `/api/mcp-proxy`。`src/lib/ai/direct/docs-proxy.ts`）。雛形は `apps/playground/.env.example`。どちらもシークレットではない。direct モードでユーザーが入力する API キーはブラウザの sessionStorage にだけ置かれ、サーバーにもリポジトリにも渡らない（`src/lib/ai/direct/keys.ts`）。
+`.dev.vars` ではなく Vite の `.env` から読む変数: `PUBLIC_PREVIEW_RENDERER`（`astro.config.ts`）、`PUBLIC_DOCS_PROXY_URL`（direct モードの Astro docs 中継先。既定 `/api/mcp-proxy`。`src/lib/ai/direct/docs-proxy.ts`）、`PUBLIC_PREVIEW_ORIGIN`（プレビュー sandbox フレームのオリジン）、`PUBLIC_AI_CONNECTIONS`（`both` / `direct` / `server`。静的ビルドは `direct`）。雛形は `apps/playground/.env.example`。いずれもシークレットではなく、値はビルド成果物に埋め込まれる（公開して問題ない URL だけを入れる）。direct モードでユーザーが入力する API キーはブラウザの sessionStorage にだけ置かれ、サーバーにもリポジトリにも渡らない（`src/lib/ai/direct/keys.ts`）。
 
-注意: `astro build` は `.dev.vars` を `apps/playground/dist/server/` にコピーする。`dist/` は `.gitignore` 済みだが、**`dist/` を配布・zip・共有しない**。
+注意: `astro build` は `.dev.vars` を `apps/playground/dist/server/` にコピーする。`dist/` は `.gitignore` 済みで、**`dist/server` を配布・zip・共有しない**。静的ホスト版で配信するのは `dist/client` だけ（`wrangler.static.jsonc` の `assets.directory`）で、ここにはシークレットも `.dev.vars` も入らない。
 
 ### 再点検コマンド（リポジトリルートで実行）
 

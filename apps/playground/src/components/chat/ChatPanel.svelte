@@ -42,6 +42,7 @@
 	} from '../../lib/ai/settings';
 	import { insertTemplate, type PromptTemplate } from '../../lib/ai/templates';
 	import type { Proposal, ProviderInfo } from '../../lib/ai/types';
+	import { AI_CONNECTIONS } from '../../lib/config';
 	import { persistableProposals } from '../../lib/projects/record';
 	import { openProjectStore } from '../../lib/projects/store';
 	import Icon from '../Icon.svelte';
@@ -196,7 +197,11 @@
 		void loadModels();
 	}
 
+	/** The build may offer only one connection (static host: direct). */
+	const connectionLocked = AI_CONNECTIONS !== 'both';
+
 	function setConnection(connection: Connection) {
+		if (connectionLocked) return;
 		settings.connection = connection;
 		models = [];
 		void loadProviders().then(loadModels);
@@ -530,6 +535,7 @@
 	<div class="settings">
 		<ProviderSelect
 			connection={settings.connection}
+			{connectionLocked}
 			{providers}
 			provider={settings.provider}
 			{model}

@@ -71,6 +71,13 @@
 - 前提: 中継は匿名で到達できること。`workers.dev` を既定で Cloudflare Access 保護しているアカウントでは、この Worker の Access ポリシーを Everyone の Bypass にする（またはこの Worker だけ保護を外す）。Access が挟まると preflight がログイン応答になり CORS が通らないため、フロントは「Astro docs unavailable」で継続する（README のデプロイ手順に記載）。
 - フロント側の切替は `PUBLIC_DOCS_PROXY_URL`（`src/lib/ai/direct/docs-proxy.ts`）を Worker の `/search` に向けるだけ。server モードの `/api/chat` と `/api/mcp-proxy` は従来どおり Worker 内から MCP に直接つなぐ。
 
+### 1e. 静的ビルド構成（Phase 4、`pnpm build:static`）
+- `astro build` は常に `dist/client`（プリレンダー済み `index.html` / `preview/index.html`、`_astro/*`、`_headers`）と `dist/server`（`/api/*` の Worker）に分かれる。静的ホスト版は **`dist/client` だけ**を配信し、`dist/server` と `.dev.vars` は配らない。
+- `pnpm build:static` は `PUBLIC_AI_CONNECTIONS=direct` で `astro build` する。このフラグ（`src/lib/config.ts` の `AI_CONNECTIONS`）が `direct` のとき、`loadSettings` が Connection を direct に固定し、`ProviderSelect` は切替 select の代わりに固定ラベルを出し、`ChatPanel` は `/api/models` を呼ばない。`astro.config.ts` が値を検証し、`PUBLIC_PREVIEW_RENDERER=server` との併用はビルドエラー、`PUBLIC_PREVIEW_ORIGIN` / `PUBLIC_DOCS_PROXY_URL` 未設定は警告（動くが「not isolated」/ docs なし）。
+- 配信先の標準手順は Workers 静的アセット（`wrangler.static.jsonc`、`assets.directory = ./dist/client`、Worker コードなし）。同じビルドを 2 つの Worker に置く: `pnpm deploy:static`（アプリ、`prestell-ui-static`）と `pnpm deploy:static:preview`（`prestell-ui-preview`。`PUBLIC_PREVIEW_ORIGIN` に指定するプレビューフレーム用オリジン）。`_headers` は Workers 静的アセットでも適用される（COOP / COEP / CORP と `/preview/*` の CSP）。Cloudflare Pages でも同じ `dist/client` をそのまま配信できる。レスポンスヘッダーを設定できないホスト（GitHub Pages 等）は COOP / COEP を付けられず WASM コンパイラが動かないため対象外。
+- ローカル確認は `pnpm preview:static`（`wrangler dev -c wrangler.static.jsonc`、8790 番。`_headers` を尊重し、`localhost` / `127.0.0.1` / `[::1]` の全部にバインドするので sandbox 候補がそのまま使える）。CI（`checks` ジョブ）は `pnpm build:static` を実行してビルドが壊れていないことを確認する。
+- 前提となる外部リソース: docs 中継 Worker（1d、`PUBLIC_DOCS_PROXY_URL`）と、`workers.dev` を Access 保護しているアカウントでは 3 つの Worker（アプリ・プレビュー・中継）すべてに Bypass ポリシー。
+
 ### 2. バックエンド（`apps/playground/src/pages/api`, `src/server/ai`）
 - `POST /api/chat`: `{ messages, provider, model, docsMode, filename, source }` を受け取り、AI SDK の `streamText` で UI message stream（SSE）を返す。現在のエディタ内容は毎回 system prompt に埋め込む。`streamText` には `maxRetries`（ストリーム前 2 回）と `timeout`（最初のトークン 60 秒、以降の無応答 30 秒）を渡す。docs を使えなかったときは `data-notice` パート（`ChatNotice`）を先頭に書き込んでから本文をマージする（`createUIMessageStream`）。定数は `src/lib/ai/resilience.ts`（direct モードと共有）。
 - `GET /api/models`: プロバイダー一覧（設定済みかどうか）と、ローカルサーバーの `/v1/models` を中継。
@@ -105,8 +112,8 @@
 ## Phase 4（静的ホスト版）の構成
 
 ```
-[静的ホスティング（Cloudflare Pages 等の無料枠）]  … フロント一式 + ブラウザ内レンダリング
-[別オリジンのプレビューサンドボックス]            … sandbox iframe + CSP（connect-src 'none'）
+[静的ホスティング（Workers 静的アセット / Pages の無料枠）] … dist/client（実装済み: 1e、pnpm build:static）
+[別オリジンのプレビューサンドボックス]            … 同じ dist/client をもう 1 つの Worker に置き、sandbox iframe + CSP（実装済み: 1b）
 [Workers Free の最小 API]                          … Astro Docs MCP 中継のみ（Worker Loader 不要。実装済み: 1d、apps/playground/relay/）
 [ブラウザ → LLM 直接（BYOK）]                      … Ollama / LM Studio / Anthropic / OpenAI / Google（実装済み: 1c）
 ```

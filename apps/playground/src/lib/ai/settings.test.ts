@@ -90,6 +90,14 @@ describe("loadSettings", () => {
 		});
 	});
 
+	it("pins the connection when the build offers only one", () => {
+		saveSettings({ ...DEFAULT_SETTINGS, connection: "server" });
+		expect(loadSettings("direct").connection).toBe("direct");
+		expect(loadSettings("server").connection).toBe("server");
+		expect(loadSettings("both").connection).toBe("server");
+		expect(loadSettings("direct").provider).toBe(DEFAULT_SETTINGS.provider);
+	});
+
 	it("falls back to defaults on corrupt storage", () => {
 		storage.setItem(KEY, "{not json");
 		expect(loadSettings()).toEqual(DEFAULT_SETTINGS);

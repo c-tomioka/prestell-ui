@@ -91,6 +91,28 @@ The relay (`apps/playground/relay/`) only forwards `search_astro_docs`; it has n
 
 Local servers need to allow the browser's origin in Direct mode: Ollama accepts `localhost` origins by default (set `OLLAMA_ORIGINS=<origin>` for anything else); LM Studio needs `lms server start --cors` or the **Enable CORS** toggle in its Developer tab. Details and the verification log: [docs/LOCAL_LLM.md](./docs/LOCAL_LLM.md).
 
+## Deploy a static (BYOK) build
+
+The static-host version is the front end alone: `dist/client` served as static files, Direct mode only (the Server / Direct switch is hidden and `/api/*` is never called), your own API keys, and two small Cloudflare Workers that need no paid plan. Hosts that cannot set response headers (GitHub Pages, for example) are not suitable: the WASM compiler needs the COOP / COEP headers from `public/_headers`.
+
+1. Deploy the docs relay once (see above) and note its URL.
+2. Build with the two origins baked in. The preview sandbox frame must come from a **different** origin than the app, so the same build is deployed twice:
+
+   ```bash
+   cd apps/playground
+   PUBLIC_DOCS_PROXY_URL=https://prestell-docs-relay.<you>.workers.dev/search \
+   PUBLIC_PREVIEW_ORIGIN=https://prestell-ui-preview.<you>.workers.dev \
+   pnpm build:static
+   pnpm deploy:static            # app:      https://prestell-ui-static.<you>.workers.dev
+   pnpm deploy:static:preview    # sandbox:  https://prestell-ui-preview.<you>.workers.dev
+   ```
+
+   Both use `wrangler.static.jsonc` (Workers static assets, no Worker code, no secrets). Rename the Workers with `--name` or in the config if you like; the preview origin only has to match `PUBLIC_PREVIEW_ORIGIN`. Cloudflare Pages works the same way with `wrangler pages deploy dist/client`.
+3. Lock the relay to your app: set `ALLOWED_ORIGINS` in `relay/wrangler.jsonc` to the app origin and redeploy it.
+4. If your account protects `workers.dev` with Cloudflare Access by default, add a **Bypass** policy for Everyone on all three Workers (app, preview, relay); otherwise the sandbox frame and the relay get the Access login page instead of the app's requests.
+
+Check the result: the output badge should read `browser · sandboxed`, the chat panel shows "Direct (browser → provider, BYOK)" instead of a Connection switch, and `curl -I https://…/preview/` returns the CSP and COOP / COEP / CORP headers. To try it locally, `pnpm preview:static` serves `dist/client` on http://localhost:8790 with the same headers (use `PUBLIC_DOCS_PROXY_URL=http://localhost:8788/search` and `pnpm relay:dev` for docs).
+
 ## Preview rendering
 
 The default renders in a browser Web Worker. To use the server-side renderer (Worker Loader, same as the upstream playground):

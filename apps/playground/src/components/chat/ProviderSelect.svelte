@@ -8,6 +8,8 @@
 	interface Props {
 		/** `server` = through /api/chat; `direct` = browser → provider (BYOK). */
 		connection: Connection;
+		/** True when the build offers only this connection (static host): no switch. */
+		connectionLocked: boolean;
 		providers: ProviderInfo[];
 		provider: string;
 		model: string;
@@ -30,6 +32,7 @@
 
 	let {
 		connection,
+		connectionLocked,
 		providers,
 		provider,
 		model,
@@ -58,19 +61,26 @@
 </script>
 
 <div class="provider">
-	<label>
-		<span>Connection</span>
-		<select
-			value={connection}
-			{disabled}
-			aria-describedby="chat-connection-hint"
-			onchange={(e) => onConnectionChange(e.currentTarget.value as Connection)}
-		>
-			<option value="server">Server (/api/chat)</option>
-			<option value="direct">Direct (browser → provider, BYOK)</option>
-		</select>
-		<span id="chat-connection-hint" class="hint">{CONNECTION_HINTS[connection]}</span>
-	</label>
+	{#if connectionLocked}
+		<p class="hint">
+			<span class="locked-label">{connection === 'direct' ? 'Direct (browser → provider, BYOK)' : 'Server (/api/chat)'}</span>
+			{CONNECTION_HINTS[connection]}
+		</p>
+	{:else}
+		<label>
+			<span>Connection</span>
+			<select
+				value={connection}
+				{disabled}
+				aria-describedby="chat-connection-hint"
+				onchange={(e) => onConnectionChange(e.currentTarget.value as Connection)}
+			>
+				<option value="server">Server (/api/chat)</option>
+				<option value="direct">Direct (browser → provider, BYOK)</option>
+			</select>
+			<span id="chat-connection-hint" class="hint">{CONNECTION_HINTS[connection]}</span>
+		</label>
+	{/if}
 	<label>
 		<span>Provider</span>
 		<select
@@ -182,6 +192,11 @@
 	}
 	label .hint {
 		font-size: 0.68rem;
+	}
+	.locked-label {
+		display: block;
+		color: var(--fg);
+		font-weight: 600;
 	}
 	.model-row {
 		display: flex;

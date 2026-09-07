@@ -43,6 +43,9 @@ README.md, README.ja.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md  # 公
 | `pnpm lint` / `pnpm lint:fix` | Biome |
 | `pnpm build` | `astro build` |
 | `pnpm eval` | LLM 生成品質・MCP ハルシネーションの評価ハーネス（dev サーバー起動が前提。`EVALUATION.md`） |
+| `pnpm build:static` | 静的ホスト版のビルド（`PUBLIC_AI_CONNECTIONS=direct`。配信物は `dist/client` のみ。`ARCHITECTURE.md` 1e） |
+| `pnpm preview:static` | `dist/client` を Workers 静的アセットとしてローカル 8790 番で配信（`_headers` 適用） |
+| `pnpm deploy:static` / `pnpm deploy:static:preview` | `dist/client` をアプリ用 / プレビューフレーム用の 2 つの Worker にデプロイ |
 | `pnpm relay:dev` / `pnpm relay:deploy` | Astro docs 中継 Worker（`apps/playground/relay/`）をローカル 8788 番で起動 / 自分の Workers アカウントへデプロイ（`ARCHITECTURE.md` 1d） |
 
 ## Phase 1 の実装状況と残タスク
@@ -109,6 +112,7 @@ UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にする
 - プロジェクト: New / Rename / Delete と切替でエディタとチャット履歴が入れ替わり、リロード後に最後のプロジェクトが復元されること。Share で得た `#code=` URL を開くと「Shared <filename>」として取り込まれ、ハッシュが消えること
 - direct モード（Connection: Direct）: Ollama を選ぶとモデル一覧がブラウザから `http://localhost:11434/v1/models` で取れ、送信すると `/api/chat` を通らずに `localhost:11434/v1/chat/completions` へ preflight + POST が飛ぶこと（DevTools の Network で確認）。Server URL を誤ったポートにすると Model 欄の下に「Cannot reach Ollama … from the browser」の警告が出ること。Anthropic / OpenAI / Google を選ぶと API key 欄が出て、未入力では Send が無効になり「Enter your … API key」の警告が出ること。キーは sessionStorage（`prestell.chat.keys`）にだけ入り、localStorage には無いこと。「Forget all keys」で消えること。Workers AI は「(server only)」で選択不可なこと
 - プレビュー sandbox: `pnpm dev` で出力ペインのバッジが「browser · sandboxed」になり、Network に `http://127.0.0.1:4321/preview/`（接続拒否の場合あり）→ `http://[::1]:4321/preview/` の読み込みが出ること。frontmatter に `await fetch("http://localhost:4321/api/models")` と `await indexedDB.databases()` を書いたコンポーネントで、fetch が `Failed to fetch`、DB 一覧が `[]` になること。`while (true)` で 5 秒後に「Preview timed out」となり、New project で次の描画が同じフレームで成功すること。`PUBLIC_PREVIEW_ORIGIN=http://localhost:4321`（アプリと同じ）で起動するとバッジが「browser · not isolated」になること
+- 静的ビルド: `PUBLIC_DOCS_PROXY_URL=http://localhost:8788/search pnpm build:static` → `pnpm relay:dev` と `pnpm preview:static` を起動して http://localhost:8790 を開く。チャットの Connection が select ではなく「Direct (browser → provider, BYOK)」の固定表示になり、Network に `/api/*` への要求が無く、`/preview/` は `127.0.0.1` か `[::1]` から読まれてバッジが「browser · sandboxed」になること。Ollama で送信すると docs が `localhost:8788/search`、生成が `localhost:11434` へ直接飛んで適用されること。`curl -I http://localhost:8790/preview/` に CSP と COOP / COEP / CORP が付くこと
 - 中継 Worker: `pnpm relay:dev` を起動し、`PUBLIC_DOCS_PROXY_URL=http://localhost:8788/search pnpm dev` で開いた direct モードの `inject` / `tools` が `localhost:8788/search` への preflight + POST で動くこと。`curl -X OPTIONS` で `Access-Control-Allow-Origin` が返り、`ALLOWED_ORIGINS` に無い Origin は 403、同じ IP から 60 秒に 31 回目は 429 になること
 - direct モードのクラウド 3 社（Anthropic / OpenAI / Google）は自分のキーで 1 回ずつ生成→適用を確認する。401 なら「rejected the API key」、429 なら「rate limiting」のバナーになり Retry できること
 
