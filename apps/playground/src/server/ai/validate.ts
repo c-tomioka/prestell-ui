@@ -1,5 +1,6 @@
 // Request validation for the AI endpoints.
 import { z } from "zod";
+import type { CodedError } from "../../lib/ai/error-codes";
 import { PROVIDER_IDS } from "./providers";
 
 export const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
@@ -52,9 +53,20 @@ export async function readJsonBody(request: Request): Promise<JsonBodyResult> {
 	}
 }
 
-export function errorResponse(error: string, status: number): Response {
-	return Response.json(
-		{ ok: false, error },
-		{ status, headers: { "Cache-Control": "no-store" } },
-	);
+/**
+ * `{ ok: false, error }` with no-store headers. A `CodedError` is sent as
+ * `{ ok: false, error: <code>, coded }` so the client can compose the text.
+ */
+export function errorResponse(
+	error: string | CodedError,
+	status: number,
+): Response {
+	const body =
+		typeof error === "string"
+			? { ok: false, error }
+			: { ok: false, error: error.code, coded: error };
+	return Response.json(body, {
+		status,
+		headers: { "Cache-Control": "no-store" },
+	});
 }

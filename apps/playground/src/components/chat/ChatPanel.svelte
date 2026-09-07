@@ -17,6 +17,7 @@
 		pendingFixAttempts,
 	} from '../../lib/ai/fix-loop';
 	import { trimForRequest } from '../../lib/ai/history';
+	import { localServerHint, NO_LOCAL_MODELS } from '../../lib/ai/messages';
 	import {
 		type ChatSettings,
 		type DocsMode,
@@ -83,7 +84,7 @@
 			const response = await fetch(`/api/models?provider=${encodeURIComponent(provider)}`);
 			const payload = (await response.json()) as
 				| { ok: true; models: string[] }
-				| { ok: false; error: string; hint: string };
+				| { ok: false; error: string; code: 'local-unreachable'; provider: 'ollama' | 'lmstudio' };
 			if (provider !== settings.provider) return;
 			if (payload.ok) {
 				models = payload.models;
@@ -94,14 +95,11 @@
 					settings.models[provider] = models[0];
 				}
 				if (models.length === 0 && providers.find((p) => p.id === provider)?.kind === 'local') {
-					modelsNotice = {
-						level: 'warning',
-						text: 'No models found on the local server. Pull or load a model, then reload.',
-					};
+					modelsNotice = { level: 'warning', text: NO_LOCAL_MODELS };
 				}
 			} else {
 				models = [];
-				modelsNotice = { level: 'warning', text: payload.hint };
+				modelsNotice = { level: 'warning', text: localServerHint(payload.provider) };
 			}
 		} catch (error) {
 			models = [];

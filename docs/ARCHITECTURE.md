@@ -75,6 +75,7 @@
 
 ### 4b. エラー処理（`src/lib/ai/errors.ts`, ChatPanel）
 - サーバーの `errorResponse` は AI SDK の transport がそのまま `Error.message` にするため、クライアントの `describeChatError` が JSON を剥がして種類（local-down / network / timeout / rate-limit / server / request）を判定する。
+- 既知の状況（ローカル LLM 未到達、タイムアウト）はサーバーが文言ではなくコード（`src/lib/ai/error-codes.ts` の `CodedError`。ストリームでは JSON 文字列、`errorResponse` では `coded` フィールド）を返し、クライアントの `src/lib/ai/messages.ts` が英語の文言に組み立てる。UI 文言はすべて英語で、翻訳するときは `messages.ts` と各コンポーネントの文字列を辞書化する（2026-09-07 決定。i18n は独立 Phase にせず Phase 4 の項目として扱う）。
 - network / timeout / rate-limit / server は「一時的」とみなし、1.5 秒後に `chat.regenerate()` で自動リトライを 1 回だけ行う（バナーに「Retrying…」）。fix ループ中なら「auto-fixing…」のカードを保ったまま再試行する。
 - 自動リトライ後も失敗、または一時的でないエラー（ローカル LLM 未起動など）はバナーに `Retry` と、設定でフォールバック先を選んでいれば `Retry with <プロバイダー>` を出す。フォールバックは自動では切り替えない（ユーザー確認済み）。
 

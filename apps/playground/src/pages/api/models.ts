@@ -1,5 +1,5 @@
 // GET /api/models            → { providers: ProviderInfo[] }
-// GET /api/models?provider=x → { ok: true, models: string[] } | { ok: false, error, hint }
+// GET /api/models?provider=x → { ok: true, models: string[] } | { ok: false, error, code, provider }
 import { env } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import {

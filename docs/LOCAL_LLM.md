@@ -119,7 +119,7 @@ provider: "anthropic" / "openai" / "google" / "workers-ai"
 ## フロントエンドのプロバイダー選択 UI
 - チャットパネルのドロップダウンでプロバイダーを選択。未設定（AI Gateway 未構成）のプロバイダーは選択不可で理由を表示
 - ローカルプロバイダー選択時は `GET /api/models?provider=ollama|lmstudio` が `/v1/models` を中継し、モデル候補（datalist）を出す
-- サーバー未起動・モデルなしの場合は「`ollama serve` を実行してください」「モデルをロードしてください」等のヒントを表示。送信して失敗した場合もチャットのエラーバナーに同じヒントが出て、`Retry` と（設定していれば）`Retry with <フォールバック先>` で再送できる
+- サーバー未起動・モデルなしの場合は、モデル欄の下に警告ボックス（英語。「Run `ollama serve` …」「press Start Server, and load a model」等）を表示。サーバーは `code: "local-unreachable"` を返すだけで、文言はクライアント側の `src/lib/ai/messages.ts` が組み立てる。送信して失敗した場合もチャットのエラーバナーに同じ趣旨の文言が出て、`Retry` と（設定していれば）`Retry with <フォールバック先>` で再送できる
 - モデル ID は自由入力も可能（候補にない ID を指定できる）
 
 ## MCP 連携とローカル LLM の相性

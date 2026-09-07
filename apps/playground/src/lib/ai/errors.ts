@@ -1,6 +1,8 @@
 // Classify chat transport errors for the panel: strip the raw JSON body the AI
 // SDK hands us for non-2xx responses, and decide whether an automatic retry is
 // worth it. Pure so it can be unit-tested.
+import { type CodedError, decodeCodedError } from "./error-codes";
+import { describeCodedError } from "./messages";
 
 export type ChatErrorKind =
 	| "local-down"
@@ -30,6 +32,11 @@ const TRANSIENT: ReadonlySet<ChatErrorKind> = new Set([
 	"server",
 ]);
 
+const KIND_BY_CODE: Record<CodedError["code"], ChatErrorKind> = {
+	"local-unreachable": "local-down",
+	timeout: "timeout",
+};
+
 function unwrapJsonBody(message: string): string {
 	// `DefaultChatTransport` throws `new Error(await response.text())`, so an
 	// `errorResponse()` from /api/* arrives as `{"ok":false,"error":"…"}`.
@@ -45,9 +52,12 @@ function unwrapJsonBody(message: string): string {
 }
 
 export function classifyChatError(message: string): ChatErrorKind {
-	if (/ollama serve|LM Studio|Start Server|に接続できません/i.test(message))
+	if (
+		/cannot reach (ollama|lm studio)|ollama serve|start server/i.test(message)
+	)
 		return "local-down";
-	if (/timed out|timeout|タイムアウト/i.test(message)) return "timeout";
+	if (/timed out|timeout|did not respond in time/i.test(message))
+		return "timeout";
 	if (/rate limit|too many requests|\b429\b/i.test(message))
 		return "rate-limit";
 	if (
@@ -69,6 +79,16 @@ export function classifyChatError(message: string): ChatErrorKind {
 
 export function describeChatError(error: Error | string): ChatErrorInfo {
 	const raw = (typeof error === "string" ? error : error.message)?.trim();
+	// Coded errors carry their kind; the text is composed on the client.
+	const coded = raw ? decodeCodedError(raw) : null;
+	if (coded) {
+		const kind = KIND_BY_CODE[coded.code];
+		return {
+			kind,
+			message: describeCodedError(coded),
+			transient: TRANSIENT.has(kind),
+		};
+	}
 	const message = unwrapJsonBody(raw || "The request failed.");
 	const kind = classifyChatError(message);
 	return { kind, message, transient: TRANSIENT.has(kind) };
