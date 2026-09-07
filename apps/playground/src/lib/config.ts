@@ -18,6 +18,24 @@ export const PREVIEW_RENDERER: PreviewRendererMode =
 export const PREVIEW_ORIGIN: string | undefined =
 	(import.meta.env?.PUBLIC_PREVIEW_ORIGIN as string | undefined)?.trim() ||
 	undefined;
+
+/**
+ * Which chat connections this build offers. `both` (default) shows the
+ * Server / Direct switch; `direct` is the static-host build (no `/api/*`, the
+ * switch is hidden and the server is never called); `server` hides direct.
+ * Set with `PUBLIC_AI_CONNECTIONS` at build time (`pnpm build:static` sets `direct`).
+ */
+export type AiConnections = "both" | "direct" | "server";
+const AI_CONNECTIONS_VALUES: readonly string[] = ["both", "direct", "server"];
+function readAiConnections(): AiConnections {
+	const value = (import.meta.env?.PUBLIC_AI_CONNECTIONS as string | undefined)
+		?.trim()
+		.toLowerCase();
+	return value && AI_CONNECTIONS_VALUES.includes(value)
+		? (value as AiConnections)
+		: "both";
+}
+export const AI_CONNECTIONS: AiConnections = readAiConnections();
 //
 // Preview rendering is the only step that calls the server (`POST /api/render`,
 // a Worker Loader dynamic Worker per render), so these knobs directly control

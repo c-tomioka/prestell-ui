@@ -91,6 +91,28 @@ PUBLIC_DOCS_PROXY_URL=https://prestell-docs-relay.<you>.workers.dev/search pnpm 
 
 Direct モードでローカルサーバーを使うにはブラウザのオリジンを許可する必要があります。Ollama は `localhost` 系オリジンを既定で許可（それ以外は `OLLAMA_ORIGINS=<origin>`）、LM Studio は `lms server start --cors` か Developer タブの **Enable CORS** が必要です。詳細と検証記録は [docs/LOCAL_LLM.md](./docs/LOCAL_LLM.md)。
 
+## 静的（BYOK）ビルドのデプロイ
+
+静的ホスト版はフロントだけの構成です。`dist/client` を静的ファイルとして配信し、Direct モード専用（Server / Direct の切替は非表示で `/api/*` を呼ばない）、キーはユーザー自身のもの、必要な Cloudflare Worker は有料プラン不要の小さなもの 2 つです。レスポンスヘッダーを設定できないホスト（GitHub Pages など）は WASM コンパイラに必要な COOP / COEP（`public/_headers`）を付けられないため対象外です。
+
+1. docs 中継 Worker を一度デプロイし（上記）、その URL を控える。
+2. 2 つのオリジンを埋め込んでビルドする。プレビュー sandbox フレームはアプリと **別の**オリジンから読む必要があるため、同じビルドを 2 回デプロイします。
+
+   ```bash
+   cd apps/playground
+   PUBLIC_DOCS_PROXY_URL=https://prestell-docs-relay.<you>.workers.dev/search \
+   PUBLIC_PREVIEW_ORIGIN=https://prestell-ui-preview.<you>.workers.dev \
+   pnpm build:static
+   pnpm deploy:static            # アプリ:      https://prestell-ui-static.<you>.workers.dev
+   pnpm deploy:static:preview    # sandbox 用:  https://prestell-ui-preview.<you>.workers.dev
+   ```
+
+   どちらも `wrangler.static.jsonc`（Workers 静的アセット。Worker コードもシークレットもなし）を使います。Worker 名は `--name` や設定で変えて構いません。プレビュー用オリジンが `PUBLIC_PREVIEW_ORIGIN` と一致していれば十分です。Cloudflare Pages でも `wrangler pages deploy dist/client` で同じように配信できます。
+3. 中継をアプリ専用に絞る: `relay/wrangler.jsonc` の `ALLOWED_ORIGINS` にアプリのオリジンを入れて再デプロイ。
+4. アカウント設定で `workers.dev` が既定で Cloudflare Access 保護される場合は、3 つの Worker（アプリ・プレビュー・中継）すべてに Everyone の **Bypass** ポリシーを付ける。そうしないと sandbox フレームと中継がアプリからの要求に Access のログインページを返します。
+
+確認: 出力ペインのバッジが `browser · sandboxed`、チャットパネルの Connection が切替ではなく「Direct (browser → provider, BYOK)」の固定表示、`curl -I https://…/preview/` で CSP と COOP / COEP / CORP が返ること。ローカルでは `pnpm preview:static` が `dist/client` を同じヘッダー付きで http://localhost:8790 に配信します（docs は `PUBLIC_DOCS_PROXY_URL=http://localhost:8788/search` でビルドし `pnpm relay:dev` を起動）。
+
 ## プレビューのレンダリング
 
 既定はブラウザ内 Web Worker です。上流 Playground と同じサーバー側レンダリング（Worker Loader）を使うには:

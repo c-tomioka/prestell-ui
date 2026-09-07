@@ -40,6 +40,12 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Static build (BYOK front end, dist/client)
+        run: pnpm build:static
+        env:
+          PUBLIC_PREVIEW_ORIGIN: https://preview.example.invalid
+          PUBLIC_DOCS_PROXY_URL: https://relay.example.invalid/search
+
   secrets:
     runs-on: ubuntu-latest
     permissions:

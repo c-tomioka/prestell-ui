@@ -2,6 +2,7 @@
 //
 // API keys for the direct mode are NOT part of this blob: it lives in
 // localStorage, keys live in `direct/keys.ts` (sessionStorage / memory).
+import { AI_CONNECTIONS, type AiConnections } from "../config";
 import type { DocsMode } from "./docs";
 import { clampFixAttempts, DEFAULT_MAX_FIX_ATTEMPTS } from "./fix-loop";
 import {
@@ -75,13 +76,26 @@ function migrate(parsed: Partial<ChatSettings>): Partial<ChatSettings> {
 	return { ...next, version: SETTINGS_VERSION };
 }
 
-export function loadSettings(): ChatSettings {
-	if (typeof localStorage === "undefined") return { ...DEFAULT_SETTINGS };
+/** The connection a build pins, or null when the user may switch. */
+export function lockedConnection(
+	connections: AiConnections = AI_CONNECTIONS,
+): Connection | null {
+	return connections === "both" ? null : connections;
+}
+
+export function loadSettings(
+	connections: AiConnections = AI_CONNECTIONS,
+): ChatSettings {
+	const locked = lockedConnection(connections);
+	const withLock = (settings: ChatSettings): ChatSettings =>
+		locked ? { ...settings, connection: locked } : settings;
+	if (typeof localStorage === "undefined")
+		return withLock({ ...DEFAULT_SETTINGS });
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
-		if (!raw) return { ...DEFAULT_SETTINGS };
+		if (!raw) return withLock({ ...DEFAULT_SETTINGS });
 		const parsed = migrate(JSON.parse(raw) as Partial<ChatSettings>);
-		return {
+		return withLock({
 			...DEFAULT_SETTINGS,
 			...parsed,
 			models: { ...(parsed.models ?? {}) },
@@ -90,9 +104,9 @@ export function loadSettings(): ChatSettings {
 				...DEFAULT_SETTINGS.directBaseUrls,
 				...(parsed.directBaseUrls ?? {}),
 			},
-		};
+		});
 	} catch {
-		return { ...DEFAULT_SETTINGS };
+		return withLock({ ...DEFAULT_SETTINGS });
 	}
 }
 
