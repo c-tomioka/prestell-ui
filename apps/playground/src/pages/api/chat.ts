@@ -14,6 +14,7 @@ import {
 	type UIMessage,
 } from "ai";
 import type { APIRoute } from "astro";
+import { type CodedError, encodeCodedError } from "../../lib/ai/error-codes";
 import type { ChatNotice } from "../../lib/ai/types";
 import {
 	connectDocsMcp,
@@ -55,25 +56,41 @@ const MAX_STEPS = 5;
  */
 const MAX_OUTPUT_TOKENS = 4096;
 
-/** Turn transport-level failures into something the chat panel can show. */
-function describeError(error: unknown, provider: ProviderId): string {
+/**
+ * Turn transport-level failures into something the chat panel can show.
+ * Known situations become a `CodedError` (text is composed on the client);
+ * anything else passes through as the raw message.
+ */
+function describeError(
+	error: unknown,
+	provider: ProviderId,
+): CodedError | string {
 	const message = error instanceof Error ? error.message : String(error);
 	if (
 		isLocalProvider(provider) &&
 		/fetch failed|ECONNREFUSED|Network connection lost|connect/i.test(message)
 	) {
-		const base = localBaseUrl(aiEnv, provider);
-		return provider === "ollama"
-			? `Ollama に接続できません (${base})。\`ollama serve\` を実行してから再試行してください。`
-			: `LM Studio に接続できません (${base})。LM Studio の Developer タブで Start Server を押してから再試行してください。`;
+		return {
+			code: "local-unreachable",
+			provider,
+			base: localBaseUrl(aiEnv, provider),
+		};
 	}
 	if (
 		(error instanceof Error && error.name === "TimeoutError") ||
 		/timed out|timeout/i.test(message)
 	) {
-		return `応答がタイムアウトしました（${message}）。モデルが応答していない可能性があります。再試行するか、別のモデルやプロバイダーを選んでください。`;
+		return { code: "timeout", detail: message };
 	}
 	return message;
+}
+
+/** The AI SDK error part only carries a string. */
+function errorText(error: unknown, provider: ProviderId): string {
+	const described = describeError(error, provider);
+	return typeof described === "string"
+		? described
+		: encodeCodedError(described);
 }
 
 function docsNotice(reason: string): ChatNotice {
@@ -191,7 +208,7 @@ export const POST: APIRoute = async ({ request }) => {
 			onError: closeMcp,
 		});
 
-		const onError = (error: unknown) => describeError(error, provider);
+		const onError = (error: unknown) => errorText(error, provider);
 		const stream = createUIMessageStream({
 			execute: ({ writer }) => {
 				// Persisted as a `data-notice` part so the degradation stays visible.

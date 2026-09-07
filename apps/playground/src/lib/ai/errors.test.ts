@@ -11,11 +11,33 @@ describe("describeChatError", () => {
 		expect(info.transient).toBe(false);
 	});
 
-	it("treats a local server that is not running as not transient", () => {
+	it("composes the text for a coded error from the stream", () => {
 		const info = describeChatError(
 			new Error(
-				"Ollama に接続できません (http://localhost:11434/v1)。`ollama serve` を実行してから再試行してください。",
+				'{"code":"local-unreachable","provider":"ollama","base":"http://localhost:11434/v1"}',
 			),
+		);
+		expect(info.kind).toBe("local-down");
+		expect(info.transient).toBe(false);
+		expect(info.message).toBe(
+			"Cannot reach Ollama at http://localhost:11434/v1. Run `ollama serve`, then retry.",
+		);
+	});
+
+	it("reads a coded error from the errorResponse envelope", () => {
+		const info = describeChatError(
+			new Error(
+				'{"ok":false,"error":"timeout","coded":{"code":"timeout","detail":"The operation timed out"}}',
+			),
+		);
+		expect(info.kind).toBe("timeout");
+		expect(info.transient).toBe(true);
+		expect(info.message).toContain("did not respond in time");
+	});
+
+	it("still recognises a plain local-server message", () => {
+		const info = describeChatError(
+			new Error("Cannot reach LM Studio at http://localhost:1234/v1."),
 		);
 		expect(info.kind).toBe("local-down");
 		expect(info.transient).toBe(false);

@@ -433,7 +433,13 @@ export function resolveModel(
 
 export type LocalModelsResult =
 	| { ok: true; models: string[] }
-	| { ok: false; error: string; hint: string };
+	/** `error` is the transport detail; the UI composes its own text from `code`. */
+	| {
+			ok: false;
+			error: string;
+			code: "local-unreachable";
+			provider: LocalProviderId;
+	  };
 
 /** List models exposed by a local OpenAI-compatible server. */
 export async function listLocalModels(
@@ -442,10 +448,6 @@ export async function listLocalModels(
 	fetchImpl: typeof fetch = fetch,
 ): Promise<LocalModelsResult> {
 	const base = localBaseUrl(env, provider);
-	const hint =
-		provider === "ollama"
-			? "Ollama が起動していないか、モデルがありません。`ollama serve` を実行し、`ollama pull <model>` でモデルを取得してください。"
-			: "LM Studio のサーバーが起動していません。LM Studio の Developer タブで Start Server を押し、モデルをロードしてください。";
 	try {
 		const response = await fetchImpl(`${base}/models`, {
 			signal: AbortSignal.timeout(5000),
@@ -454,7 +456,8 @@ export async function listLocalModels(
 			return {
 				ok: false,
 				error: `${base}/models returned HTTP ${response.status}`,
-				hint,
+				code: "local-unreachable",
+				provider,
 			};
 		}
 		const payload = (await response.json()) as {
@@ -469,7 +472,8 @@ export async function listLocalModels(
 		return {
 			ok: false,
 			error: error instanceof Error ? error.message : String(error),
-			hint,
+			code: "local-unreachable",
+			provider,
 		};
 	}
 }
