@@ -1,5 +1,7 @@
 # Prestell UI
 
+[![CI](https://github.com/c-tomioka/prestell-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/c-tomioka/prestell-ui/actions/workflows/ci.yml) [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE.txt)
+
 > An AI chat builder for [Astro](https://astro.build/): describe a component, get `.astro` code that is validated by the real Astro compiler, and preview it instantly in the browser.
 
 [日本語版 README はこちら](./README.ja.md)

@@ -50,7 +50,8 @@ SaaS 運営専用ロジックは **このリポジトリには置かず**、priv
 | `wrangler.jsonc` | account_id / vars / secrets なし |
 | `docs/evaluations/*.md` | トークン・account 情報なし |
 | `.dev.vars.example` の網羅性 | サーバーが読む 9 変数をすべて含む（下表） |
-| コミット author | 個人メールを公開前に noreply へ書き換える（別手順）。以後はリポジトリローカルの `git config user.email` を noreply に設定 |
+| コミット author | 2026-09-07 に git filter-repo で全コミットを noreply（`100511940+c-tomioka@users.noreply.github.com`）へ書き換え済み。リポジトリローカルの `git config user.email` も noreply |
+| gitleaks（2026-09-07、v8.30.1） | 全履歴 20 コミット（`gitleaks git`）と HEAD の `git archive` 展開 136 ファイル（`gitleaks dir`）ともに **no leaks found**。CI の `secrets` ジョブ（`gitleaks/gitleaks-action@v2`、全履歴）と opt-in の `.githooks/pre-commit`（`gitleaks git --staged`）で継続的に検査 |
 
 サーバーが読む環境変数（`.dev.vars`）:
 
@@ -76,9 +77,29 @@ git log -p --all | grep -nE '(sk-ant-[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9]{20,}|AIza
 git log -p --all | grep -nE '\b[0-9a-f]{32}\b' | grep -viE '(sha|integrity|hash|lock|pnpm)'
 git grep -nE '(/Users/|accounts/[0-9a-f]{32})' -- ':!pnpm-lock.yaml'
 git log --format='%an <%ae>' | sort -u
+gitleaks git --no-banner --redact .                      # 全履歴（brew install gitleaks）
+rm -rf /tmp/prestell-export && mkdir -p /tmp/prestell-export && git archive HEAD | tar -x -C /tmp/prestell-export && gitleaks dir --no-banner --redact /tmp/prestell-export
 ```
 
-### TODO（Phase 3 項目 5「public 化」で扱う）
-- gitleaks 等のシークレットスキャンを pre-commit / CI に追加
-- リポジトリ設定で Private Vulnerability Reporting を有効化（`SECURITY.md` と Issue テンプレートがこの導線を前提にしている）
-- 完了済み（2026-09-07）: CONTRIBUTING / CODE_OF_CONDUCT / SECURITY.md / `.github/`（テンプレート・CI）、`package.json` の `license` フィールド
+## 公開手順（Phase 3 項目 5）
+
+可視性の切替（Settings → General → Danger Zone → Change visibility → Public）は **メンテナーがコンソールから手動で行う**。その前後にやることは次のとおり。
+
+### 公開前（完了、2026-09-07）
+- [x] 上記のシークレット点検と gitleaks（履歴・作業ツリー）で検出 0
+- [x] CI に `secrets` ジョブ（gitleaks、全履歴）を追加。opt-in の `.githooks/pre-commit` を同梱
+- [x] README（EN / JA）に CI バッジ
+- [x] PR マージ後のブランチ自動削除、Dependabot alerts を有効化（`gh api`）
+- [x] `docs/`・スクリーンショット・`.claude/`・`docs/evaluations/` は公開前提で内容確認済み
+
+### 公開直後（private では設定できないもの。依頼があれば gh / API で代行する）
+1. Settings → Code security → **Private vulnerability reporting** を有効化（`SECURITY.md` と Issue テンプレートの `security/advisories/new` 導線が前提）
+2. 同ページで **Secret scanning** と **Push protection** を有効化（public では無料）
+3. 同ページで **Dependabot security updates** を有効化（alerts は公開前に有効化済み）
+4. Settings → Rules → Rulesets: `main` に「PR 経由のみ」「必須ステータスチェック `checks` と `secrets`」「force push 禁止」「削除禁止」。solo 運用でも自分の誤操作を防ぐ
+5. Settings → Actions → General: fork からの PR のワークフロー実行は既定（外部コントリビューターは初回承認制）のままにする
+6. 公開時点の `main` に `v0.1.0` タグと GitHub Release を作成（リリースノートは Phase 1〜3 の要約と、`ROADMAP.md` の Phase 4 予告）
+7. `ROADMAP.md` の項目 5 を `[x]` にし、`.claude/CLAUDE.md` の「現在のフェーズ」を Phase 4 の準備に更新
+8. `README.md` の Status 節を「公開済み」に更新
+
+公開後の検証: `gh api repos/c-tomioka/prestell-ui -q '.security_and_analysis'` と `gh api repos/c-tomioka/prestell-ui/rulesets` で 1〜4 を確認し、fork からの PR で CI が動くことを 1 回確認する。

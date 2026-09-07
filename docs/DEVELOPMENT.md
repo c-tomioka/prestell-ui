@@ -91,7 +91,7 @@ UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にする
 
 - 言語: TypeScript。Workers 側（`src/pages/api`, `src/server`）も TypeScript
 - Biome（タブインデント、ダブルクォート）。`pnpm lint:fix` で整形
-- シークレットは `apps/playground/.dev.vars` のみ（git 管理外）。`.env` / `.dev.vars` をコミットしない。`astro build` は `.dev.vars` を `dist/server/` にコピーするので、`dist/` を配布・zip・共有しない（点検記録は `OSS_SCOPE.md`）
+- シークレットは `apps/playground/.dev.vars` のみ（git 管理外）。`.env` / `.dev.vars` をコミットしない。CI が gitleaks で全履歴を検査する。手元でもコミット前に止めたい場合は `brew install gitleaks && git config core.hooksPath .githooks`（opt-in）。`astro build` は `.dev.vars` を `dist/server/` にコピーするので、`dist/` を配布・zip・共有しない（点検記録は `OSS_SCOPE.md`）
 - 上流由来のファイルには `Derived from withastro/astro-playground (MIT)` ヘッダーを残す
 - LLM 生成コードは必ず `src/lib/ai/apply.ts` の `validateProposal`（コンパイラ診断 + `validatePreview`）を通してからエディタに反映する
 - SaaS 専用ロジック（課金、マルチユーザー管理）は `saas/` に分離し、Phase 1〜3 では `apps/` から参照しない

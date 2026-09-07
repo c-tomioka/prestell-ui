@@ -38,7 +38,9 @@ pnpm dev          # http://localhost:4321 (daemonised; stop with pnpm dev:stop)
 | `pnpm lint` / `pnpm lint:fix` | Biome (tabs, double quotes) |
 | `pnpm eval` | LLM quality / hallucination harness. Needs a running dev server and may spend API credits (`docs/EVALUATION.md`) |
 
-Run `pnpm lint && pnpm check && pnpm test` before opening a pull request; CI runs the same three.
+Run `pnpm lint && pnpm check && pnpm test` before opening a pull request; CI runs the same three, plus a
+[gitleaks](https://github.com/gitleaks/gitleaks) secret scan of the full history. To catch secrets before they are
+committed, opt in to the local hook once: `brew install gitleaks && git config core.hooksPath .githooks`.
 
 ## Conventions
 

@@ -1,5 +1,7 @@
 # Prestell UI
 
+[![CI](https://github.com/c-tomioka/prestell-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/c-tomioka/prestell-ui/actions/workflows/ci.yml) [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE.txt)
+
 > AI チャットで [Astro](https://astro.build/) のコンポーネントを生成・編集し、本物の Astro コンパイラで検証してブラウザ上で即座にプレビューする開発ツール。
 
 [English README](./README.md)
