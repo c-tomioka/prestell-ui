@@ -21,7 +21,7 @@ Prestell UI is a "v0 / bolt.new for Astro" built on top of the official [Astro P
 
 ## Status
 
-**Public since 2026-09-07 (`v0.1.0`)**; Phase 3 of the [roadmap](./docs/ROADMAP.md) is complete and the next phase is a static-host (BYOK) version. It is used daily by the maintainer for single-file components. The preview intentionally supports one self-contained `.astro` component: no `import`, framework components, `client:*` directives, or external scripts yet. A static-host (BYOK) version and a hosted SaaS are later phases; SaaS-only code lives outside this repository ([docs/OSS_SCOPE.md](./docs/OSS_SCOPE.md)).
+**Public since 2026-09-07 (`v0.1.0`)**; Phase 3 of the [roadmap](./docs/ROADMAP.md) is complete and the next phase is a static-host (BYOK) version. It is used daily by the maintainer for single-file components. The preview intentionally supports one self-contained `.astro` component: no `import`, framework components, `client:*` directives, or external scripts yet. A static-host (BYOK) version, a multi-file site builder (pages, layouts, components, CSS, images, exported as an Astro project), and a hosted SaaS are later phases; SaaS-only code lives outside this repository ([docs/OSS_SCOPE.md](./docs/OSS_SCOPE.md)).
 
 ## Requirements
 

@@ -18,7 +18,7 @@ Phase 3「OSS 公開」で確定した **公開範囲と SaaS 専用ロジック
 
 ## 非公開範囲（private リポジトリ `prestell-ui-saas`）
 
-SaaS 運営専用ロジックは **このリポジトリには置かず**、private リポジトリ `https://github.com/c-tomioka/prestell-ui-saas` に置く（Phase 5 以降）。
+SaaS 運営専用ロジックは **このリポジトリには置かず**、private リポジトリ `https://github.com/c-tomioka/prestell-ui-saas` に置く（Phase 7 以降）。
 
 - 課金（Stripe on Workers、事前クレジット、使用量集計）
 - マルチユーザー認証（Cloudflare Access / 独自 Auth）、ユーザー管理
@@ -31,7 +31,7 @@ SaaS 運営専用ロジックは **このリポジトリには置かず**、priv
 ## 境界ルール
 
 1. `apps/` と `packages/` は `saas/` や private リポジトリを **参照しない**（`.claude/CLAUDE.md`、`DEVELOPMENT.md` の規約）。
-2. private 側が公開版を **依存として取り込む**方向にする。取り込み方式は Phase 5 着手時に決める（候補: git submodule / pnpm の git 依存 / npm 公開。ここでは決めない）。
+2. private 側が公開版を **依存として取り込む**方向にする。取り込み方式は Phase 7 着手時に決める（候補: git submodule / pnpm の git 依存 / npm 公開。ここでは決めない）。
 3. private 側が差し替える前提の **拡張点**は公開側でインターフェースとして保つ:
    - `ProjectStore`（`apps/playground/src/lib/projects/types.ts`）: IndexedDB 実装 → Durable Objects 実装
    - プロバイダー層（`apps/playground/src/server/ai/providers.ts` の `resolveModel` 等）: ローカル LLM は OSS/ローカル専用、SaaS は外部 LLM / Workers AI のみ（`LOCAL_LLM.md`）

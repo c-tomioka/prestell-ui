@@ -10,7 +10,7 @@
 - [x] LLM の生成コードをコンパイラで検証してエディタに反映し、Preview が更新されることを確認
 - [x] Ollama（qwen2.5-coder:7b）と LM Studio（google/gemma-4-e4b）のローカルモデルで「プロンプト→生成→検証→適用→Preview」と切替を確認（`LOCAL_LLM.md` 参照）
 - [x] 生成コードをローカルファイルシステムに書き出す機能を実装（File System Access API / ダウンロード）
-- [ ] （ストレッチ）複数ファイル・相対 import 対応の検証
+- [ ] （ストレッチ）複数ファイル・相対 import 対応の検証 → Phase 5「サイトビルダー」の技術検証として実施する
 
 **完了条件**: 自分ひとりで「プロンプト→コード生成→プレビュー確認→ローカル保存」のループが問題なく回ること。
 
@@ -50,7 +50,39 @@
 
 **完了条件**: 運営側の固定費なし（静的配信 + Workers Free の中継のみ）で、第三者が自分のキーを入れて生成→プレビューできること。
 
-## Phase 5: SaaS化準備
+## Phase 5: サイトビルダー（複数ファイル・Astro プロジェクト出力）
+**目標**: 1 コンポーネントの生成器から、ページ・レイアウト・コンポーネント・CSS・画像を持つサイト（LP / HP）を生成・編集し、そのまま `astro dev` で動く Astro プロジェクトとして書き出せるビルダーにする。content collections / API routes / SSR は Phase 6。
+
+方針（2026-09-07 確定）:
+- 実装は「パス → 内容のファイルマップ + プレビューの入口ファイル」という **1 つの多ファイルモデル**に統一し、Component / Page / Site の 3 モードは初期ファイル・AI プロンプト・UI 表示のプリセットとして載せる（旧 1 ファイル実装を別経路として残さない）。
+- 参考: Svelte Playground / Vue SFC Playground（仮想ファイル群 + ブラウザ内 import 解決）。上流 Astro Playground は単一コンポーネント専用で、複数ファイルを想定していない。
+- 画像はコンパイラ型 Playground と同じく「AI は URL / プレースホルダー / SVG（テキスト）を書く」を基本にし、ユーザーがアップロードした画像だけを `public/` 配下のバイナリとして保持する。`astro:assets`（`<Image />`、`import` した画像）はビルドパイプラインが要るため対象外。
+
+- [ ] 技術検証: 複数 `.astro` ファイルのコンパイルと相対 import の解決（browser レンダラーは Blob URL のモジュールグラフに書き換え、server レンダラーは Worker Loader の `modules` に同梱）。`.css` の import、`public/` 配下のパス参照も含める
+- [ ] プロジェクトモデルの多ファイル化: `source` を `files: Record<path, text | Blob>` に変え、プレビューの入口ファイルとモード（`component` / `page` / `site`）を持たせる。IndexedDB スキーマ v2 へのマイグレーション（既存プロジェクトは Component モードとして自動変換）
+- [ ] モード: Component（`Component.astro` 1 本、自己完結・import 禁止、ツリー非表示）/ Page（`src/pages/index.astro` + `src/layouts/Layout.astro`）/ Site（Page + `src/components/`、複数ページとページ切替）。Component → Page への昇格を提供
+- [ ] ファイルツリー UI: **画面左端（エディタの左）**に配置。タブ、追加・改名・削除・移動、Component モードでは折りたたみ
+- [ ] ページプレビュー: 入口ファイルの選択とページ切替、レイアウト・コンポーネント・CSS の import、`public/` 配下の画像を `blob:` URL に書き換えて表示。Phase 4 の別オリジン sandbox iframe + CSP の上に載せ、外部画像の読み込みを許可する
+- [ ] 画像: アップロードを `public/` 配下の Blob として IndexedDB に保持（上限の目安: 1 ファイル 2 MB、1 プロジェクト 20 MB）。SVG はテキストファイルとして編集・AI 生成の対象にする
+- [ ] AI の多ファイル生成: モード別のシステムプロンプト（Component は現状の import 禁止を維持）、パス付きコードブロックの出力形式、複数ファイルの検証・適用・fix ループ、画像は URL / プレースホルダー / SVG に限定する指示、Page / Site 向けテンプレート（LP 生成、セクション分割、ページ追加など）
+- [ ] 書き出し: Site / Page は Astro プロジェクトの ZIP（`package.json`、`astro.config.mjs`、`tsconfig.json`、`public/`、`src/`）と File System Access API によるディレクトリ書き込み。Component は従来の 1 ファイル保存
+- [ ] Share URL: 多ファイルは `#code=` に収まらないため、対象を Component モードに限定するか別形式にするかを決める
+- [ ] 評価ハーネス（`pnpm eval`）の多ファイル対応と、`OVERVIEW.md` / `ARCHITECTURE.md` / `PREVIEW_RENDERING.md` / README（EN/JA）の更新
+
+**完了条件**: Site モードで LP を生成→プレビュー→ZIP 出力し、展開先で `npm install && npm run dev` を実行するとプレビューと同じ表示になること。既存の Component プロジェクトが移行後もそのまま使えること。
+
+## Phase 6: Astro フル機能（content collections / API routes / SSR）
+**目標**: Phase 5 のサイトビルダーを、ブラウザ内 WASM コンパイラだけでは動かない Astro の機能まで広げる。
+
+- [ ] 実行環境の選定: content collections / API routes / SSR をプレビューするために、Worker Loader（`server` レンダラーの拡張）か WebContainers 系か、あるいはプレビュー非対応で出力のみ対応かを比較して決める
+- [ ] content collections（`src/content/`、`content.config.ts`）の生成・編集・プレビュー
+- [ ] API routes（`src/pages/api/*.ts`）と SSR（`export const prerender = false`、アダプター設定）の生成と書き出し
+- [ ] `astro:assets`（`<Image />`、`src/assets/` の import）への対応可否の判断
+- [ ] フレームワークコンポーネント（React / Svelte 等）と `client:*` ディレクティブへの対応可否の判断
+
+**完了条件**: 選定した実行環境の上で、content collections を使ったブログ型サイトを生成→プレビュー→出力できること（プレビュー非対応と決めた機能は、出力したプロジェクトが `astro dev` で動くことを完了条件にする）。
+
+## Phase 7: SaaS化準備
 **目標**: マルチユーザー対応の本番環境を構築する。
 
 - [ ] Cloudflare本番環境（Workers Paid検討）へのデプロイ。隔離実行が必要な機能は `server` レンダラー（Worker Loader）を選択
@@ -62,7 +94,7 @@
 
 **完了条件**: 複数ユーザーが同時に安全に利用できる状態になること。
 
-## Phase 6: 事前クレジット決済モデルでの販売
+## Phase 8: 事前クレジット決済モデルでの販売
 **目標**: 収益化を開始する。
 
 - [ ] Stripe on Workersで事前クレジット購入フローを実装
@@ -81,5 +113,7 @@
 | 2 | 精度・UX改善 | 同上 |
 | 3 | OSS公開 | 無償公開のみ、追加コストなし |
 | 4 | 静的ホスト版（BYOK） | 静的配信 + Workers Free の中継のみ、ほぼゼロ |
-| 5 | 本番マルチユーザー基盤構築 | Workers Paid等の固定費が発生し得る |
-| 6 | 課金開始・一般販売 | Stripe決済手数料 + インフラ費 + LLM APIコスト |
+| 5 | サイトビルダー（複数ファイル・Astro プロジェクト出力） | 追加コストなし（ブラウザ内で完結） |
+| 6 | Astro フル機能（content collections / API routes / SSR） | 実行環境の選定次第（Worker Loader なら Workers Paid） |
+| 7 | 本番マルチユーザー基盤構築 | Workers Paid等の固定費が発生し得る |
+| 8 | 課金開始・一般販売 | Stripe決済手数料 + インフラ費 + LLM APIコスト |
