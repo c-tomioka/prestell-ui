@@ -4,6 +4,7 @@ export const prerender = true;
 
 import LogoOnLight from '../assets/astro-icon-dark.svg';
 import LogoOnDark from '../assets/astro-icon-light-gradient.svg';
+import LocaleSwitch from '../components/LocaleSwitch.svelte';
 import Playground from '../components/Playground.svelte';
 
 const title = 'Prestell UI';
@@ -42,6 +43,7 @@ const description = 'Generate and edit Astro components with an AI chat, and pre
 					<span>Prestell UI</span>
 				</a>
 				<nav class="site-nav" aria-label="External links">
+					<LocaleSwitch client:only="svelte" />
 					<a href="https://docs.astro.build" target="_blank" rel="noreferrer">Astro Docs</a>
 					<a
 						class="icon-link"

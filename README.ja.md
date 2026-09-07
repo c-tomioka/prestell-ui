@@ -18,6 +18,7 @@ Prestell UI は Astro 公式の [Astro Playground](https://github.com/withastro/
 - **2 つの接続モード** – **Server** はこのアプリの `/api/chat` を経由（キーは `.dev.vars` に置く）、**Direct** はブラウザが自分のキーで Ollama・LM Studio・Anthropic・OpenAI・Google AI Studio を直接呼ぶ（API サーバー不要）。
 - **MCP による Astro 知識** – `inject`（既定）は送信前に Astro Docs を検索して埋め込み、`tools` はモデル自身に検索させます。評価では `inject` が全モデルで Astro API のハルシネーションを 0 にしました（[docs/EVALUATION.md](./docs/EVALUATION.md)）。
 - **自動 fix ループ** – コンパイルエラーを該当行の本文つきでモデルに返し、上限回数まで自動で修正させます。
+- **英語 / 日本語 UI** – ブラウザの言語に合わせて表示され、ヘッダーのボタンで切り替えられます（選択は保存されます）。
 - **プロジェクトとテンプレート** – プロジェクトとチャット履歴を IndexedDB に保存、組み込みプロンプトテンプレート 18 種、`.astro` ファイルへのワンクリック保存（File System Access API / ダウンロード）。
 
 ## ステータス

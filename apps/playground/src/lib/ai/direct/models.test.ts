@@ -32,7 +32,7 @@ describe("directProviders", () => {
 			["google", "direct", true],
 			["workers-ai", "gateway", false],
 		]);
-		expect(list.at(-1)?.unavailableLabel).toBe("server only");
+		expect(list.at(-1)?.unavailable).toBe("server-only");
 		expect(list[0].hint).toContain("http://localhost:11434/v1");
 	});
 });

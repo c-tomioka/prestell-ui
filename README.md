@@ -18,6 +18,7 @@ Prestell UI is a "v0 / bolt.new for Astro" built on top of the official [Astro P
 - **Two connection modes** – **Server** sends requests through this app's `/api/chat` (keys stay in `.dev.vars`); **Direct** lets the browser call Ollama, LM Studio, Anthropic, OpenAI, or Google AI Studio itself with your own key, with no API server involved.
 - **Astro knowledge via MCP** – `inject` (default) searches the Astro docs before each request; `tools` lets the model search on its own. In our evaluation `inject` brought hallucinated Astro APIs to zero for every model tested ([docs/EVALUATION.md](./docs/EVALUATION.md)).
 - **Auto-fix loop** – compiler errors, with the offending source line, are sent back to the model automatically (up to a configurable number of attempts).
+- **English and Japanese UI** – the interface follows your browser language and can be switched from the header; the choice is remembered.
 - **Projects and templates** – projects and chat history are stored in IndexedDB, 18 built-in prompt templates, and one-click save to a `.astro` file (File System Access API or download).
 
 ## Status

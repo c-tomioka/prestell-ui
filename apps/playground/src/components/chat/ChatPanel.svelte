@@ -25,7 +25,7 @@
 		emptyDirectNote,
 		keyMissingNotice,
 		localServerHint,
-		NO_LOCAL_MODELS,
+		noLocalModels,
 	} from '../../lib/ai/messages';
 	import {
 		CLOUD_MODELS,
@@ -44,6 +44,7 @@
 	import { insertTemplate, type PromptTemplate } from '../../lib/ai/templates';
 	import type { Proposal, ProviderInfo } from '../../lib/ai/types';
 	import { AI_CONNECTIONS } from '../../lib/config';
+	import { t } from '../../lib/i18n';
 	import { persistableProposals } from '../../lib/projects/record';
 	import { openProjectStore } from '../../lib/projects/store';
 	import Icon from '../Icon.svelte';
@@ -91,20 +92,22 @@
 	// --- providers / models ---
 	/** From `/api/models` (server mode); the direct list is computed locally. */
 	let serverProviders = $state<ProviderInfo[]>([]);
-	const providers = $derived<ProviderInfo[]>(
-		isDirect
+	const providers = $derived.by<ProviderInfo[]>(() => {
+		void $t; // hints are composed in the current language
+		return isDirect
 			? directProviders({ keys, baseUrls: settings.directBaseUrls, origin })
-			: serverProviders,
-	);
+			: serverProviders;
+	});
 	let models = $state<string[]>([]);
 	/** Model-list notice. `warning` = local server not ready (fixable by the user); `error` = the request itself failed. */
 	let modelsNotice = $state<{ level: 'warning' | 'error'; text: string } | null>(null);
 	/** Direct mode: the chosen cloud provider has no key yet. */
-	const keyNotice = $derived(
-		isDirect && isDirectCloudProvider(providerId) && !keys[providerId]
+	const keyNotice = $derived.by(() => {
+		void $t;
+		return isDirect && isDirectCloudProvider(providerId) && !keys[providerId]
 			? { level: 'warning' as const, text: keyMissingNotice(providerId) }
-			: null,
-	);
+			: null;
+	});
 	let loadingModels = $state(false);
 
 	/** Move off a provider the current connection cannot use. */
@@ -127,7 +130,7 @@
 		} catch (error) {
 			modelsNotice = {
 				level: 'error',
-				text: `Could not load providers: ${error instanceof Error ? error.message : String(error)}`,
+				text: $t('chat.providersFailed', { error: error instanceof Error ? error.message : String(error) }),
 			};
 		}
 	}
@@ -159,7 +162,7 @@
 				models = payload.models;
 				adoptModel(provider);
 				if (models.length === 0 && providers.find((p) => p.id === provider)?.kind === 'local') {
-					modelsNotice = { level: 'warning', text: NO_LOCAL_MODELS };
+					modelsNotice = { level: 'warning', text: noLocalModels() };
 				}
 			} else {
 				models = [];
@@ -182,7 +185,7 @@
 			if (result.ok) {
 				models = result.models;
 				adoptModel(provider);
-				if (models.length === 0) modelsNotice = { level: 'warning', text: NO_LOCAL_MODELS };
+				if (models.length === 0) modelsNotice = { level: 'warning', text: noLocalModels() };
 			} else {
 				models = [];
 				modelsNotice = { level: 'warning', text: describeCodedError(result.coded) };
@@ -405,8 +408,6 @@
 		streamingProposal ? { ...proposals, [streamingProposal[0]]: streamingProposal[1] } : proposals,
 	);
 
-	const TRUNCATED_ERROR =
-		'The reply ended before the code block was closed (output limit reached). Ask for a smaller component or pick a model with a larger output limit.';
 
 	/** The fix request finished (reply, stop, or error): close the card that triggered it. */
 	function settleRetrying(state: 'resolved' | 'gave-up') {
@@ -431,7 +432,7 @@
 		if (!extracted.complete) {
 			// The reply stopped before the closing fence (output limit reached):
 			// re-asking would be cut off the same way, so no auto-fix here.
-			proposals[message.id] = { code, status: 'invalid', error: TRUNCATED_ERROR };
+			proposals[message.id] = { code, status: 'invalid', error: $t('chat.truncated') };
 			void persistChat();
 			return;
 		}
@@ -520,14 +521,14 @@
 	}
 </script>
 
-<section class="chat" aria-label="AI chat">
+<section class="chat" aria-label={$t('chat.title')}>
 	<div class="chat-head">
-		<span class="title">AI chat</span>
+		<span class="title">{$t('chat.title')}</span>
 		<div class="head-actions">
-			<IconButton label="Clear chat history" disabled={busy || chat.messages.length === 0} onclick={clear}>
+			<IconButton label={$t('chat.clear')} disabled={busy || chat.messages.length === 0} onclick={clear}>
 				<Icon name="eraser" />
 			</IconButton>
-			<IconButton label="Close chat panel" tipAlign="end" onclick={onClose}>
+			<IconButton label={$t('chat.close')} tipAlign="end" onclick={onClose}>
 				<Icon name="x" />
 			</IconButton>
 		</div>
@@ -560,11 +561,11 @@
 		<div class="toggles">
 			<label>
 				<input type="checkbox" bind:checked={settings.autoApply} />
-				<span>Auto-apply valid proposals</span>
+				<span>{$t('chat.autoApply')}</span>
 			</label>
 			<label>
 				<input type="checkbox" bind:checked={settings.autoFix} />
-				<span>Auto-fix errors, up to</span>
+				<span>{$t('chat.autoFix')}</span>
 				<input
 					class="attempts"
 					type="number"
@@ -572,35 +573,35 @@
 					max={MAX_FIX_ATTEMPTS_LIMIT}
 					value={settings.maxFixAttempts}
 					disabled={!settings.autoFix || busy}
-					aria-label="Maximum auto-fix attempts"
+					aria-label={$t('chat.autoFixAria')}
 					onchange={(e) => (settings.maxFixAttempts = clampFixAttempts(e.currentTarget.valueAsNumber))}
 				/>
-				<span>tries</span>
+				<span>{$t('chat.tries')}</span>
 			</label>
 			<label>
-				<span>Fallback</span>
+				<span>{$t('chat.fallback')}</span>
 				<select
 					value={settings.fallbackProvider}
 					disabled={busy}
-					aria-label="Fallback provider offered after a failed request"
+					aria-label={$t('chat.fallbackAria')}
 					onchange={(e) => (settings.fallbackProvider = e.currentTarget.value)}
 				>
-					<option value="">none</option>
+					<option value="">{$t('chat.none')}</option>
 					{#each providers.filter((p) => p.configured) as p (p.id)}
 						<option value={p.id}>{p.label}</option>
 					{/each}
 				</select>
 			</label>
 			<label>
-				<span>Astro docs</span>
+				<span>{$t('chat.docs')}</span>
 				<select
 					value={settings.docsMode}
 					disabled={busy}
 					onchange={(e) => (settings.docsMode = e.currentTarget.value as DocsMode)}
 				>
-					<option value="off">off</option>
-					<option value="inject">inject (search first)</option>
-					<option value="tools">tools (tool calling)</option>
+					<option value="off">{$t('chat.docsOff')}</option>
+					<option value="inject">{$t('chat.docsInject')}</option>
+					<option value="tools">{$t('chat.docsTools')}</option>
 				</select>
 			</label>
 		</div>
@@ -619,40 +620,40 @@
 			<span>{lastError?.message ?? chat.error?.message}</span>
 			<div class="error-actions">
 				{#if retryPending}
-					<span class="retrying">Retrying…</span>
+					<span class="retrying">{$t('chat.retrying')}</span>
 				{:else}
-					<button type="button" class="ghost" onclick={retryNow} disabled={busy}>Retry</button>
+					<button type="button" class="ghost" onclick={retryNow} disabled={busy}>{$t('chat.retry')}</button>
 					{#if fallbackInfo}
 						<button type="button" class="ghost" onclick={() => void retryWithFallback()} disabled={busy}>
-							Retry with {fallbackInfo.label}
+							{$t('chat.retryWith', { provider: fallbackInfo.label })}
 						</button>
 					{/if}
-					<button type="button" class="ghost" onclick={dismissError}>Dismiss</button>
+					<button type="button" class="ghost" onclick={dismissError}>{$t('chat.dismiss')}</button>
 				{/if}
 			</div>
 		</div>
 	{/if}
 
 	<form class="composer" onsubmit={send}>
-		<label class="visually-hidden" for="chat-input">Message</label>
+		<label class="visually-hidden" for="chat-input">{$t('chat.message')}</label>
 		<textarea
 			id="chat-input"
 			bind:this={composerEl}
 			bind:value={input}
 			rows="3"
-			placeholder="Describe the component or the change you want… (⌘/Ctrl+Enter to send)"
+			placeholder={$t('chat.placeholder')}
 			onkeydown={onKeydown}
 			disabled={busy}
 		></textarea>
 		<div class="composer-actions">
 			<TemplateMenu disabled={busy} onPick={(template) => void applyTemplate(template)} />
 			{#if busy}
-				<IconButton label="Stop generating" tipSide="top" onclick={() => chat.stop()}>
+				<IconButton label={$t('chat.stop')} tipSide="top" onclick={() => chat.stop()}>
 					<Icon name="square" />
 				</IconButton>
 			{/if}
 			<IconButton
-				label="Send (⌘/Ctrl+Enter)"
+				label={$t('chat.send')}
 				type="submit"
 				variant="accent"
 				tipSide="top"

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Proposal } from '../../lib/ai/types';
+	import { t } from '../../lib/i18n';
 
 	interface Props {
 		proposal: Proposal;
@@ -14,19 +15,20 @@
 	const label = $derived.by(() => {
 		switch (proposal.status) {
 			case 'streaming':
-				return 'Generating…';
+				return $t('proposal.generating');
 			case 'validating':
-				return 'Validating…';
+				return $t('proposal.validating');
 			case 'valid':
-				return 'Ready to apply';
+				return $t('proposal.ready');
 			case 'applied':
-				return 'Applied to editor';
+				return $t('proposal.applied');
 			default: {
 				const fix = proposal.fix;
-				if (!fix) return 'Cannot render';
-				if (fix.state === 'retrying') return `Cannot render · auto-fixing ${fix.attempt}/${fix.max}…`;
-				if (fix.state === 'resolved') return `Cannot render · retried (${fix.attempt}/${fix.max})`;
-				return `Cannot render · auto-fix gave up (${fix.attempt}/${fix.max})`;
+				if (!fix) return $t('proposal.cannotRender');
+				const params = { attempt: fix.attempt, max: fix.max };
+				if (fix.state === 'retrying') return $t('proposal.fixing', params);
+				if (fix.state === 'resolved') return $t('proposal.retried', params);
+				return $t('proposal.gaveUp', params);
 			}
 		}
 	});
@@ -34,8 +36,8 @@
 
 <div class="proposal" data-status={proposal.status}>
 	<div class="head">
-		<span class="title">Component proposal</span>
-		<span class="meta">{lineCount} lines · {label}</span>
+		<span class="title">{$t('proposal.title')}</span>
+		<span class="meta">{$t('proposal.lines', { count: lineCount })} · {label}</span>
 	</div>
 	{#if proposal.error}
 		<pre class="error" role="alert">{proposal.error}</pre>
@@ -46,7 +48,7 @@
 	<pre class="code" class:expanded>{proposal.code}</pre>
 	<div class="actions">
 		<button type="button" class="ghost" onclick={() => (expanded = !expanded)}>
-			{expanded ? 'Collapse' : 'Expand'}
+			{expanded ? $t('proposal.collapse') : $t('proposal.expand')}
 		</button>
 		<button
 			type="button"
@@ -54,7 +56,11 @@
 			disabled={proposal.status === 'streaming' || proposal.status === 'validating' || retrying}
 			onclick={onApply}
 		>
-			{proposal.status === 'applied' ? 'Apply again' : proposal.status === 'invalid' ? 'Apply anyway' : 'Apply'}
+			{proposal.status === 'applied'
+				? $t('proposal.applyAgain')
+				: proposal.status === 'invalid'
+					? $t('proposal.applyAnyway')
+					: $t('proposal.apply')}
 		</button>
 	</div>
 </div>

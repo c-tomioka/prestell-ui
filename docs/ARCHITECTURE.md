@@ -71,6 +71,12 @@
 - 前提: 中継は匿名で到達できること。`workers.dev` を既定で Cloudflare Access 保護しているアカウントでは、この Worker の Access ポリシーを Everyone の Bypass にする（またはこの Worker だけ保護を外す）。Access が挟まると preflight がログイン応答になり CORS が通らないため、フロントは「Astro docs unavailable」で継続する（README のデプロイ手順に記載）。
 - フロント側の切替は `PUBLIC_DOCS_PROXY_URL`（`src/lib/ai/direct/docs-proxy.ts`）を Worker の `/search` に向けるだけ。server モードの `/api/chat` と `/api/mcp-proxy` は従来どおり Worker 内から MCP に直接つなぐ。
 
+### 1f. i18n（`src/lib/i18n/`、Phase 4）
+- `en.ts` が正の辞書（`as const`、キーは `MessageKey`）、`ja.ts` は `Record<MessageKey, string>` なのでキー不足は `pnpm check` で落ちる。テスト（`i18n.test.ts`）が両言語の全キーと `{name}` プレースホルダーの一致を検証する。
+- `index.ts`: `locale` は `svelte/store` の `writable`、`t` はそれから派生した翻訳関数で、コンポーネントは `{$t('chat.title')}` のように使う（言語切替で再描画）。Svelte 以外の TS（`messages.ts` のエラー文言など、イベント時に文字列化するもの）は `tr()` を使う。初期値は localStorage `prestell.locale` → `navigator.language`（`ja*` なら日本語）。ヘッダーの `LocaleSwitch.svelte` で切替し、`document.documentElement.lang` も更新する。
+- 翻訳対象は UI の文言・ツールチップ・placeholder、`messages.ts` のエラーと案内、テンプレートのカテゴリ名とタイトル（プロンプト本文は英語のまま）。対象外: Astro コンパイラの診断、`preview.ts` / `compiler.ts` などの内部エラー文、サーバーが返すプロバイダーのヒント（`.dev.vars` 設定の案内）、`docs/`。LLM の返答言語は system prompt に手を入れずプロンプト任せ。
+- ルール: コンポーネントに文言を直書きしない。`en.ts` にキーを足し、同じキーを `ja.ts` に入れる。
+
 ### 1e. 静的ビルド構成（Phase 4、`pnpm build:static`）
 - `astro build` は常に `dist/client`（プリレンダー済み `index.html` / `preview/index.html`、`_astro/*`、`_headers`）と `dist/server`（`/api/*` の Worker）に分かれる。静的ホスト版は **`dist/client` だけ**を配信し、`dist/server` と `.dev.vars` は配らない。
 - `pnpm build:static` は `PUBLIC_AI_CONNECTIONS=direct` で `astro build` する。このフラグ（`src/lib/config.ts` の `AI_CONNECTIONS`）が `direct` のとき、`loadSettings` が Connection を direct に固定し、`ProviderSelect` は切替 select の代わりに固定ラベルを出し、`ChatPanel` は `/api/models` を呼ばない。`astro.config.ts` が値を検証し、`PUBLIC_PREVIEW_RENDERER=server` との併用はビルドエラー、`PUBLIC_PREVIEW_ORIGIN` / `PUBLIC_DOCS_PROXY_URL` 未設定は警告（動くが「not isolated」/ docs なし）。
@@ -100,7 +106,7 @@
 
 ### 4b. エラー処理（`src/lib/ai/errors.ts`, ChatPanel）
 - サーバーの `errorResponse` は AI SDK の transport がそのまま `Error.message` にするため、クライアントの `describeChatError` が JSON を剥がして種類（local-down / network / timeout / rate-limit / server / request）を判定する。
-- 既知の状況（ローカル LLM 未到達、タイムアウト）はサーバーが文言ではなくコード（`src/lib/ai/error-codes.ts` の `CodedError`。ストリームでは JSON 文字列、`errorResponse` では `coded` フィールド）を返し、クライアントの `src/lib/ai/messages.ts` が英語の文言に組み立てる。
+- 既知の状況（ローカル LLM 未到達、タイムアウト）はサーバーが文言ではなくコード（`src/lib/ai/error-codes.ts` の `CodedError`。ストリームでは JSON 文字列、`errorResponse` では `coded` フィールド）を返し、クライアントの `src/lib/ai/messages.ts` が辞書キーとパラメータを選んで現在の UI 言語の文言に組み立てる（`tr()`）。文言そのものは `src/lib/i18n/en.ts` / `ja.ts`（1f）。
 - direct モードは `/api/chat` を通らないので、`src/lib/ai/direct/errors.ts` が AI SDK のエラー（`AI_APICallError` の status、`AI_RetryError` の unwrap、`fetch` の `TypeError`）を同じ `CodedError` に変換し、`Error(JSON)` として投げる／ストリームの `error` パートに書く。追加コード: `direct-unreachable`（ローカルサーバー未起動か CORS 未許可。ブラウザからは区別できないので両方の対処を書き、オリジンを埋め込む）、`direct-network`（クラウドへ届かない。一時的扱い）、`direct-unsupported`（Workers AI）、`key-missing` / `key-rejected`（401 / 403）、`provider-error`（429 は rate-limit、5xx は server、他は request）。文言はすべて `messages.ts`。UI 文言はすべて英語で、翻訳するときは `messages.ts` と各コンポーネントの文字列を辞書化する（2026-09-07 決定。i18n は独立 Phase にせず Phase 4 の項目として扱う）。
 - network / timeout / rate-limit / server は「一時的」とみなし、1.5 秒後に `chat.regenerate()` で自動リトライを 1 回だけ行う（バナーに「Retrying…」）。fix ループ中なら「auto-fixing…」のカードを保ったまま再試行する。
 - 自動リトライ後も失敗、または一時的でないエラー（ローカル LLM 未起動など）はバナーに `Retry` と、設定でフォールバック先を選んでいれば `Retry with <プロバイダー>` を出す。フォールバックは自動では切り替えない（ユーザー確認済み）。

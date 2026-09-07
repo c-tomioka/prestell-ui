@@ -101,6 +101,11 @@ UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にする
 - SaaS 専用ロジック（課金、マルチユーザー管理）は `saas/` に分離し、Phase 1〜3 では `apps/` から参照しない
 - ブラウザから Astro Docs MCP やローカル LLM に直接接続しない（CORS）。常に `/api/*` を経由する
 
+## UI 文言のルール（i18n）
+- コンポーネントや `messages.ts` に英語を直書きしない。`apps/playground/src/lib/i18n/en.ts` にキーを追加し、`ja.ts` に訳を入れる（型で強制。テストがプレースホルダーの一致も確認）。
+- Svelte では `import { t } from '../lib/i18n'` して `{$t('key', { name })}`。イベント時に文字列を作る TS では `tr()`。
+- 翻訳しないもの: コンパイラ診断、内部エラー、サーバーが返すヒント、プロンプトテンプレートの本文（`ARCHITECTURE.md` 1f）。
+
 ## テスト・動作確認の指針
 - 各プロバイダー（Ollama / LM Studio / Anthropic / OpenAI / Workers AI）で最低1回はチャット→コード生成→プレビュー反映の E2E 確認を行う
 - MCP 接続が失敗した場合でもチャット機能自体は継続動作すること（グレースフルデグラデーション）を確認する
@@ -112,6 +117,7 @@ UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にする
 - プロジェクト: New / Rename / Delete と切替でエディタとチャット履歴が入れ替わり、リロード後に最後のプロジェクトが復元されること。Share で得た `#code=` URL を開くと「Shared <filename>」として取り込まれ、ハッシュが消えること
 - direct モード（Connection: Direct）: Ollama を選ぶとモデル一覧がブラウザから `http://localhost:11434/v1/models` で取れ、送信すると `/api/chat` を通らずに `localhost:11434/v1/chat/completions` へ preflight + POST が飛ぶこと（DevTools の Network で確認）。Server URL を誤ったポートにすると Model 欄の下に「Cannot reach Ollama … from the browser」の警告が出ること。Anthropic / OpenAI / Google を選ぶと API key 欄が出て、未入力では Send が無効になり「Enter your … API key」の警告が出ること。キーは sessionStorage（`prestell.chat.keys`）にだけ入り、localStorage には無いこと。「Forget all keys」で消えること。Workers AI は「(server only)」で選択不可なこと
 - プレビュー sandbox: `pnpm dev` で出力ペインのバッジが「browser · sandboxed」になり、Network に `http://127.0.0.1:4321/preview/`（接続拒否の場合あり）→ `http://[::1]:4321/preview/` の読み込みが出ること。frontmatter に `await fetch("http://localhost:4321/api/models")` と `await indexedDB.databases()` を書いたコンポーネントで、fetch が `Failed to fetch`、DB 一覧が `[]` になること。`while (true)` で 5 秒後に「Preview timed out」となり、New project で次の描画が同じフレームで成功すること。`PUBLIC_PREVIEW_ORIGIN=http://localhost:4321`（アプリと同じ）で起動するとバッジが「browser · not isolated」になること
+- i18n: ヘッダーの「日本語」/「EN」でツールバー・出力タブ・チャットパネル・警告文が切り替わり、リロード後も保持されること（localStorage `prestell.locale`）。設定を消すとブラウザ言語（`ja*` なら日本語）で起動すること。`pnpm test` の `i18n.test.ts` が両言語の全キーを検証する
 - 静的ビルド: `PUBLIC_DOCS_PROXY_URL=http://localhost:8788/search pnpm build:static` → `pnpm relay:dev` と `pnpm preview:static` を起動して http://localhost:8790 を開く。チャットの Connection が select ではなく「Direct (browser → provider, BYOK)」の固定表示になり、Network に `/api/*` への要求が無く、`/preview/` は `127.0.0.1` か `[::1]` から読まれてバッジが「browser · sandboxed」になること。Ollama で送信すると docs が `localhost:8788/search`、生成が `localhost:11434` へ直接飛んで適用されること。`curl -I http://localhost:8790/preview/` に CSP と COOP / COEP / CORP が付くこと
 - 中継 Worker: `pnpm relay:dev` を起動し、`PUBLIC_DOCS_PROXY_URL=http://localhost:8788/search pnpm dev` で開いた direct モードの `inject` / `tools` が `localhost:8788/search` への preflight + POST で動くこと。`curl -X OPTIONS` で `Access-Control-Allow-Origin` が返り、`ALLOWED_ORIGINS` に無い Origin は 403、同じ IP から 60 秒に 31 回目は 429 になること
 - direct モードのクラウド 3 社（Anthropic / OpenAI / Google）は自分のキーで 1 回ずつ生成→適用を確認する。401 なら「rejected the API key」、429 なら「rate limiting」のバナーになり Retry できること

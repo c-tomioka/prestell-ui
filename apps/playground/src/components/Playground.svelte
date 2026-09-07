@@ -9,6 +9,7 @@
 	import { COMPILE_DEBOUNCE_MS, PREVIEW_DEBOUNCE_MS, PROJECT_SAVE_DEBOUNCE_MS } from '../lib/config';
 	import { toCodeMirrorDiagnostics } from '../lib/diagnostics';
 	import { saveComponent } from '../lib/export';
+	import { t } from '../lib/i18n';
 	import { DEFAULT_COMPILE_OPTIONS } from '../lib/options';
 	import {
 		createPreviewDocument,
@@ -33,7 +34,7 @@
 	import ChatPanel from './chat/ChatPanel.svelte';
 	import Editor from './Editor.svelte';
 	import OutputTabs from './OutputTabs.svelte';
-	import Toolbar from './Toolbar.svelte';
+	import Toolbar, { type SaveFeedback, type ShareFeedback } from './Toolbar.svelte';
 
 	const shared = readSharedState();
 	let source = $state(shared?.code ?? DEFAULT_SOURCE);
@@ -50,8 +51,8 @@
 	let status = $state<'loading' | 'compiling' | 'ready' | 'error'>('loading');
 	let errorMessage = $state('');
 	let compileMs = $state(0);
-	let shareLabel = $state('Share');
-	let saveLabel = $state('Save');
+	let shareFeedback = $state<ShareFeedback>('idle');
+	let saveFeedback = $state<SaveFeedback>('idle');
 	let previewActive = $state(true);
 	/** Whether generated code runs outside this origin; re-read after each render (the sandbox may fall back). */
 	let previewIsolated = $state(preview.isolated);
@@ -393,12 +394,12 @@
 	async function save() {
 		try {
 			const outcome = await saveComponent(source, options.filename ?? 'index.astro');
-			saveLabel = outcome === 'saved' ? 'Saved!' : outcome === 'downloaded' ? 'Downloaded' : 'Save';
+			saveFeedback = outcome === 'saved' ? 'saved' : outcome === 'downloaded' ? 'downloaded' : 'idle';
 		} catch (error) {
-			saveLabel = 'Save failed';
+			saveFeedback = 'failed';
 			console.error(error);
 		}
-		setTimeout(() => (saveLabel = 'Save'), 1500);
+		setTimeout(() => (saveFeedback = 'idle'), 1500);
 	}
 
 	// --- AI chat panel ---
@@ -424,11 +425,11 @@
 	async function share() {
 		try {
 			await navigator.clipboard.writeText(shareUrl(source, $state.snapshot(options)));
-			shareLabel = 'Copied!';
+			shareFeedback = 'copied';
 		} catch {
-			shareLabel = 'Copy failed';
+			shareFeedback = 'failed';
 		}
-		setTimeout(() => (shareLabel = 'Share'), 1500);
+		setTimeout(() => (shareFeedback = 'idle'), 1500);
 	}
 
 	// --- Resizable split between the editor and output panes ---
@@ -483,8 +484,8 @@
 	<Toolbar
 		{options}
 		{theme}
-		{shareLabel}
-		{saveLabel}
+		{shareFeedback}
+		{saveFeedback}
 		onSave={save}
 		onChange={scheduleCompile}
 		onToggleTheme={toggleTheme}
@@ -508,7 +509,7 @@
 	<div class="split" class:dragging bind:this={splitEl} style="--left: {leftPct}%">
 		<section class="pane">
 			<div class="pane-head">
-				<label class="visually-hidden" for="filename">Component filename</label>
+				<label class="visually-hidden" for="filename">{$t('editor.filename')}</label>
 				<input
 					class="filename"
 					id="filename"
@@ -522,13 +523,13 @@
 				/>
 				<span class="status" data-status={status} role="status" aria-live="polite">
 					{#if status === 'loading'}
-						Starting compiler…
+						{$t('editor.starting')}
 					{:else if status === 'compiling'}
-						Compiling…
+						{$t('editor.compiling')}
 					{:else if status === 'error'}
-						Compiler error
+						{$t('editor.compilerError')}
 					{:else}
-						Compiled in {compileMs} ms
+						{$t('editor.compiledIn', { ms: compileMs })}
 					{/if}
 				</span>
 			</div>
@@ -541,7 +542,7 @@
 			class="gutter"
 			role="separator"
 			aria-orientation="vertical"
-			aria-label="Resize editor and output panes"
+			aria-label={$t('editor.resize')}
 			aria-valuenow={Math.round(leftPct)}
 			aria-valuemin={MIN_PCT}
 			aria-valuemax={MAX_PCT}

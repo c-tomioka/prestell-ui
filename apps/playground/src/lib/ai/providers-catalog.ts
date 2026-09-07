@@ -31,8 +31,8 @@ export interface ProviderInfo {
 	kind: ProviderKind;
 	/** True when this connection has what is needed to call the provider. */
 	configured: boolean;
-	/** Suffix shown in the picker when not configured (default "not configured"). */
-	unavailableLabel?: string;
+	/** Why it is not configured, when that needs a different label than "not configured". */
+	unavailable?: "server-only";
 	/** Shown in the UI next to the provider (setup hints, BYOK notes). */
 	hint?: string;
 	/** Static model suggestions (local providers list models dynamically). */

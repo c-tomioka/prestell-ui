@@ -116,7 +116,7 @@ export function directProviders(
 			label: PROVIDER_LABELS[id],
 			kind: "gateway",
 			configured: false,
-			unavailableLabel: "server only",
+			unavailable: "server-only",
 			hint: directUnsupportedHint(id),
 			models: CLOUD_MODELS[id],
 		};

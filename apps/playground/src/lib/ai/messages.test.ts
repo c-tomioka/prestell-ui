@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	directHelp,
 	emptyDirectNote,
-	KEY_LINKS,
+	KEY_URLS,
 	keySavedLabel,
 } from "./messages";
 import { PROVIDER_IDS } from "./providers-catalog";
@@ -10,14 +10,17 @@ import { PROVIDER_IDS } from "./providers-catalog";
 describe("direct-mode help", () => {
 	it("links cloud providers to their key page and explains billing and storage", () => {
 		const help = directHelp("anthropic", "http://localhost:4321");
-		expect(help.link).toEqual(KEY_LINKS.anthropic);
+		expect(help.link).toEqual({
+			label: "Get an Anthropic API key",
+			href: KEY_URLS.anthropic,
+		});
 		expect(help.link?.href).toMatch(/^https:\/\/console\.anthropic\.com\//);
 		expect(help.points.join(" ")).toContain(
 			"billing are tied to your own Anthropic account",
 		);
 		expect(help.points.join(" ")).toContain("sessionStorage");
-		expect(KEY_LINKS.openai.href).toMatch(/^https:\/\/platform\.openai\.com\//);
-		expect(KEY_LINKS.google.href).toMatch(/^https:\/\/aistudio\.google\.com\//);
+		expect(KEY_URLS.openai).toMatch(/^https:\/\/platform\.openai\.com\//);
+		expect(KEY_URLS.google).toMatch(/^https:\/\/aistudio\.google\.com\//);
 	});
 
 	it("gives local servers the CORS instruction instead of a key link", () => {

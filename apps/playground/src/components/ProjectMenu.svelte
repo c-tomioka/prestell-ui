@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '../lib/i18n';
 	import type { ProjectSummary } from '../lib/projects/types';
 	import Icon from './Icon.svelte';
 	import IconButton from './IconButton.svelte';
@@ -19,19 +20,19 @@
 
 	function rename() {
 		if (!current) return;
-		const name = window.prompt('Project name', current.name)?.trim();
+		const name = window.prompt($t('project.namePrompt'), current.name)?.trim();
 		if (name && name !== current.name) onRename(name);
 	}
 
 	function remove() {
 		if (!current) return;
-		if (window.confirm(`Delete project “${current.name}” and its chat history?`)) onDelete();
+		if (window.confirm($t('project.deleteConfirm', { name: current.name }))) onDelete();
 	}
 </script>
 
 <div class="project-menu">
 	<label for="project-select">
-		<span>project</span>
+		<span>{$t('toolbar.project')}</span>
 		<select
 			id="project-select"
 			name="project"
@@ -44,13 +45,13 @@
 			{/each}
 		</select>
 	</label>
-	<IconButton label="New project" {disabled} onclick={onCreate}>
+	<IconButton label={$t('project.new')} {disabled} onclick={onCreate}>
 		<Icon name="plus" />
 	</IconButton>
-	<IconButton label="Rename project" disabled={disabled || !current} onclick={rename}>
+	<IconButton label={$t('project.rename')} disabled={disabled || !current} onclick={rename}>
 		<Icon name="pencil" />
 	</IconButton>
-	<IconButton label="Delete project" disabled={disabled || !current} onclick={remove}>
+	<IconButton label={$t('project.delete')} disabled={disabled || !current} onclick={remove}>
 		<Icon name="trash" />
 	</IconButton>
 </div>

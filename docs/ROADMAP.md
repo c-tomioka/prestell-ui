@@ -47,9 +47,9 @@
 - [x] プレビュー用の別オリジン（例: `preview.<domain>`）+ sandbox iframe + CSP（`connect-src 'none'` 等）で生成コードを隔離（`src/pages/preview/index.astro` の非表示フレームでレンダリング Worker を動かす `SandboxPreviewRenderer`。dev は `localhost` ↔ `127.0.0.1` / `[::1]` を自動で試し、本番は `PUBLIC_PREVIEW_ORIGIN`。未設定時は同一オリジンで描画してバッジに「not isolated」。検証記録は `PREVIEW_RENDERING.md`）
 - [x] 静的ビルド構成（`/api/*` を切り離し、フロントを Cloudflare Pages 等の無料枠で配信）（`pnpm build:static` = `PUBLIC_AI_CONNECTIONS=direct` で `dist/client` だけを配信。`wrangler.static.jsonc` で Workers 静的アセットとして 2 つの Worker（アプリ + プレビュー用オリジン）にデプロイ。CI で静的ビルドを検証。手順は README「Deploy a static (BYOK) build」、設計は `ARCHITECTURE.md` 1e）
 - [x] BYOK の説明 UI（レート制限・請求はユーザー自身のキーに紐づく旨）と、モード切替（server / direct）の設定 UI（切替は #9 の Connection select。説明は `DirectModeHelp.svelte` の折りたたみパネル「How direct mode works」: 経路・請求・キーの保持場所・各社のキー取得リンク / ローカルの CORS 手順。初回は開いた状態で、閉じると `directHelpOpen` に記憶。キー欄には保存状態（末尾 4 文字）と要点 1 行、空のチャットには direct モードの注記）
-- [ ] i18n: UI 文言を辞書化して日本語 UI を切替可能にする（JSON 辞書 + `t()` ヘルパー、`navigator.language` で初期値、ヘッダーで切替。エラー文言は `src/lib/ai/messages.ts` に集約済み。LLM の返答言語はプロンプト側で扱うかを併せて決める）
+- [x] i18n: UI 文言を辞書化して日本語 UI を切替可能にする（`src/lib/i18n/`: `en.ts` を正とする TypeScript の型付き辞書と `ja.ts`、`svelte/store` の `t` / `tr`。初期値は localStorage → `navigator.language`、ヘッダーの EN / 日本語ボタンで切替。エラー文言は `messages.ts` が辞書キーを選ぶ形に変更。プロンプトテンプレートはタイトルとカテゴリのみ翻訳し本文は英語。LLM の返答言語はプロンプト任せ（system prompt は変更なし）。コンパイラ診断と内部エラーは英語のまま）
 
-**完了条件**: 運営側の固定費なし（静的配信 + Workers Free の中継のみ）で、第三者が自分のキーを入れて生成→プレビューできること。
+**完了条件**: 運営側の固定費なし（静的配信 + Workers Free の中継のみ）で、第三者が自分のキーを入れて生成→プレビューできること。→ 達成（2026-09-08。`pnpm build:static` + 2 つの静的 Worker + 中継 Worker。README「Deploy a static (BYOK) build」）
 
 ## Phase 5: サイトビルダー（複数ファイル・Astro プロジェクト出力）
 **目標**: 1 コンポーネントの生成器から、ページ・レイアウト・コンポーネント・CSS・画像を持つサイト（LP / HP）を生成・編集し、そのまま `astro dev` で動く Astro プロジェクトとして書き出せるビルダーにする。content collections / API routes / SSR は Phase 6。
