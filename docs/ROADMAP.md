@@ -59,7 +59,7 @@
 - 参考: Svelte Playground / Vue SFC Playground（仮想ファイル群 + ブラウザ内 import 解決）。上流 Astro Playground は単一コンポーネント専用で、複数ファイルを想定していない。
 - 画像はコンパイラ型 Playground と同じく「AI は URL / プレースホルダー / SVG（テキスト）を書く」を基本にし、ユーザーがアップロードした画像だけを `public/` 配下のバイナリとして保持する。`astro:assets`（`<Image />`、`import` した画像）はビルドパイプラインが要るため対象外。
 
-- [ ] 技術検証: 複数 `.astro` ファイルのコンパイルと相対 import の解決（browser レンダラーは Blob URL のモジュールグラフに書き換え、server レンダラーは Worker Loader の `modules` に同梱）。`.css` の import、`public/` 配下のパス参照も含める
+- [x] 技術検証: 複数 `.astro` ファイルのコンパイルと相対 import の解決（browser レンダラーは Blob URL のモジュールグラフに書き換え、server レンダラーは Worker Loader の `modules` に同梱）。`.css` の import も含めて実装済み（2026-09-08、`src/lib/preview-graph.ts`、`PREVIEW_RENDERING.md` の検証記録）。`public/` 配下のパス参照は画像の項目で扱う
 - [ ] プロジェクトモデルの多ファイル化: `source` を `files: Record<path, text | Blob>` に変え、プレビューの入口ファイルとモード（`component` / `page` / `site`）を持たせる。IndexedDB スキーマ v2 へのマイグレーション（既存プロジェクトは Component モードとして自動変換）
 - [ ] モード: Component（`Component.astro` 1 本、自己完結・import 禁止、ツリー非表示）/ Page（`src/pages/index.astro` + `src/layouts/Layout.astro`）/ Site（Page + `src/components/`、複数ページとページ切替）。Component → Page への昇格を提供
 - [ ] ファイルツリー UI: **画面左端（エディタの左）**に配置。タブ、追加・改名・削除・移動、Component モードでは折りたたみ

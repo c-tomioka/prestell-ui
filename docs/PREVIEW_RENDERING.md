@@ -25,11 +25,13 @@ PUBLIC_PREVIEW_RENDERER=server pnpm dev
 | `preview-frame-csp.ts` | フレームの CSP（`public/_headers` と dev ミドルウェアで配信。テストで同期を確認） |
 | `preview-browser.worker.ts` | ブラウザ版。runtime / container のバンドル文字列と compiled component を Blob URL から `import()` し、`AstroContainer.renderToString` する |
 | `preview-container.ts` / `preview-runtime.ts` | ブラウザ向けバンドルのエントリ（`astro.config.ts` が rolldown `platform: "browser"` で個別に 1 チャンクへ） |
-| `preview-manifest.ts` | Container マニフェスト生成。両レンダラーで共用 |
-| `preview-rewrite.ts` | compiled code の `from "./runtime.js"` を Blob URL に書き換える純関数 |
+| `preview-manifest.ts` | Container マニフェスト生成（モジュールごとの `componentMetadata` と hoisted script）。両レンダラーで共用 |
+| `preview-graph.ts` | 複数ファイルのモジュールグラフ（Phase 5）。入口 `.astro` の相対 import を解決し、到達する `.astro` を依存先から順にコンパイル、`.css` の import は本文を集めて import 文を削除、`.astro` の import は平坦なモジュール名（入口 = `component.js`、依存 = `module-<n>.js`）に書き換える。循環 import と解決できない import は `PreviewUnsupportedError` |
+| `preview-rewrite.ts` | compiled code の先頭の import 文を検出・書き換える純関数（`./runtime.js` → Blob URL、`./module-<n>.js` → Blob URL、CSS import の削除） |
 | `preview-worker.ts` + `pages/api/render.ts` | サーバー版（Worker Loader 上で実行） |
 
 設計上のポイント:
+- **複数ファイル（Phase 5）**: レンダラーへの要求は `PreviewRenderRequest { modules }`（`preview-protocol.ts`）。`modules` は依存先から順に並んだコンパイル済みモジュールで、各モジュールの import は `./runtime.js` と `./module-<n>.js` だけになっている。browser 版は配列順に Blob URL を作りながら import を Blob URL に置換し（依存先の URL が先に確定する）、server 版はそのままの名前で Worker Loader の `modules` に同梱する（`component.js` を `preview-worker.ts` が静的に import）。CSS は要求に含めず、`buildPreviewGraph` が返す `css`（`.css` import → `is:global` → scoped の順、依存先が先）をアプリ側でプレビュー文書に注入する。Component モードは `allowImports: false` で従来どおり import を一切許さない。
 - **sandbox フレーム（Phase 4）**: ブラウザ版のレンダリング Worker は、アプリとは別オリジンから読み込んだ非表示 iframe（`/preview/`、`sandbox="allow-scripts allow-same-origin"`）の中で動く。別オリジンなのでアプリの IndexedDB（プロジェクト・チャット履歴）や localStorage には届かず、フレームの HTTP ヘッダー CSP（`default-src 'none'; script-src 'self' blob:; worker-src 'self' blob:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors *`）を Worker も継承するので `fetch` も止まる。親 ↔ フレームは postMessage（`preview-sandbox-protocol.ts`）。表示用の srcdoc iframe（`sandbox="allow-scripts"` + meta CSP）は従来どおり親側。
 - **フレームのオリジン**: `PUBLIC_PREVIEW_ORIGIN` があればそれ。無ければ dev サーバーで `localhost` / `127.0.0.1` / `[::1]` の残り 2 つを順に試す（同じサーバー・別オリジン。どれにバインドされるかは OS 依存なので、iframe の `load` 後 500 ms 以内に `ready` が来ない候補は捨てる）。全滅（本番で未設定など）なら `FallbackPreviewRenderer` が同一オリジンの Worker に切り替え、`console.warn` とバッジ「browser · not isolated」で明示する。
 - **COEP との両立**: 親は `Cross-Origin-Embedder-Policy: credentialless` なので、別オリジンのフレーム応答には `Cross-Origin-Resource-Policy: cross-origin` と COEP が必要（`public/_headers` の `/*` と dev ミドルウェアで全応答に付与）。
@@ -54,7 +56,7 @@ PUBLIC_PREVIEW_RENDERER=server pnpm dev
 | 悪意あるコードの影響範囲 | Cloudflare 側で完結、ユーザー環境に影響なし | sandbox フレーム内で完結（フレーム自身の空のストレージのみ）。フォールバック時はアプリのオリジン権限で動くため、公開時は `PUBLIC_PREVIEW_ORIGIN` を必ず設定する |
 | オフライン動作 | 不可 | LLM を除けば可能（ローカル LLM と組み合わせれば完全オフライン） |
 | `/api/chat` 等の AI 機能 | Workers 上 | 変わらず Workers（または別サーバー）が必要。静的部分と API を分離配信 |
-| 複数ファイル対応 | Worker Loader の `modules` に同梱 | Blob モジュール間 import（同等の実現が可能な見込み） |
+| 複数ファイル対応 | Worker Loader の `modules` に同梱（実装済み） | Blob モジュール間 import（実装済み。sandbox の CSP `script-src blob:` の範囲で動く） |
 | Astro バージョン更新の影響 | `nodejs_compat` があるため耐性が高い | `node:*` 依存が入ると壊れる → CI でバンドル検証が必要 |
 | 実装の変更量 | なし | `PreviewClient` の差し替えと `astro.config.ts` のバンドル生成変更（`/api/render` は削除またはフォールバック） |
 
@@ -81,7 +83,7 @@ PUBLIC_PREVIEW_RENDERER=server pnpm dev
 ### 方針
 - Phase 1〜3（個人利用・OSS）: `browser` 既定。生成コードは自分のブラウザで動くだけなのでリスクは受容範囲。
 - Phase 4（静的ホスト版）: `browser` のまま、プレビュー用の別オリジン + sandbox iframe + CSP で隔離する（実装済み）。
-- Phase 5（サイトビルダー）: `browser` のまま複数ファイルに対応する（相対 import を Blob URL のモジュールグラフに書き換え、`public/` の画像は blob: URL）。`server` は Worker Loader の `modules` に同梱。
+- Phase 5（サイトビルダー）: `browser` のまま複数ファイルに対応する（相対 import を Blob URL のモジュールグラフに書き換え、`public/` の画像は blob: URL）。`server` は Worker Loader の `modules` に同梱。モジュールグラフは両レンダラーで実装済み（`preview-graph.ts`、下の検証記録）。
 - Phase 7 以降（SaaS）: 隔離実行や課金連動が必要な機能では `server` を選べる。`PreviewRenderer` のインターフェースを保つことで切替コストを抑える。
 
 ## 検証記録（2026-09-06）
@@ -114,3 +116,16 @@ dev サーバー（アプリ `http://localhost:4321`、フレームは候補 `12
 | ヘッダー | `/preview/` に CSP / COEP / CORP、`/` に CORP が付くこと（dev ミドルウェア、curl で確認）。本番は `public/_headers` |
 
 dev での注意: Vite の開発サーバーは `Sec-Fetch-Site: cross-site` の `fetch` を 403 で拒否するため、候補の到達確認は fetch ではなく iframe の `load` イベントで行っている。`localhost` がどのループバックアドレスにバインドされるかは Node の名前解決次第（macOS では `::1` のみ）で、候補を順に試す理由でもある。
+
+## 検証記録（2026-09-08、複数モジュール）
+
+`src/pages/index.astro`（Layout と Card を import、`../styles/global.css` を import、`<style>` と `<script>` あり）+ `src/layouts/Layout.astro`（`<html><head>` と `<slot />`、`is:global` スタイル）+ `src/components/Card.astro`（scoped スタイル）の 3 ファイルを `buildPreviewGraph` でグラフ化し、両レンダラーに渡した結果:
+
+| 項目 | 結果 |
+|---|---|
+| browser（sandbox フレーム `http://[::1]:4321/preview/`、CSP 適用） | `<html><head><title>` … `<main>` に slot の中身、Card 2 枚、末尾に page の hoisted `<script type="module">`。描画成功 |
+| server（`POST /api/render`、Worker Loader の `modules` に `component.js` + `module-1.js` + `module-2.js`） | browser と **HTML 完全一致** |
+| CSS | `global.css` → Layout の `is:global` → Card の scoped → page の scoped の順で 4 ブロック。scope ハッシュはファイルパスごとに異なる |
+| 旧形式の要求（`{ code, … }`）/ 入口モジュールが無い要求 | `/api/render` が `The preview request is invalid.`（400） |
+| 循環 import（a → b → a） | `Circular imports are not supported in Preview: a.astro → b.astro → a.astro`（単体テスト） |
+| Component モード（`allowImports: false`） | 従来どおり `Imports are not supported in Preview: ./Card.astro` |

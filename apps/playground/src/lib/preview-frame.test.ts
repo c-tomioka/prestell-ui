@@ -5,10 +5,16 @@ import type { PreviewRenderRequest } from "./preview-protocol";
 import { FRAME_MESSAGE } from "./preview-sandbox-protocol";
 
 const request: PreviewRenderRequest = {
-	code: "export default {}",
-	scripts: [],
-	containsHead: false,
-	propagation: false,
+	modules: [
+		{
+			id: "component.js",
+			moduleId: "index.astro",
+			code: "export default {}",
+			scripts: [],
+			containsHead: false,
+			propagation: false,
+		},
+	],
 };
 
 function fakeHost() {

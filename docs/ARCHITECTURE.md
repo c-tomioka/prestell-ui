@@ -54,6 +54,7 @@
 - 切替は build/dev 時の環境変数 `PUBLIC_PREVIEW_RENDERER`（`pnpm dev` = browser、`pnpm dev:server` = server）。出力ペインのバッジで現在のモードを表示。
 - browser モードの既定は `SandboxPreviewRenderer`（Phase 4）: `BrowserPreviewRenderer` を別オリジンの非表示 iframe（`src/pages/preview/index.astro` + `preview-frame.ts`）の中で動かし、postMessage（`preview-sandbox-protocol.ts`）で要求とキャンセルを渡す。フレームのオリジンは `PUBLIC_PREVIEW_ORIGIN`、dev では `localhost` / `127.0.0.1` / `[::1]` を自動で試す。フレームの HTTP ヘッダー CSP（`preview-frame-csp.ts`、`public/_headers`）で `connect-src 'none'`。sandbox オリジンが無ければ `FallbackPreviewRenderer` が同一オリジンの Worker に切り替え、バッジに「not isolated」を出す（`PREVIEW_RENDERING.md`）。
 - マニフェスト生成（`preview-manifest.ts`）は両実装で共用。`Astro.request.url` は両方 `https://preview.astro.build/` に固定。
+- 複数ファイル（Phase 5）: `preview-graph.ts` の `buildPreviewGraph` が入口 `.astro` から相対 import を辿り、到達する `.astro` を依存先から順にコンパイルして `PreviewRenderRequest { modules }` を作る（入口 = `component.js`、依存 = `module-<n>.js`、`.css` の import は本文を集めて削除、循環 import は拒否）。browser レンダラーは配列順に Blob URL を作って import を置換、server レンダラーは Worker Loader の `modules` に同名で同梱する。`validatePreview(result, ast, checkImport?)` は `checkImport` があるときだけ相対 import を許す（Component モードは従来どおり全 import 拒否）。詳細は `PREVIEW_RENDERING.md`。
 
 ### 1c. AI direct モード（`src/lib/ai/direct/`、Phase 4）
 - チャット設定の「Connection」で `server`（既定。`/api/chat` 経由）と `direct`（ブラウザ → LLM 直接、BYOK）を切り替える。`ChatPanel` は 2 つの `ChatTransport` を持ち、送信時に設定を見て振り分ける（`DefaultChatTransport` / `DirectChatTransport`）。
@@ -180,7 +181,7 @@
 | 状態管理（SaaS化後） | Durable Objects | 強整合性のセッション/残高管理 |
 
 ## 設計上の制約
-- Phase 4 まではプレビューは単一コンポーネント・自己完結が前提。複数ファイル（相対 import）対応は Phase 5「サイトビルダー」で、browser レンダラーは Blob URL のモジュールグラフ、server レンダラーは Worker Loader の `modules` への同梱で実現する（上記「Phase 5 の構成」）。
+- プレビューの複数ファイル対応（Phase 5）は browser レンダラーが Blob URL のモジュールグラフ、server レンダラーが Worker Loader の `modules` への同梱で実現済み（1b、`PREVIEW_RENDERING.md`）。許可する import は相対パス（`./`、`../`）の `.astro` / `.css` のみで、bare specifier（npm、`astro:*`）、dynamic import、re-export、循環 import は非対応。Component モードは引き続き自己完結（import 禁止）。
 - WASM コンパイラのため COOP/COEP（`credentialless`）ヘッダーが必須。同一オリジンの `/api/*` には影響しない。
 - Astro Docs MCP と AI Gateway / Workers AI はブラウザから直接接続できない（CORS）。MCP は常に中継（`/api/mcp-proxy`、静的ホスト版では中継 Worker）を経由し、Workers AI は server モード限定。ローカル LLM と Anthropic / OpenAI / Google は direct モードでブラウザから直接呼べる（ローカルは CORS 許可が必要、`LOCAL_LLM.md`）。
 - browser レンダラーでは生成コードがユーザーのブラウザで実行される。既定では別オリジンの sandbox フレーム内の Worker（fetch 不可、アプリのストレージに届かない）で動き、sandbox オリジンが無い場合だけ同一オリジンの Worker にフォールバックする（バッジ「not isolated」。公開時は `PUBLIC_PREVIEW_ORIGIN` を必ず設定する）。`server` レンダラーは Cloudflare 側の隔離環境で通信遮断済み。

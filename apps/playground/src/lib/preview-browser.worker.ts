@@ -1,18 +1,20 @@
 /// <reference lib="webworker" />
 //
-// Browser renderer: renders a compiled Astro component entirely in this Web
+// Browser renderer: renders a compiled Astro module graph entirely in this Web
 // Worker with `astro/container`, so no server round-trip is needed.
 //
 // The runtime and container bundles arrive as strings (built by astro.config.ts)
-// and are turned into Blob URLs; the compiled component is also loaded from a
-// Blob URL after its runtime import has been pointed at the runtime Blob.
+// and are turned into Blob URLs. Each compiled module is loaded from a Blob URL
+// too, dependencies first, with its runtime and module imports pointed at the
+// Blob URLs created before it.
 import bundles from "virtual:preview-browser-bundles";
 import type { AstroComponentFactory } from "./preview-manifest";
-import type {
-	PreviewWorkerRequest,
-	PreviewWorkerResponse,
+import {
+	ENTRY_MODULE_ID,
+	type PreviewWorkerRequest,
+	type PreviewWorkerResponse,
 } from "./preview-protocol";
-import { rewriteRuntimeImport } from "./preview-rewrite";
+import { RUNTIME_SPECIFIER, rewriteImports } from "./preview-rewrite";
 
 type ContainerModule = typeof import("./preview-container");
 
@@ -34,13 +36,23 @@ function post(message: PreviewWorkerResponse) {
 }
 
 ctx.onmessage = async (event: MessageEvent<PreviewWorkerRequest>) => {
-	const { id, code, ...metadata } = event.data;
-	let componentUrl: string | undefined;
+	const { id, modules } = event.data;
+	const urls = new Map<string, string>();
 	try {
 		const { AstroContainer, createManifest, PREVIEW_REQUEST_URL } =
 			await containerReady;
-		componentUrl = moduleUrl(rewriteRuntimeImport(code, runtimeUrl));
-		const mod = (await import(/* @vite-ignore */ componentUrl)) as {
+		for (const module of modules) {
+			const code = rewriteImports(module.code, (specifier) => {
+				if (specifier === RUNTIME_SPECIFIER) return runtimeUrl;
+				const url = urls.get(specifier.replace(/^\.\//, ""));
+				if (!url) throw new Error(`Unresolved preview import: ${specifier}`);
+				return url;
+			});
+			urls.set(module.id, moduleUrl(code));
+		}
+		const entryUrl = urls.get(ENTRY_MODULE_ID);
+		if (!entryUrl) throw new Error("The preview request has no entry module.");
+		const mod = (await import(/* @vite-ignore */ entryUrl)) as {
 			default?: AstroComponentFactory;
 		};
 		const factory = mod.default;
@@ -48,7 +60,7 @@ ctx.onmessage = async (event: MessageEvent<PreviewWorkerRequest>) => {
 			throw new Error("The compiler output did not export an Astro component.");
 		}
 		const container = await AstroContainer.create({
-			manifest: createManifest(factory, code, metadata),
+			manifest: createManifest(modules),
 		});
 		const html = await container.renderToString(factory, {
 			request: new Request(PREVIEW_REQUEST_URL),
@@ -64,7 +76,7 @@ ctx.onmessage = async (event: MessageEvent<PreviewWorkerRequest>) => {
 			error: error instanceof Error ? error.message : String(error),
 		});
 	} finally {
-		if (componentUrl) URL.revokeObjectURL(componentUrl);
+		for (const url of urls.values()) URL.revokeObjectURL(url);
 	}
 };
 

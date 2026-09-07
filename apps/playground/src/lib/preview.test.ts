@@ -6,7 +6,6 @@ import {
 	createPreviewRenderer,
 	FallbackPreviewRenderer,
 	PreviewClient,
-	preparePreviewCode,
 	type SandboxChannel,
 	type SandboxChannelHandlers,
 	SandboxPreviewRenderer,
@@ -14,8 +13,14 @@ import {
 	ServerPreviewRenderer,
 	validatePreview,
 } from "./preview";
+import { buildPreviewGraph } from "./preview-graph";
 import type { PreviewRenderRequest } from "./preview-protocol";
-import { RUNTIME_SPECIFIER, rewriteRuntimeImport } from "./preview-rewrite";
+import {
+	findImports,
+	RUNTIME_SPECIFIER,
+	rewriteImports,
+	rewriteRuntimeImport,
+} from "./preview-rewrite";
 import {
 	FRAME_MESSAGE,
 	type ParentToFrameMessage,
@@ -39,6 +44,24 @@ function parse(source: string): ParsedAst {
 	};
 }
 
+/** Single-file graph, as Playground builds it. */
+function graphOf(source: string) {
+	return buildPreviewGraph({
+		entry: filename,
+		files: { [filename]: source },
+		allowImports: false,
+		validate: validatePreview,
+		compile: async (path, text) => ({
+			result: compileAstroSync(text, {
+				filename: path,
+				internalURL: "./runtime.js",
+				resolvePathProvided: true,
+			}),
+			ast: parse(text),
+		}),
+	});
+}
+
 describe("preview validation", () => {
 	it("accepts a self-contained Astro component", () => {
 		const source = `---\nconst greeting = "Hello";\n---\n<h1>{greeting}</h1>`;
@@ -52,6 +75,18 @@ describe("preview validation", () => {
 		);
 	});
 
+	it("delegates imports to checkImport when given", () => {
+		const source = `---\nimport Card from "./Card.astro";\nimport x from "astro:content";\n---\n<Card />`;
+		const seen: string[] = [];
+		expect(
+			validatePreview(compile(source), parse(source), (specifier) => {
+				seen.push(specifier);
+				return specifier.startsWith(".") ? null : `bare: ${specifier}`;
+			}),
+		).toBe("bare: astro:content");
+		expect(seen).toEqual(["./Card.astro", "astro:content"]);
+	});
+
 	it("rejects dynamic imports", () => {
 		const source = `---\nconst module = await import("./data.js");\n---\n<p>{module}</p>`;
 		expect(validatePreview(compile(source), parse(source))).toBe(
@@ -61,18 +96,19 @@ describe("preview validation", () => {
 });
 
 describe("preview client", () => {
-	it("prepares compiler output for the Dynamic Worker", () => {
-		const result = compile(
+	it("prepares compiler output for the renderers", async () => {
+		const graph = await graphOf(
 			`<h1>Hello</h1><style>h1 { color: red; }</style>`,
-			true,
 		);
-		const prepared = preparePreviewCode(result.code);
-
-		expect(prepared).toContain('from "./runtime.js"');
-		expect(prepared).not.toContain("astro&type=style");
+		expect(graph.modules).toHaveLength(1);
+		expect(graph.modules[0].id).toBe("component.js");
+		expect(graph.modules[0].moduleId).toBe(filename);
+		expect(graph.modules[0].code).toContain('from "./runtime.js"');
+		expect(graph.modules[0].code).not.toContain("astro&type=style");
+		expect(graph.css).toEqual([expect.stringContaining("color: red")]);
 	});
 
-	it("posts prepared compiler output to the render endpoint", async () => {
+	it("posts the module graph to the render endpoint", async () => {
 		let request: RequestInit | undefined;
 		const client = new PreviewClient({
 			fetch: async (_input, init) => {
@@ -80,16 +116,16 @@ describe("preview client", () => {
 				return Response.json({ ok: true, html: "<h1>Hello</h1>" });
 			},
 		});
-		const result = compile(
+		const graph = await graphOf(
 			`<h1>Hello</h1><style>h1 { color: red; }</style>`,
-			true,
 		);
 
-		await expect(client.render(result)).resolves.toBe("<h1>Hello</h1>");
+		await expect(client.render(graph)).resolves.toBe("<h1>Hello</h1>");
 		expect(request?.method).toBe("POST");
 		const body = JSON.parse(String(request?.body));
-		expect(body.code).toContain('from "./runtime.js"');
-		expect(body.code).not.toContain("astro&type=style");
+		expect(body.modules[0].code).toContain('from "./runtime.js"');
+		expect(body.modules[0].code).not.toContain("astro&type=style");
+		expect(body.css).toBeUndefined();
 	});
 
 	it("calls the default fetch with the global receiver", async () => {
@@ -102,7 +138,7 @@ describe("preview client", () => {
 			const client = new PreviewClient({
 				renderer: new ServerPreviewRenderer(),
 			});
-			await expect(client.render(compile("<p>Ready</p>", true))).resolves.toBe(
+			await expect(client.render(await graphOf("<p>Ready</p>"))).resolves.toBe(
 				"<p>Ready</p>",
 			);
 		} finally {
@@ -119,7 +155,7 @@ describe("preview client", () => {
 					});
 				}),
 		});
-		const rendering = client.render(compile("<h1>Hello</h1>", true));
+		const rendering = client.render(await graphOf("<h1>Hello</h1>"));
 
 		client.cancel();
 
@@ -143,6 +179,35 @@ describe("browser renderer helpers", () => {
 		);
 	});
 
+	it("finds, rewrites and drops top-level imports", () => {
+		const code = [
+			'import Layout from "../layouts/Layout.astro";',
+			"import {\n\ta,\n\tb as c,\n} from './x.astro'",
+			'import * as ns from "./ns.astro";',
+			'import "../styles/global.css";',
+			"const s = \"import y from './not-an-import.js'\";",
+		].join("\n");
+		expect(findImports(code).map((site) => site.specifier)).toEqual([
+			"../layouts/Layout.astro",
+			"./x.astro",
+			"./ns.astro",
+			"../styles/global.css",
+		]);
+		expect(
+			rewriteImports(code, (specifier) =>
+				specifier.endsWith(".css") ? null : `./m/${specifier}`,
+			),
+		).toBe(
+			[
+				'import Layout from "./m/../layouts/Layout.astro";',
+				"import {\n\ta,\n\tb as c,\n} from './m/./x.astro';",
+				'import * as ns from "./m/./ns.astro";',
+				"",
+				"const s = \"import y from './not-an-import.js'\";",
+			].join("\n"),
+		);
+	});
+
 	it("reports the renderer mode", () => {
 		expect(
 			new PreviewClient({ renderer: new ServerPreviewRenderer() }).mode,
@@ -153,10 +218,16 @@ describe("browser renderer helpers", () => {
 
 describe("sandbox renderer", () => {
 	const request: PreviewRenderRequest = {
-		code: "export default {}",
-		scripts: [],
-		containsHead: false,
-		propagation: false,
+		modules: [
+			{
+				id: "component.js",
+				moduleId: "index.astro",
+				code: "export default {}",
+				scripts: [],
+				containsHead: false,
+				propagation: false,
+			},
+		],
 	};
 	const A = "http://127.0.0.1:4321/preview/";
 	const B = "http://[::1]:4321/preview/";
