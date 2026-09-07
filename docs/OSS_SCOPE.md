@@ -51,7 +51,7 @@ SaaS 運営専用ロジックは **このリポジトリには置かず**、priv
 | `docs/evaluations/*.md` | トークン・account 情報なし |
 | `.dev.vars.example` の網羅性 | サーバーが読む 9 変数をすべて含む（下表） |
 | コミット author | 2026-09-07 に git filter-repo で全コミットを noreply（`100511940+c-tomioka@users.noreply.github.com`）へ書き換え済み。リポジトリローカルの `git config user.email` も noreply |
-| gitleaks（2026-09-07、v8.30.1） | 全履歴 20 コミット（`gitleaks git`）と HEAD の `git archive` 展開 136 ファイル（`gitleaks dir`）ともに **no leaks found**。CI の `secrets` ジョブ（`gitleaks/gitleaks-action@v2`、全履歴）と opt-in の `.githooks/pre-commit`（`gitleaks git --staged`）で継続的に検査 |
+| gitleaks（2026-09-07、v8.30.1） | 全履歴 20 コミット（`gitleaks git`）と HEAD の `git archive` 展開 136 ファイル（`gitleaks dir`）ともに **no leaks found**。CI の `secrets` ジョブ（`gitleaks/gitleaks-action@v2`。各 push / PR に含まれるコミットを検査。全履歴の再検査は下の再点検コマンドで手動）と opt-in の `.githooks/pre-commit`（`gitleaks git --staged`）で継続的に検査 |
 
 サーバーが読む環境変数（`.dev.vars`）:
 
@@ -87,7 +87,7 @@ rm -rf /tmp/prestell-export && mkdir -p /tmp/prestell-export && git archive HEAD
 
 ### 公開前（完了、2026-09-07）
 - [x] 上記のシークレット点検と gitleaks（履歴・作業ツリー）で検出 0
-- [x] CI に `secrets` ジョブ（gitleaks、全履歴）を追加。opt-in の `.githooks/pre-commit` を同梱
+- [x] CI に `secrets` ジョブ（gitleaks、push / PR のコミットを検査）を追加。opt-in の `.githooks/pre-commit` を同梱。全履歴は手元の `gitleaks git` で検査済み
 - [x] README（EN / JA）に CI バッジ
 - [x] PR マージ後のブランチ自動削除、Dependabot alerts を有効化（`gh api`）
 - [x] `docs/`・スクリーンショット・`.claude/`・`docs/evaluations/` は公開前提で内容確認済み
