@@ -13,6 +13,8 @@
 		"check": "tsc --noEmit",
 		"test": "vitest run",
 		"types": "wrangler types src/worker-configuration.d.ts --include-runtime false",
+		"relay:dev": "wrangler dev -c relay/wrangler.jsonc --port 8788",
+		"relay:deploy": "wrangler deploy -c relay/wrangler.jsonc",
 		"astro": "astro",
 		"eval": "cross-env PRESTELL_EVAL=1 vitest run scripts/eval --testTimeout=3600000"
 	},

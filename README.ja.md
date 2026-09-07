@@ -80,6 +80,15 @@ AI chat パネル上部の **Connection** でリクエストの経路を選び�
 
 Direct モードは静的ホスト版の土台です。利用量やレート制限は自分のキーに課金され、Astro docs は MCP サーバーに CORS がないため小さな中継（今は `/api/mcp-proxy`、後に単体の Worker）経由で取得します。Cloudflare AI Gateway と Workers AI はブラウザから呼べない（preflight 応答に CORS ヘッダーがない。2026-09-07 確認）ため、Workers AI は Server モード限定です。
 
+dev サーバーなしで Direct モードを使う（静的ホスト構成）には、docs 中継 Worker を自分の Cloudflare アカウントにデプロイし、フロントをそこへ向けます。
+
+```bash
+pnpm relay:deploy                                                    # Workers Free で十分
+PUBLIC_DOCS_PROXY_URL=https://prestell-docs-relay.<you>.workers.dev/search pnpm build
+```
+
+中継（`apps/playground/relay/`）は `search_astro_docs` を転送するだけで、シークレットを持たず、Origin 許可リスト（`relay/wrangler.jsonc` の `ALLOWED_ORIGINS`）と IP ごとのレート制限があります。`pnpm relay:dev` でローカル 8788 番に起動できます。中継は匿名で到達できる必要があります。アカウント設定で `workers.dev` が既定で Cloudflare Access 保護される場合は、この Worker の Access ポリシーを Everyone に対する **Bypass** にする（またはこの Worker だけ保護を外す）でください。そうしないとブラウザの preflight が CORS ヘッダーではなく Access のログインページを受け取り、チャットは「Astro docs unavailable」にフォールバックします。確認は `curl -X OPTIONS https://…/search -H "Origin: https://your-front-end" -i` で、リダイレクトではなく `Access-Control-Allow-Origin` が返れば OK です。
+
 Direct モードでローカルサーバーを使うにはブラウザのオリジンを許可する必要があります。Ollama は `localhost` 系オリジンを既定で許可（それ以外は `OLLAMA_ORIGINS=<origin>`）、LM Studio は `lms server start --cors` か Developer タブの **Enable CORS** が必要です。詳細と検証記録は [docs/LOCAL_LLM.md](./docs/LOCAL_LLM.md)。
 
 ## プレビューのレンダリング

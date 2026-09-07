@@ -1,0 +1,25 @@
+{
+	"$schema": "../node_modules/wrangler/config-schema.json",
+	"name": "prestell-docs-relay",
+	"main": "index.ts",
+	"compatibility_date": "2026-06-22",
+	"compatibility_flags": ["nodejs_compat"],
+	"vars": {
+		// Astro Docs MCP endpoint (Streamable HTTP).
+		"ASTRO_DOCS_MCP_URL": "https://mcp.docs.astro.build/mcp",
+		// Page origins allowed to call the relay from a browser, comma-separated.
+		// "*" keeps it open; set it to your static front end, e.g. "https://prestell.example".
+		"ALLOWED_ORIGINS": "*"
+	},
+	// Per-client (IP) limit: 30 searches per minute. `period` must be 10 or 60.
+	"ratelimits": [
+		{
+			"name": "SEARCH_LIMIT",
+			"namespace_id": "1001",
+			"simple": { "limit": 30, "period": 60 }
+		}
+	],
+	"observability": {
+		"enabled": true
+	}
+}

@@ -80,6 +80,15 @@ The **Connection** setting at the top of the AI chat panel chooses where request
 
 Direct mode is the basis of the static-host version: usage and rate limits are billed to your own key, and the Astro docs are still fetched through a small relay (`/api/mcp-proxy` today, a stand-alone Worker later) because the MCP server has no CORS headers. Cloudflare AI Gateway and Workers AI cannot be called from a browser (their preflight responses carry no CORS headers, checked 2026-09-07), so Workers AI stays server-only.
 
+To use Direct mode without the dev server (the static-host setup), deploy the docs relay to your own Cloudflare account and point the front end at it:
+
+```bash
+pnpm relay:deploy                                                    # Workers Free is enough
+PUBLIC_DOCS_PROXY_URL=https://prestell-docs-relay.<you>.workers.dev/search pnpm build
+```
+
+The relay (`apps/playground/relay/`) only forwards `search_astro_docs`; it has no secrets, an origin allowlist (`ALLOWED_ORIGINS` in `relay/wrangler.jsonc`), and a per-IP rate limit. `pnpm relay:dev` runs it locally on port 8788. The relay must be reachable anonymously: if your account protects `workers.dev` with Cloudflare Access by default, give this Worker an Access policy of type **Bypass** for Everyone (or turn the protection off for it), otherwise the browser's preflight gets the Access login page instead of CORS headers and the chat falls back to "Astro docs unavailable". Check with `curl -X OPTIONS https://…/search -H "Origin: https://your-front-end" -i`: you should see `Access-Control-Allow-Origin`, not a redirect.
+
 Local servers need to allow the browser's origin in Direct mode: Ollama accepts `localhost` origins by default (set `OLLAMA_ORIGINS=<origin>` for anything else); LM Studio needs `lms server start --cors` or the **Enable CORS** toggle in its Developer tab. Details and the verification log: [docs/LOCAL_LLM.md](./docs/LOCAL_LLM.md).
 
 ## Preview rendering

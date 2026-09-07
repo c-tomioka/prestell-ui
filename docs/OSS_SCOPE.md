@@ -9,7 +9,7 @@ Phase 3「OSS 公開」で確定した **公開範囲と SaaS 専用ロジック
 | 領域 | パス | 内容 |
 |---|---|---|
 | フロントエンド | `apps/playground/src/components/**`, `src/lib/**`, `src/pages/index.astro` | エディタ（CodeMirror）、ブラウザ内コンパイル・プレビュー、AI チャットパネル、提案の検証・適用、fix ループ、プロジェクト管理（IndexedDB）、テンプレート |
-| Workers 設定・ルート | `apps/playground/wrangler.jsonc`, `astro.config.ts`, `src/pages/api/{chat,models,mcp-proxy,render}.ts` | `astro dev`（workerd）で動く API。`wrangler.jsonc` は `LOADER` バインディングと observability のみで、account_id 等は含まない |
+| Workers 設定・ルート | `apps/playground/wrangler.jsonc`, `astro.config.ts`, `src/pages/api/{chat,models,mcp-proxy,render}.ts`, `relay/**` | `astro dev`（workerd）で動く API と、Astro docs 中継 Worker（`relay/wrangler.jsonc`）。どちらの設定も account_id・シークレットを含まない（中継の `vars` は MCP の URL と Origin 許可リストだけ） |
 | MCP 接続ロジック | `apps/playground/src/server/ai/mcp.ts`, `src/lib/ai/resilience.ts` | Astro Docs MCP（Streamable HTTP）の接続、`tools` / `inject`、タイムアウト・リトライ・グレースフルデグラデーション |
 | LOCAL_LLM 連携・プロバイダー層 | `apps/playground/src/server/ai/providers.ts`, `validate.ts`, `src/lib/ai/providers-catalog.ts`, `prompt.ts`, `direct/**` | Ollama / LM Studio 直結、Cloudflare AI Gateway（BYOK パススルー含む）、system prompt、ブラウザ直接呼び出し（direct モード） |
 | 評価ハーネス | `apps/playground/scripts/eval/**`, `docs/evaluations/**` | `pnpm eval`（`EVALUATION.md`） |
