@@ -60,7 +60,7 @@ Phase 2 で追加済み:
 残タスク:
 - （Phase 1 の残タスクなし。Ollama / LM Studio / AI Gateway 経由の Claude と Workers AI で E2E 確認済み）
 - 複数ファイル（相対 import）対応の検証（ストレッチ）
-- AI direct モード（ブラウザから LLM を直接呼ぶ BYOK 構成）は Phase 4 で実装（`ROADMAP.md`）
+- AI direct モード（ブラウザから LLM を直接呼ぶ BYOK 構成）は Phase 4 で実装済み（チャット設定の Connection。`ARCHITECTURE.md` 1c、`LOCAL_LLM.md`）
 
 ## チューニング用の定数（`apps/playground/src/lib/config.ts`）
 
@@ -72,7 +72,7 @@ Phase 2 で追加済み:
 | `COMPILER_TIMEOUT_MS` | 8000 | コンパイラ Worker のタイムアウト（超過で再起動） |
 | `PROJECT_SAVE_DEBOUNCE_MS` | 500 | 最後の編集からプロジェクトを IndexedDB に保存するまでの待ち時間（切替・離脱時は即時保存） |
 
-リトライ・タイムアウト（`apps/playground/src/server/ai/resilience.ts`、クライアント側は `src/lib/ai/errors.ts`）:
+リトライ・タイムアウト（`apps/playground/src/lib/ai/resilience.ts`、server / direct 共通。クライアント側の分類は `src/lib/ai/errors.ts`）:
 
 | 定数 | 既定値 | 意味 |
 |---|---|---|
@@ -106,6 +106,8 @@ UI 側にも出力ペイン右上の「Auto」トグルがあり、OFF にする
 - テンプレート: Send の左の Template… から選ぶとコンポーザーに文面が入り、最初の `[...]` が選択される。入力がある状態で選ぶと空行を挟んで追記。Style 系はそのまま Send で現在のコンポーネントが更新されること
 - fix ループ: 拒否された提案に対して「🔧 Auto-fix request 1/N」が自動送信され、修正案が valid になれば適用、上限到達で「auto-fix gave up」で止まること。Stop で中断できること。チャット設定の「Auto-fix errors」を OFF にすると従来どおり invalid で止まること
 - プロジェクト: New / Rename / Delete と切替でエディタとチャット履歴が入れ替わり、リロード後に最後のプロジェクトが復元されること。Share で得た `#code=` URL を開くと「Shared <filename>」として取り込まれ、ハッシュが消えること
+- direct モード（Connection: Direct）: Ollama を選ぶとモデル一覧がブラウザから `http://localhost:11434/v1/models` で取れ、送信すると `/api/chat` を通らずに `localhost:11434/v1/chat/completions` へ preflight + POST が飛ぶこと（DevTools の Network で確認）。Server URL を誤ったポートにすると Model 欄の下に「Cannot reach Ollama … from the browser」の警告が出ること。Anthropic / OpenAI / Google を選ぶと API key 欄が出て、未入力では Send が無効になり「Enter your … API key」の警告が出ること。キーは sessionStorage（`prestell.chat.keys`）にだけ入り、localStorage には無いこと。「Forget all keys」で消えること。Workers AI は「(server only)」で選択不可なこと
+- direct モードのクラウド 3 社（Anthropic / OpenAI / Google）は自分のキーで 1 回ずつ生成→適用を確認する。401 なら「rejected the API key」、429 なら「rate limiting」のバナーになり Retry できること
 
 ## Claude Code への依頼例（プロンプトサンプル）
 

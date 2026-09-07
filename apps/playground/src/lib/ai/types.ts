@@ -1,5 +1,5 @@
 // Shared client-side types for the chat panel.
-import type { ProviderInfo } from "../../server/ai/providers";
+import type { ProviderInfo } from "./providers-catalog";
 
 export type { ProviderInfo };
 

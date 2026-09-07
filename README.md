@@ -15,13 +15,14 @@ Prestell UI is a "v0 / bolt.new for Astro" built on top of the official [Astro P
 - **Chat to code** – generate and edit single-file Astro components. Every proposal is compiled with `@astrojs/compiler` (WASM) and rejected if it cannot render, so broken code never reaches the editor.
 - **Live preview in the browser** – rendering runs in a Web Worker with `astro/container`; no server round-trip. Server-side rendering via Cloudflare Worker Loader is available as an option.
 - **Local or cloud LLMs** – Ollama and LM Studio (no API key), or Anthropic Claude, OpenAI, Google Gemini, and Workers AI through Cloudflare AI Gateway (BYOK).
+- **Two connection modes** – **Server** sends requests through this app's `/api/chat` (keys stay in `.dev.vars`); **Direct** lets the browser call Ollama, LM Studio, Anthropic, OpenAI, or Google AI Studio itself with your own key, with no API server involved.
 - **Astro knowledge via MCP** – `inject` (default) searches the Astro docs before each request; `tools` lets the model search on its own. In our evaluation `inject` brought hallucinated Astro APIs to zero for every model tested ([docs/EVALUATION.md](./docs/EVALUATION.md)).
 - **Auto-fix loop** – compiler errors, with the offending source line, are sent back to the model automatically (up to a configurable number of attempts).
 - **Projects and templates** – projects and chat history are stored in IndexedDB, 18 built-in prompt templates, and one-click save to a `.astro` file (File System Access API or download).
 
 ## Status
 
-**Public since 2026-09-07 (`v0.1.0`)**; Phase 3 of the [roadmap](./docs/ROADMAP.md) is complete and the next phase is a static-host (BYOK) version. It is used daily by the maintainer for single-file components. The preview intentionally supports one self-contained `.astro` component: no `import`, framework components, `client:*` directives, or external scripts yet. A static-host (BYOK) version, a multi-file site builder (pages, layouts, components, CSS, images, exported as an Astro project), and a hosted SaaS are later phases; SaaS-only code lives outside this repository ([docs/OSS_SCOPE.md](./docs/OSS_SCOPE.md)).
+**Public since 2026-09-07 (`v0.1.0`)**; Phase 3 of the [roadmap](./docs/ROADMAP.md) is complete and Phase 4, the static-host (BYOK) version, is in progress: the direct connection mode is done, the Astro docs relay Worker, the sandboxed preview origin, and the static build are next. It is used daily by the maintainer for single-file components. The preview intentionally supports one self-contained `.astro` component: no `import`, framework components, `client:*` directives, or external scripts yet. A static-host (BYOK) version, a multi-file site builder (pages, layouts, components, CSS, images, exported as an Astro project), and a hosted SaaS are later phases; SaaS-only code lives outside this repository ([docs/OSS_SCOPE.md](./docs/OSS_SCOPE.md)).
 
 ## Requirements
 
@@ -66,7 +67,20 @@ All configuration lives in `apps/playground/.dev.vars` (git-ignored; template in
 | Anthropic / OpenAI / Google | AI Gateway plus a provider key: either stored in the Gateway (BYOK / Unified Billing) or set locally and passed through | the three above, plus `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` |
 | Astro Docs MCP | nothing | `ASTRO_DOCS_MCP_URL` (default `https://mcp.docs.astro.build/mcp`) |
 
-Local servers are reached from the Workers runtime, not from the browser, so they need no CORS changes. Never commit `.dev.vars`; see [SECURITY.md](./SECURITY.md).
+In Server mode local servers are reached from the Workers runtime, not from the browser, so they need no CORS changes (Direct mode does; see below). Never commit `.dev.vars`; see [SECURITY.md](./SECURITY.md).
+
+## Connection modes
+
+The **Connection** setting at the top of the AI chat panel chooses where requests go:
+
+| Mode | Path | Keys | Providers |
+|---|---|---|---|
+| Server (default) | browser → `/api/chat` (Workers runtime) → provider | `.dev.vars` on the server | all of the above |
+| Direct | browser → provider, no API server involved | pasted into the panel; kept in this tab's `sessionStorage`, never in `localStorage` or the URL | Ollama, LM Studio, Anthropic, OpenAI, Google AI Studio |
+
+Direct mode is the basis of the static-host version: usage and rate limits are billed to your own key, and the Astro docs are still fetched through a small relay (`/api/mcp-proxy` today, a stand-alone Worker later) because the MCP server has no CORS headers. Cloudflare AI Gateway and Workers AI cannot be called from a browser (their preflight responses carry no CORS headers, checked 2026-09-07), so Workers AI stays server-only.
+
+Local servers need to allow the browser's origin in Direct mode: Ollama accepts `localhost` origins by default (set `OLLAMA_ORIGINS=<origin>` for anything else); LM Studio needs `lms server start --cors` or the **Enable CORS** toggle in its Developer tab. Details and the verification log: [docs/LOCAL_LLM.md](./docs/LOCAL_LLM.md).
 
 ## Preview rendering
 
@@ -81,7 +95,7 @@ The current mode is shown as a badge in the output pane. Design notes: [docs/PRE
 ## Usage
 
 1. Open http://localhost:4321. The editor is on the left, the preview in the middle, the AI chat on the right (toggle with **AI chat** in the toolbar).
-2. Choose a provider and model. **Astro docs** controls the MCP mode (`inject` by default).
+2. Choose a **Connection** (Server or Direct), a provider, and a model. **Astro docs** controls the MCP mode (`inject` by default).
 3. Describe the component, or pick a prompt template with **Template…**. `⌘/Ctrl+Enter` sends.
 4. Valid proposals are applied to the editor automatically and the preview updates. Invalid ones trigger the auto-fix loop; you can also **Apply anyway**.
 5. Refine with follow-up prompts, then **Save** the `.astro` file.

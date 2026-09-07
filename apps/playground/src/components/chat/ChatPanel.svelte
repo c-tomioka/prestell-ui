@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { Chat } from '@ai-sdk/svelte';
-	import { DefaultChatTransport, type UIMessage } from 'ai';
+	import { type ChatTransport, DefaultChatTransport, type UIMessage } from 'ai';
 	import { onMount, tick, untrack } from 'svelte';
 	import { validateProposal } from '../../lib/ai/apply';
+	import { type ApiKeys, forgetKeys, loadKeys, saveKey } from '../../lib/ai/direct/keys';
+	import { directProviders, listDirectLocalModels } from '../../lib/ai/direct/models';
+	import { DirectChatTransport } from '../../lib/ai/direct/transport';
 	import {
 		AUTO_RETRY_DELAY_MS,
 		type ChatErrorInfo,
@@ -17,9 +20,22 @@
 		pendingFixAttempts,
 	} from '../../lib/ai/fix-loop';
 	import { trimForRequest } from '../../lib/ai/history';
-	import { localServerHint, NO_LOCAL_MODELS } from '../../lib/ai/messages';
+	import {
+		describeCodedError,
+		keyMissingNotice,
+		localServerHint,
+		NO_LOCAL_MODELS,
+	} from '../../lib/ai/messages';
+	import {
+		CLOUD_MODELS,
+		isDirectCloudProvider,
+		isLocalProvider,
+		isProviderId,
+		type ProviderId,
+	} from '../../lib/ai/providers-catalog';
 	import {
 		type ChatSettings,
+		type Connection,
 		type DocsMode,
 		loadSettings,
 		saveSettings,
@@ -52,22 +68,60 @@
 		saveSettings($state.snapshot(settings));
 	});
 	const model = $derived(settings.models[settings.provider] ?? '');
+	const isDirect = $derived(settings.connection === 'direct');
+	const providerId = $derived<ProviderId>(isProviderId(settings.provider) ? settings.provider : 'ollama');
+	/** Page origin, quoted in the CORS instructions for local servers. */
+	const origin = typeof location === 'undefined' ? '' : location.origin;
+
+	// --- direct-mode API keys (sessionStorage / memory, never localStorage) ---
+	let keys = $state<ApiKeys>({});
+	const apiKey = $derived(isDirectCloudProvider(providerId) ? (keys[providerId] ?? '') : '');
+
+	function setApiKey(value: string) {
+		if (!isDirectCloudProvider(providerId)) return;
+		keys = saveKey(providerId, value);
+	}
+
+	function forgetAllKeys() {
+		keys = forgetKeys();
+	}
 
 	// --- providers / models ---
-	let providers = $state<ProviderInfo[]>([]);
+	/** From `/api/models` (server mode); the direct list is computed locally. */
+	let serverProviders = $state<ProviderInfo[]>([]);
+	const providers = $derived<ProviderInfo[]>(
+		isDirect
+			? directProviders({ keys, baseUrls: settings.directBaseUrls, origin })
+			: serverProviders,
+	);
 	let models = $state<string[]>([]);
 	/** Model-list notice. `warning` = local server not ready (fixable by the user); `error` = the request itself failed. */
 	let modelsNotice = $state<{ level: 'warning' | 'error'; text: string } | null>(null);
+	/** Direct mode: the chosen cloud provider has no key yet. */
+	const keyNotice = $derived(
+		isDirect && isDirectCloudProvider(providerId) && !keys[providerId]
+			? { level: 'warning' as const, text: keyMissingNotice(providerId) }
+			: null,
+	);
 	let loadingModels = $state(false);
 
+	/** Move off a provider the current connection cannot use. */
+	function ensureUsableProvider() {
+		if (!providers.some((p) => p.id === settings.provider && p.configured)) {
+			settings.provider = providers.find((p) => p.configured)?.id ?? settings.provider;
+		}
+	}
+
 	async function loadProviders() {
+		if (isDirect) {
+			ensureUsableProvider();
+			return;
+		}
 		try {
 			const response = await fetch('/api/models');
 			const payload = (await response.json()) as { providers?: ProviderInfo[] };
-			providers = payload.providers ?? [];
-			if (!providers.some((p) => p.id === settings.provider && p.configured)) {
-				settings.provider = providers.find((p) => p.configured)?.id ?? settings.provider;
-			}
+			serverProviders = payload.providers ?? [];
+			ensureUsableProvider();
 		} catch (error) {
 			modelsNotice = {
 				level: 'error',
@@ -76,24 +130,32 @@
 		}
 	}
 
+	/** Adopt the first listed model when nothing is chosen yet, or when the remembered id no longer exists. */
+	function adoptModel(provider: string) {
+		const chosen = settings.models[provider];
+		if (models[0] && (!chosen || !models.includes(chosen))) {
+			settings.models[provider] = models[0];
+		}
+	}
+
 	async function loadModels() {
 		const provider = settings.provider;
+		const direct = isDirect;
 		loadingModels = true;
 		modelsNotice = null;
 		try {
+			if (direct) {
+				await loadDirectModels(provider);
+				return;
+			}
 			const response = await fetch(`/api/models?provider=${encodeURIComponent(provider)}`);
 			const payload = (await response.json()) as
 				| { ok: true; models: string[] }
 				| { ok: false; error: string; code: 'local-unreachable'; provider: 'ollama' | 'lmstudio' };
-			if (provider !== settings.provider) return;
+			if (provider !== settings.provider || direct !== isDirect) return;
 			if (payload.ok) {
 				models = payload.models;
-				// Adopt the first listed model when nothing is chosen yet, or when the
-				// remembered id no longer exists on the server (e.g. model was removed).
-				const chosen = settings.models[provider];
-				if (models[0] && (!chosen || !models.includes(chosen))) {
-					settings.models[provider] = models[0];
-				}
+				adoptModel(provider);
 				if (models.length === 0 && providers.find((p) => p.id === provider)?.kind === 'local') {
 					modelsNotice = { level: 'warning', text: NO_LOCAL_MODELS };
 				}
@@ -109,12 +171,45 @@
 		}
 	}
 
+	/** Direct mode: local servers are listed from the browser, cloud lists are static. */
+	async function loadDirectModels(provider: string) {
+		if (!isProviderId(provider)) return;
+		if (isLocalProvider(provider)) {
+			const result = await listDirectLocalModels(provider, settings.directBaseUrls[provider], origin);
+			if (provider !== settings.provider || !isDirect) return;
+			if (result.ok) {
+				models = result.models;
+				adoptModel(provider);
+				if (models.length === 0) modelsNotice = { level: 'warning', text: NO_LOCAL_MODELS };
+			} else {
+				models = [];
+				modelsNotice = { level: 'warning', text: describeCodedError(result.coded) };
+			}
+			return;
+		}
+		models = [...CLOUD_MODELS[provider]];
+		adoptModel(provider);
+	}
+
 	function setProvider(provider: string) {
 		settings.provider = provider;
 		void loadModels();
 	}
 
+	function setConnection(connection: Connection) {
+		settings.connection = connection;
+		models = [];
+		void loadProviders().then(loadModels);
+	}
+
+	function setBaseUrl(url: string) {
+		if (!isLocalProvider(providerId)) return;
+		settings.directBaseUrls[providerId] = url.trim() || settings.directBaseUrls[providerId];
+		void loadModels();
+	}
+
 	onMount(() => {
+		keys = loadKeys();
 		void loadProviders().then(loadModels);
 	});
 
@@ -122,21 +217,38 @@
 	let input = $state('');
 	let proposals = $state<Record<string, Proposal>>({});
 
-	const chat = new Chat({
-		transport: new DefaultChatTransport({
-			api: '/api/chat',
-			body: () => ({
-				provider: settings.provider,
-				model,
-				docsMode: settings.docsMode,
-				filename,
-				source: getSource(),
-			}),
-			// The full thread stays in the browser; only a window is sent (server cap).
-			prepareSendMessagesRequest: ({ id, messages, body, trigger, messageId }) => ({
-				body: { ...body, id, trigger, messageId, messages: trimForRequest(messages) },
-			}),
+	const serverTransport = new DefaultChatTransport<UIMessage>({
+		api: '/api/chat',
+		body: () => ({
+			provider: settings.provider,
+			model,
+			docsMode: settings.docsMode,
+			filename,
+			source: getSource(),
 		}),
+		// The full thread stays in the browser; only a window is sent (server cap).
+		prepareSendMessagesRequest: ({ id, messages, body, trigger, messageId }) => ({
+			body: { ...body, id, trigger, messageId, messages: trimForRequest(messages) },
+		}),
+	});
+	// Direct mode runs the AI SDK in this tab; the request is read at send time.
+	const directTransport = new DirectChatTransport(() => ({
+		provider: providerId,
+		model,
+		docsMode: settings.docsMode,
+		filename,
+		source: getSource(),
+		apiKey: apiKey || undefined,
+		baseUrl: isLocalProvider(providerId) ? settings.directBaseUrls[providerId] : undefined,
+	}));
+	const transport: ChatTransport<UIMessage> = {
+		sendMessages: (options) => (isDirect ? directTransport : serverTransport).sendMessages(options),
+		reconnectToStream: (options) =>
+			(isDirect ? directTransport : serverTransport).reconnectToStream(options),
+	};
+
+	const chat = new Chat({
+		transport,
 		onError: (error) => {
 			const info = describeChatError(error);
 			lastError = info;
@@ -263,7 +375,9 @@
 	}
 
 	const busy = $derived(chat.status === 'submitted' || chat.status === 'streaming');
-	const canSend = $derived(chatReady && !busy && input.trim() !== '' && model.trim() !== '');
+	const canSend = $derived(
+		chatReady && !busy && input.trim() !== '' && model.trim() !== '' && keyNotice === null,
+	);
 
 	function assistantText(message: UIMessage): string {
 		return message.parts
@@ -415,15 +529,22 @@
 
 	<div class="settings">
 		<ProviderSelect
+			connection={settings.connection}
 			{providers}
 			provider={settings.provider}
 			{model}
 			{models}
-			{modelsNotice}
+			modelsNotice={modelsNotice ?? keyNotice}
 			{loadingModels}
 			disabled={busy}
+			{apiKey}
+			baseUrl={isLocalProvider(providerId) ? settings.directBaseUrls[providerId] : ''}
+			onConnectionChange={setConnection}
 			onProviderChange={setProvider}
 			onModelChange={(value) => (settings.models[settings.provider] = value)}
+			onApiKeyChange={setApiKey}
+			onForgetKeys={forgetAllKeys}
+			onBaseUrlChange={setBaseUrl}
 			onRefresh={loadModels}
 		/>
 		<div class="toggles">

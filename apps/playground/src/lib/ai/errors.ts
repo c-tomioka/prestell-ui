@@ -32,10 +32,25 @@ const TRANSIENT: ReadonlySet<ChatErrorKind> = new Set([
 	"server",
 ]);
 
-const KIND_BY_CODE: Record<CodedError["code"], ChatErrorKind> = {
-	"local-unreachable": "local-down",
-	timeout: "timeout",
-};
+/** Which panel behaviour (auto-retry, wording of the actions) a code maps to. */
+export function kindOfCodedError(coded: CodedError): ChatErrorKind {
+	switch (coded.code) {
+		case "local-unreachable":
+		case "direct-unreachable":
+			return "local-down";
+		case "timeout":
+			return "timeout";
+		case "direct-network":
+			return "network";
+		case "direct-unsupported":
+		case "key-missing":
+		case "key-rejected":
+			return "request";
+		case "provider-error":
+			if (coded.status === 429) return "rate-limit";
+			return coded.status >= 500 ? "server" : "request";
+	}
+}
 
 function unwrapJsonBody(message: string): string {
 	// `DefaultChatTransport` throws `new Error(await response.text())`, so an
@@ -82,7 +97,7 @@ export function describeChatError(error: Error | string): ChatErrorInfo {
 	// Coded errors carry their kind; the text is composed on the client.
 	const coded = raw ? decodeCodedError(raw) : null;
 	if (coded) {
-		const kind = KIND_BY_CODE[coded.code];
+		const kind = kindOfCodedError(coded);
 		return {
 			kind,
 			message: describeCodedError(coded),

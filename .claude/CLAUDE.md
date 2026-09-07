@@ -41,4 +41,4 @@ Astro公式Playground（`withastro/astro-playground`）をフォークし、AI�
 不明点や設計判断が必要な場合は、実装前に選択肢を提示して確認を取ること。特にAI Gatewayのプロバイダー切替ロジックや、MCPサーバー接続方式など、アーキテクチャに影響する変更は独断で行わない。
 
 ## 現在のフェーズ
-Phase 3 完了（2026-09-07 に public 化、`v0.1.0`）。次は Phase 4「静的ホスト版（BYOK）」の準備。その後に Phase 5「サイトビルダー（複数ファイル・Astro プロジェクト出力）」、Phase 6「Astro フル機能」が続く（方針は `ROADMAP.md` と `ARCHITECTURE.md` の「Phase 5 の構成」に記録済み。Phase 4 完了までは着手しない）。公開範囲と境界は `OSS_SCOPE.md`、フェーズの全体像は `ROADMAP.md` を参照。Phase 7〜8（SaaS・課金）には着手しない。
+Phase 3 完了（2026-09-07 に public 化、`v0.1.0`）。Phase 4「静的ホスト版（BYOK）」に着手中: AI direct モード（ブラウザ → LLM、`src/lib/ai/direct/*`）と AI Gateway / Workers AI の CORS 検証（direct 非対応）は完了。次は Astro Docs MCP の最小中継 Worker、別オリジンのプレビュー sandbox、静的ビルド構成。その後に Phase 5「サイトビルダー（複数ファイル・Astro プロジェクト出力）」、Phase 6「Astro フル機能」が続く（方針は `ROADMAP.md` と `ARCHITECTURE.md` の「Phase 5 の構成」に記録済み。Phase 4 完了までは着手しない）。公開範囲と境界は `OSS_SCOPE.md`、フェーズの全体像は `ROADMAP.md` を参照。Phase 7〜8（SaaS・課金）には着手しない。

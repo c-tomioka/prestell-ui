@@ -17,7 +17,10 @@
 		"eval": "cross-env PRESTELL_EVAL=1 vitest run scripts/eval --testTimeout=3600000"
 	},
 	"dependencies": {
+		"@ai-sdk/anthropic": "^4.0.49",
+		"@ai-sdk/google": "^4.0.64",
 		"@ai-sdk/mcp": "^2.0.44",
+		"@ai-sdk/openai": "^4.0.60",
 		"@ai-sdk/openai-compatible": "^3.0.43",
 		"@ai-sdk/svelte": "^5.0.92",
 		"@astrojs/cloudflare": "^14.2.0",

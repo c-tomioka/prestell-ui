@@ -10,7 +10,9 @@
 ## 接続方式（重要: AI Gateway は経由しない）
 
 Cloudflare AI Gateway の Custom Providers は **base URL が HTTPS 必須**のため、`http://localhost:11434` の Ollama を登録できない。
-そのため Phase 1 では **Worker（`astro dev` の workerd）からローカルサーバーへ直接 fetch** する。ブラウザから直接叩かないので、Ollama / LM Studio 側の CORS 設定は不要。
+そのため Phase 1 では **Worker（`astro dev` の workerd）からローカルサーバーへ直接 fetch** する（server モード）。ブラウザから直接叩かないので、Ollama / LM Studio 側の CORS 設定は不要。
+
+Phase 4 で追加した **direct モード**（チャット設定の Connection = Direct）は、ブラウザがローカルサーバーやクラウド各社の API を直接呼ぶ。この場合はローカルサーバー側で CORS の許可が必要（下の「AI direct モード」）。
 
 ```
 provider: "ollama"     → Worker → ${OLLAMA_BASE_URL}/chat/completions   (既定 http://localhost:11434/v1)
@@ -35,7 +37,7 @@ provider: "anthropic" / "openai" / "google" / "workers-ai"
   - モデル取得は `lms get <owner/model> -y`、ロードは `lms load <model> -y`、確認は `lms ls` / `lms ps`
 - `/v1/models` にはダウンロード済みモデル（埋め込みモデル含む）が列挙される。モデル ID は LM Studio の識別子（例: `google/gemma-4-e4b`）
 - JIT ロードが有効なら未ロードのモデルでも初回リクエストで自動ロードされる（初回応答が遅くなる）
-- tool use 対応モデルなら `tools` も使える。CORS は不要（Worker 経由のため）。ブラウザ直結モードを試す場合のみ `lms server start --cors`
+- tool use 対応モデルなら `tools` も使える。server モードでは CORS 不要（Worker 経由のため）。direct モードでは `lms server start --cors`（GUI では Developer タブの Enable CORS）が必要
 - 実機確認済み: LM Studio 0.3.31 + `google/gemma-4-e4b` で「生成 → 検証 → 適用 → Preview」が動作
 
 ## 動作確認手順（Ollama / LM Studio）
@@ -116,8 +118,42 @@ provider: "anthropic" / "openai" / "google" / "workers-ai"
    lms unload --all && lms server stop
    ```
 
+## AI direct モード（ブラウザ → LLM、Phase 4）
+
+チャット設定の **Connection** を `Direct (browser → provider, BYOK)` にすると、`/api/chat` を通らずにブラウザの AI SDK がプロバイダーを直接呼ぶ。静的ホスト版（API サーバーなし）の土台で、dev サーバーでも切り替えて使える。実装は `apps/playground/src/lib/ai/direct/*`（`ARCHITECTURE.md` 1c）。
+
+```
+provider: "ollama" / "lmstudio"  → ブラウザ → ${Server URL}/chat/completions   （既定は上と同じ localhost。要 CORS 許可）
+provider: "anthropic"            → ブラウザ → https://api.anthropic.com/v1/messages（@ai-sdk/anthropic、
+                                   `anthropic-dangerous-direct-browser-access: true` を付与）
+provider: "openai"               → ブラウザ → https://api.openai.com/v1/chat/completions（@ai-sdk/openai）
+provider: "google"               → ブラウザ → https://generativelanguage.googleapis.com（@ai-sdk/google）
+provider: "workers-ai"           → 不可（AI Gateway は CORS 非対応）。server モード限定として選択不可
+Astro docs（inject / tools）     → ブラウザ → 中継 /api/mcp-proxy（`PUBLIC_DOCS_PROXY_URL` で差し替え）→ MCP
+```
+
+- **キー**: クラウド 3 社はパネルの「API key」欄に貼る。キーはこのタブの `sessionStorage`（`prestell.chat.keys`）とメモリにだけ置き、localStorage・URL・プロジェクト保存・設定 blob には入れない。タブを閉じると消える。「Forget all keys in this tab」で即消去。利用量・レート制限・請求は自分のキーに紐づく（パネルのヒントにも表示）。
+- **ローカルの CORS**: ブラウザから叩くので、ローカルサーバーがページのオリジンを許可している必要がある。
+  - Ollama: `http://localhost` / `127.0.0.1` 系のオリジン（ポート不問）は既定で許可される。それ以外（例: 静的ホスト版の `https://<domain>`）は `OLLAMA_ORIGINS=https://<domain> ollama serve` で許可する。
+  - LM Studio: `lms server start --cors`、または Developer タブの Enable CORS。
+  - ブラウザからは「サーバー未起動」と「CORS 拒否」を区別できない（どちらも `TypeError: Failed to fetch`）ため、UI の警告は両方の対処を書き、現在のオリジンを埋め込んだ `OLLAMA_ORIGINS` の例を出す（`src/lib/ai/messages.ts`）。
+- **Server URL**: direct + ローカルのときは「Server URL」欄でブラウザから見た base URL を変えられる（localStorage の設定 v3 `directBaseUrls`。`.dev.vars` の `OLLAMA_BASE_URL` とは別）。
+- **docsMode**: `inject` / `tools` とも中継経由で使える。`tools` はブラウザ側で `search_astro_docs` ツールを定義し、`execute` が中継を呼ぶ。中継に届かないと「Astro docs unavailable」の通知を出して docs なしで続ける。
+- **エラー**: 401 / 403 は「rejected the API key」、429 は「rate limiting」（自動リトライ 1 回）、5xx は一時的エラー、ローカル未到達は上の警告。文言は `messages.ts`、分類は `errors.ts`（`ARCHITECTURE.md` 4b）。
+
+実測（2026-09-07）:
+
+| 項目 | 結果 |
+|---|---|
+| Ollama 0.x 既定設定 + `qwen2.5-coder:7b`、`http://localhost:4321` から direct | `/v1/models` 取得、preflight 204（`Access-Control-Allow-Origin: http://localhost:4321`）、`/v1/chat/completions` ストリーミング、`inject` 経由の docs、検証 → 適用 → Preview まで動作 |
+| Ollama に `Origin: https://prestell.example` で preflight | 403（`OLLAMA_ORIGINS` が必要） |
+| AI Gateway REST / compat（`api.cloudflare.com`, `gateway.ai.cloudflare.com`） | preflight に CORS ヘッダーなし（405 / 401）→ direct 非対応 |
+| Anthropic / OpenAI / Google AI Studio | preflight で CORS 許可を確認（Anthropic は `anthropic-dangerous-direct-browser-access` ヘッダー付き）。実際の生成は各自のキーで確認する |
+| 誤った Server URL（`localhost:11435`） | Model 欄の下に「Cannot reach Ollama at … from the browser. Run `ollama serve`. Localhost origins are allowed by default …」の警告 |
+
 ## フロントエンドのプロバイダー選択 UI
-- チャットパネルのドロップダウンでプロバイダーを選択。未設定（AI Gateway 未構成）のプロバイダーは選択不可で理由を表示
+- チャットパネル上部の **Connection**（Server / Direct）で経路を選ぶ。Direct + クラウドでは API key 欄（password）と「Forget all keys」、Direct + ローカルでは Server URL 欄が出る。キー未入力の間は警告ボックスが出て Send が無効
+- チャットパネルのドロップダウンでプロバイダーを選択。未設定（AI Gateway 未構成）のプロバイダーは選択不可で理由を表示。Direct では Workers AI が「(server only)」で選択不可
 - ローカルプロバイダー選択時は `GET /api/models?provider=ollama|lmstudio` が `/v1/models` を中継し、モデル候補（datalist）を出す
 - サーバー未起動・モデルなしの場合は、モデル欄の下に警告ボックス（英語。「Run `ollama serve` …」「press Start Server, and load a model」等）を表示。サーバーは `code: "local-unreachable"` を返すだけで、文言はクライアント側の `src/lib/ai/messages.ts` が組み立てる。送信して失敗した場合もチャットのエラーバナーに同じ趣旨の文言が出て、`Retry` と（設定していれば）`Retry with <フォールバック先>` で再送できる
 - モデル ID は自由入力も可能（候補にない ID を指定できる）
@@ -154,6 +190,6 @@ provider: "anthropic" / "openai" / "google" / "workers-ai"
 
 ## 将来的な拡張（Phase 4 以降を見据えて）
 
-- Phase 4 の静的ホスト版では、ブラウザから Ollama / LM Studio を直接呼ぶ「AI direct モード」を追加する（ローカル側で CORS 許可が必要: `OLLAMA_ORIGINS`、`lms server start --cors`）。
+- Phase 4 の「AI direct モード」（ブラウザから Ollama / LM Studio / Anthropic / OpenAI / Google を直接呼ぶ）は実装済み（上の節）。残りは Astro docs の中継 Worker、別オリジンの sandbox、静的ビルド構成。
 - SaaS 化時、ユーザー側のローカル Ollama に運営サーバーから直接接続することはできない（ネットワーク的に不可能）ため、SaaS 版では常に外部 LLM / Workers AI のみを提供し、ローカル LLM 対応は OSS 版（ローカル実行版）限定の機能として明確に区別する
 - どうしてもローカルモデルを AI Gateway のログに載せたい場合は `cloudflared tunnel` で HTTPS 公開して Custom Provider に登録する手もあるが、個人利用では推奨しない

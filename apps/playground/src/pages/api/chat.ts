@@ -14,13 +14,14 @@ import {
 	type UIMessage,
 } from "ai";
 import type { APIRoute } from "astro";
+import {
+	DOCS_TOOL_NOTE,
+	docsUnavailableNotice,
+	formatDocsContext,
+} from "../../lib/ai/docs";
 import { type CodedError, encodeCodedError } from "../../lib/ai/error-codes";
 import type { ChatNotice } from "../../lib/ai/types";
-import {
-	connectDocsMcp,
-	formatDocsContext,
-	searchAstroDocs,
-} from "../../server/ai/mcp";
+import { connectDocsMcp, searchAstroDocs } from "../../server/ai/mcp";
 import { buildSystemPrompt } from "../../server/ai/prompt";
 import {
 	type AiEnv,
@@ -32,7 +33,9 @@ import {
 import {
 	LLM_CHUNK_TIMEOUT_MS,
 	LLM_FIRST_CHUNK_TIMEOUT_MS,
+	LLM_MAX_OUTPUT_TOKENS,
 	LLM_MAX_RETRIES,
+	LLM_MAX_STEPS,
 	MCP_RETRIES,
 	MCP_RETRY_DELAY_MS,
 	withRetry,
@@ -46,15 +49,6 @@ import {
 export const prerender = false;
 
 const aiEnv = env as unknown as AiEnv;
-
-/** Max tool-calling rounds per reply (search → answer). */
-const MAX_STEPS = 5;
-/**
- * Explicit output budget. Without it some providers apply a small default
- * (Workers AI: 256 tokens) and cut the component off mid-`<style>`, which then
- * fails compilation for a reason that has nothing to do with the model.
- */
-const MAX_OUTPUT_TOKENS = 4096;
 
 /**
  * Turn transport-level failures into something the chat panel can show.
@@ -91,13 +85,6 @@ function errorText(error: unknown, provider: ProviderId): string {
 	return typeof described === "string"
 		? described
 		: encodeCodedError(described);
-}
-
-function docsNotice(reason: string): ChatNotice {
-	return {
-		kind: "docs-unavailable",
-		message: `Astro docs unavailable (${reason}); answered without them.`,
-	};
 }
 
 function lastUserText(messages: UIMessage[]): string {
@@ -153,7 +140,7 @@ export const POST: APIRoute = async ({ request }) => {
 				docsContext = formatDocsContext(result.hits);
 			else if (!result.ok) {
 				console.warn("[chat] docs search failed:", result.error);
-				notice = docsNotice(result.error);
+				notice = docsUnavailableNotice(result.error);
 			}
 		}
 	} else if (docsMode === "tools") {
@@ -163,14 +150,13 @@ export const POST: APIRoute = async ({ request }) => {
 				delayMs: MCP_RETRY_DELAY_MS,
 			});
 			tools = (await mcp.tools()) as ToolSet;
-			docsNote =
-				"You can call `search_astro_docs` to look up current Astro syntax, APIs, and best practices before answering. Search when you are not certain.";
+			docsNote = DOCS_TOOL_NOTE;
 		} catch (error) {
 			console.warn("[chat] docs MCP unavailable:", error);
 			await mcp?.close().catch(() => {});
 			mcp = undefined;
 			tools = undefined;
-			notice = docsNotice(
+			notice = docsUnavailableNotice(
 				error instanceof Error ? error.message : String(error),
 			);
 		}
@@ -194,8 +180,8 @@ export const POST: APIRoute = async ({ request }) => {
 			system,
 			messages: await convertToModelMessages(messages),
 			tools,
-			stopWhen: stepCountIs(MAX_STEPS),
-			maxOutputTokens: MAX_OUTPUT_TOKENS,
+			stopWhen: stepCountIs(LLM_MAX_STEPS),
+			maxOutputTokens: LLM_MAX_OUTPUT_TOKENS,
 			abortSignal: request.signal,
 			// Pre-stream failures are retried by the SDK; a silent stream is cut off
 			// so the panel can offer Retry instead of hanging.

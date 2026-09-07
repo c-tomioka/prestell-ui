@@ -12,9 +12,9 @@ Good fits for this repository (see `docs/ROADMAP.md`, Phases 1–3):
 - Documentation (the `docs/` folder is currently Japanese; English translations are welcome)
 
 Please **open an issue first** for anything that changes the architecture, such as how providers are switched
-through AI Gateway or how the Astro Docs MCP server is reached. Work on the static-host, SaaS, and billing phases
-(Phases 4–6) is out of scope for pull requests for now; SaaS-only logic lives in a separate private repository
-(see `docs/OSS_SCOPE.md`).
+through AI Gateway or how the Astro Docs MCP server is reached. The static-host phase (Phase 4) is in progress, so
+please coordinate through an issue before working on it. The SaaS and billing phases (Phases 7–8) are out of scope
+for pull requests; SaaS-only logic lives in a separate private repository (see `docs/OSS_SCOPE.md`).
 
 ## Setup
 

@@ -1,7 +1,13 @@
 <script lang="ts">
+	import { CONNECTION_HINTS } from '../../lib/ai/messages';
+	import type { Connection } from '../../lib/ai/settings';
 	import type { ProviderInfo } from '../../lib/ai/types';
+	import Icon from '../Icon.svelte';
+	import IconButton from '../IconButton.svelte';
 
 	interface Props {
+		/** `server` = through /api/chat; `direct` = browser → provider (BYOK). */
+		connection: Connection;
 		providers: ProviderInfo[];
 		provider: string;
 		model: string;
@@ -9,12 +15,21 @@
 		modelsNotice: { level: 'warning' | 'error'; text: string } | null;
 		loadingModels: boolean;
 		disabled: boolean;
+		/** Direct mode, cloud provider: the key held for this tab ("" = none). */
+		apiKey: string;
+		/** Direct mode, local provider: where the browser reaches the server. */
+		baseUrl: string;
+		onConnectionChange: (connection: Connection) => void;
 		onProviderChange: (provider: string) => void;
 		onModelChange: (model: string) => void;
+		onApiKeyChange: (key: string) => void;
+		onForgetKeys: () => void;
+		onBaseUrlChange: (url: string) => void;
 		onRefresh: () => void;
 	}
 
 	let {
+		connection,
 		providers,
 		provider,
 		model,
@@ -22,16 +37,40 @@
 		modelsNotice,
 		loadingModels,
 		disabled,
+		apiKey,
+		baseUrl,
+		onConnectionChange,
 		onProviderChange,
 		onModelChange,
+		onApiKeyChange,
+		onForgetKeys,
+		onBaseUrlChange,
 		onRefresh,
 	}: Props = $props();
 
 	const current = $derived(providers.find((p) => p.id === provider));
+	const direct = $derived(connection === 'direct');
+	/** Direct + cloud provider: the user supplies the key. */
+	const needsKey = $derived(direct && current?.kind === 'direct');
+	/** Direct + local server: the browser needs the URL (and CORS on the server). */
+	const needsBaseUrl = $derived(direct && current?.kind === 'local');
 	const listId = 'chat-model-options';
 </script>
 
 <div class="provider">
+	<label>
+		<span>Connection</span>
+		<select
+			value={connection}
+			{disabled}
+			aria-describedby="chat-connection-hint"
+			onchange={(e) => onConnectionChange(e.currentTarget.value as Connection)}
+		>
+			<option value="server">Server (/api/chat)</option>
+			<option value="direct">Direct (browser → provider, BYOK)</option>
+		</select>
+		<span id="chat-connection-hint" class="hint">{CONNECTION_HINTS[connection]}</span>
+	</label>
 	<label>
 		<span>Provider</span>
 		<select
@@ -41,11 +80,43 @@
 		>
 			{#each providers as p (p.id)}
 				<option value={p.id} disabled={!p.configured}>
-					{p.label}{p.configured ? '' : ' (not configured)'}
+					{p.label}{p.configured ? '' : ` (${p.unavailableLabel ?? 'not configured'})`}
 				</option>
 			{/each}
 		</select>
 	</label>
+	{#if needsKey}
+		<label>
+			<span>API key</span>
+			<span class="model-row">
+				<input
+					type="password"
+					value={apiKey}
+					{disabled}
+					placeholder="Paste your {current?.label ?? ''} API key"
+					autocomplete="off"
+					spellcheck="false"
+					oninput={(e) => onApiKeyChange(e.currentTarget.value)}
+				/>
+				<IconButton label="Forget all keys in this tab" disabled={disabled || !apiKey} tipAlign="end" onclick={onForgetKeys}>
+					<Icon name="trash" />
+				</IconButton>
+			</span>
+		</label>
+	{/if}
+	{#if needsBaseUrl}
+		<label>
+			<span>Server URL</span>
+			<input
+				type="url"
+				value={baseUrl}
+				{disabled}
+				placeholder="http://localhost:11434/v1"
+				spellcheck="false"
+				onchange={(e) => onBaseUrlChange(e.currentTarget.value)}
+			/>
+		</label>
+	{/if}
 	<label>
 		<span>Model</span>
 		<span class="model-row">
@@ -108,6 +179,9 @@
 	}
 	input {
 		font-family: ui-monospace, monospace;
+	}
+	label .hint {
+		font-size: 0.68rem;
 	}
 	.model-row {
 		display: flex;
