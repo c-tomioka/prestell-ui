@@ -19,7 +19,10 @@ PUBLIC_PREVIEW_RENDERER=server pnpm dev
 
 | ファイル | 役割 |
 |---|---|
-| `preview.ts` | `PreviewRenderer` インターフェース、`BrowserPreviewRenderer` / `ServerPreviewRenderer`、タイムアウト・キャンセルを担う `PreviewClient` |
+| `preview.ts` | `PreviewRenderer` インターフェース、`SandboxPreviewRenderer`（別オリジンのフレーム経由、既定）/ `BrowserPreviewRenderer` / `ServerPreviewRenderer`、`FallbackPreviewRenderer`（sandbox 不可時に同一オリジンへ）、タイムアウト・キャンセルを担う `PreviewClient` |
+| `preview-sandbox-protocol.ts` | 親 ↔ フレームの postMessage 契約（`ready` / `render` / `cancel` / `result`）と、フレームのオリジン候補（`previewFrameOrigins`） |
+| `preview-frame.ts` + `pages/preview/index.astro` | sandbox フレーム側。`BrowserPreviewRenderer` を動かし、親の要求を Worker に渡す |
+| `preview-frame-csp.ts` | フレームの CSP（`public/_headers` と dev ミドルウェアで配信。テストで同期を確認） |
 | `preview-browser.worker.ts` | ブラウザ版。runtime / container のバンドル文字列と compiled component を Blob URL から `import()` し、`AstroContainer.renderToString` する |
 | `preview-container.ts` / `preview-runtime.ts` | ブラウザ向けバンドルのエントリ（`astro.config.ts` が rolldown `platform: "browser"` で個別に 1 チャンクへ） |
 | `preview-manifest.ts` | Container マニフェスト生成。両レンダラーで共用 |
@@ -27,7 +30,10 @@ PUBLIC_PREVIEW_RENDERER=server pnpm dev
 | `preview-worker.ts` + `pages/api/render.ts` | サーバー版（Worker Loader 上で実行） |
 
 設計上のポイント:
-- 生成コードの無限ループ等は `PREVIEW_TIMEOUT_MS`（既定 5 秒）で打ち切り、ブラウザ版は Worker を `terminate()` して次回再生成する（コンパイラ Worker と同じ復帰戦略）。
+- **sandbox フレーム（Phase 4）**: ブラウザ版のレンダリング Worker は、アプリとは別オリジンから読み込んだ非表示 iframe（`/preview/`、`sandbox="allow-scripts allow-same-origin"`）の中で動く。別オリジンなのでアプリの IndexedDB（プロジェクト・チャット履歴）や localStorage には届かず、フレームの HTTP ヘッダー CSP（`default-src 'none'; script-src 'self' blob:; worker-src 'self' blob:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors *`）を Worker も継承するので `fetch` も止まる。親 ↔ フレームは postMessage（`preview-sandbox-protocol.ts`）。表示用の srcdoc iframe（`sandbox="allow-scripts"` + meta CSP）は従来どおり親側。
+- **フレームのオリジン**: `PUBLIC_PREVIEW_ORIGIN` があればそれ。無ければ dev サーバーで `localhost` / `127.0.0.1` / `[::1]` の残り 2 つを順に試す（同じサーバー・別オリジン。どれにバインドされるかは OS 依存なので、iframe の `load` 後 500 ms 以内に `ready` が来ない候補は捨てる）。全滅（本番で未設定など）なら `FallbackPreviewRenderer` が同一オリジンの Worker に切り替え、`console.warn` とバッジ「browser · not isolated」で明示する。
+- **COEP との両立**: 親は `Cross-Origin-Embedder-Policy: credentialless` なので、別オリジンのフレーム応答には `Cross-Origin-Resource-Policy: cross-origin` と COEP が必要（`public/_headers` の `/*` と dev ミドルウェアで全応答に付与）。
+- 生成コードの無限ループ等は `PREVIEW_TIMEOUT_MS`（既定 5 秒）で打ち切り、ブラウザ版は Worker を `terminate()` して次回再生成する（コンパイラ Worker と同じ復帰戦略）。sandbox ではタイムアウト時に親が `cancel` を送り、フレーム内の Worker が terminate される。
 - `astro/container` は `new URL(相対, import.meta.url)` で `srcDir` 等を導出し、Blob URL 基準では失敗する。マニフェストで `srcDir` / `publicDir` / `outDir` / `buildClientDir` / `buildServerDir` / `cacheDir` を `file:///container/` 配下に固定して回避している。
 - `Astro.request.url` は両モードとも `https://preview.astro.build/` に固定し、HTML が一致するようにしている。
 - ブラウザ向けバンドルに `node:*` 依存が混入した場合は `astro.config.ts` がビルドを失敗させる（Astro 更新時の検知）。
@@ -44,8 +50,8 @@ PUBLIC_PREVIEW_RENDERER=server pnpm dev
 | 固定費 | 月額 5 ドル〜 | 0 |
 | 変動費 | 動的 Worker $0.002/ユニーク/日（beta 中は免除）+ リクエスト/CPU | 0（配信帯域のみ） |
 | 初回ロード | 軽い | +約 690 KB（非圧縮。gzip で 150〜200 KB 想定、以後キャッシュ） |
-| 生成コードの実行場所 | Cloudflare の隔離サンドボックス（`globalOutbound: null` で通信遮断済み） | ユーザーのブラウザ。**同一オリジンなら fetch / indexedDB に到達可能**（Phase 2 以降はプロジェクトとチャット履歴が IndexedDB `prestell` にあるため、到達されると読み書きされ得る） |
-| 悪意あるコードの影響範囲 | Cloudflare 側で完結、ユーザー環境に影響なし | 対策なしだとアプリのオリジン権限で動く → 別オリジン + CSP が必須 |
+| 生成コードの実行場所 | Cloudflare の隔離サンドボックス（`globalOutbound: null` で通信遮断済み） | ユーザーのブラウザの、別オリジン sandbox フレーム内 Worker（Phase 4 で実装）。`connect-src 'none'` で fetch 不可、アプリの IndexedDB / localStorage に届かない。sandbox オリジンが無い場合だけ同一オリジンの Worker にフォールバック（バッジで明示） |
+| 悪意あるコードの影響範囲 | Cloudflare 側で完結、ユーザー環境に影響なし | sandbox フレーム内で完結（フレーム自身の空のストレージのみ）。フォールバック時はアプリのオリジン権限で動くため、公開時は `PUBLIC_PREVIEW_ORIGIN` を必ず設定する |
 | オフライン動作 | 不可 | LLM を除けば可能（ローカル LLM と組み合わせれば完全オフライン） |
 | `/api/chat` 等の AI 機能 | Workers 上 | 変わらず Workers（または別サーバー）が必要。静的部分と API を分離配信 |
 | 複数ファイル対応 | Worker Loader の `modules` に同梱 | Blob モジュール間 import（同等の実現が可能な見込み） |
@@ -60,8 +66,8 @@ PUBLIC_PREVIEW_RENDERER=server pnpm dev
 - 生成コードは Cloudflare 側で実行されるため、ユーザー環境への被害はないが、無限ループや巨大出力への CPU 時間・サイズ上限は現行どおり必須（既に 1 MB 上限と 5 秒タイムアウトあり）。
 
 **`browser` を採る場合**
-- **別オリジンのサンドボックス**が必須。プレビュー専用のサブドメイン（例: `preview.example.com`）を静的配信し、そこに `sandbox="allow-scripts"` の iframe を置いて中で Worker を起こす。メインアプリのセッション Cookie や localStorage、プロジェクト・チャット履歴を保持する IndexedDB には届かない（Phase 2 で保存先が IndexedDB になったため、この隔離の重要度が上がっている）。
-- プレビューオリジンには CSP を付ける（`default-src 'none'; script-src 'self' blob:; worker-src 'self' blob:; connect-src 'none'`）。Worker スクリプト自身の応答ヘッダーにも同じ CSP が必要（ドキュメントの CSP は専用 Worker に継承されない）。
+- **別オリジンのサンドボックス**が必須（実装済み。上の「設計上のポイント」）。同じビルドをプレビュー専用のオリジン（例: `preview.example.com`、または 2 つ目の Pages プロジェクト）にも配信し、アプリ側のビルドで `PUBLIC_PREVIEW_ORIGIN` にそのオリジンを指定する。メインアプリのセッション Cookie や localStorage、プロジェクト・チャット履歴を保持する IndexedDB には届かない（Phase 2 で保存先が IndexedDB になったため、この隔離の重要度が上がっている）。
+- プレビューオリジンの `/preview/*` には CSP（`public/_headers`）が付く。Worker は Blob URL から起動するため文書の CSP を継承する（`worker-src blob:`）。
 - 生成コードがユーザー自身のブラウザで動くだけなので運営側のコストと責任は小さいが、**他ユーザーが共有した作品を開くケース**では XSS 相当のリスクになる。共有機能を付けるなら上記サンドボックスが唯一の防壁になる点を設計上明記する。
 - `Astro.request` はダミー URL を固定し、環境依存の値をプレビュー結果に混ぜない。
 - AI 機能（LLM 呼び出し、BYOK キー管理、MCP プロキシ）は引き続きサーバー側に残るため、「静的フロント + API Worker」の 2 系統になる。API 側は Workers Free でも足りる可能性が高い（Worker Loader を使わないため）。
@@ -74,7 +80,7 @@ PUBLIC_PREVIEW_RENDERER=server pnpm dev
 
 ### 方針
 - Phase 1〜3（個人利用・OSS）: `browser` 既定。生成コードは自分のブラウザで動くだけなのでリスクは受容範囲。
-- Phase 4（静的ホスト版）: `browser` のまま、プレビュー用の別オリジン + sandbox iframe + CSP で隔離する。
+- Phase 4（静的ホスト版）: `browser` のまま、プレビュー用の別オリジン + sandbox iframe + CSP で隔離する（実装済み）。
 - Phase 5（サイトビルダー）: `browser` のまま複数ファイルに対応する（相対 import を Blob URL のモジュールグラフに書き換え、`public/` の画像は blob: URL）。`server` は Worker Loader の `modules` に同梱。
 - Phase 7 以降（SaaS）: 隔離実行や課金連動が必要な機能では `server` を選べる。`PreviewRenderer` のインターフェースを保つことで切替コストを抑える。
 
@@ -91,3 +97,20 @@ PUBLIC_PREVIEW_RENDERER=server pnpm dev
 | 所要時間（Chrome 148, Apple Silicon） | 初回 27〜31 ms、2 回目以降 2〜4 ms |
 | 権限プローブ | Worker から `fetch` 成功、`indexedDB` 参照可、`localStorage` なし → 公開時は別オリジン + CSP が必要 |
 | 本実装後の確認 | browser / server 両モードで描画、`import` 非対応表示、無限ループのタイムアウトと復帰、本番ビルド（Worker チャンク約 672 KB）を確認 |
+
+## 検証記録（2026-09-07、sandbox フレーム）
+
+dev サーバー（アプリ `http://localhost:4321`、フレームは候補 `127.0.0.1` が接続拒否 → `[::1]` を採用）で、frontmatter から権限を試すコンポーネントを描画した結果:
+
+| プローブ | 結果 |
+|---|---|
+| `fetch("http://localhost:4321/api/models")`（アプリの API） | `TypeError: Failed to fetch`（CSP `connect-src 'none'`） |
+| `fetch("https://example.com/")` | 同上 |
+| `indexedDB.databases()` | `[]`（フレームのオリジン `http://[::1]:4321` の空のストレージ。アプリの `prestell` DB は見えない） |
+| `self.origin` | `http://[::1]:4321` |
+| `localStorage` | `undefined`（Worker） |
+| `while (true)` の frontmatter | 5 秒で「Preview timed out after 5000ms.」。同じフレームのまま次の描画（New project）が成功 |
+| バッジ | 「browser · sandboxed」。候補が全滅した場合は「browser · not isolated」（単体テストで確認） |
+| ヘッダー | `/preview/` に CSP / COEP / CORP、`/` に CORP が付くこと（dev ミドルウェア、curl で確認）。本番は `public/_headers` |
+
+dev での注意: Vite の開発サーバーは `Sec-Fetch-Site: cross-site` の `fetch` を 403 で拒否するため、候補の到達確認は fetch ではなく iframe の `load` イベントで行っている。`localhost` がどのループバックアドレスにバインドされるかは Node の名前解決次第（macOS では `::1` のみ）で、候補を順に試す理由でもある。

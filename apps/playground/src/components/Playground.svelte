@@ -53,6 +53,8 @@
 	let shareLabel = $state('Share');
 	let saveLabel = $state('Save');
 	let previewActive = $state(true);
+	/** Whether generated code runs outside this origin; re-read after each render (the sandbox may fall back). */
+	let previewIsolated = $state(preview.isolated);
 	let previewStatus = $state<'idle' | 'rendering' | 'ready' | 'error' | 'unsupported'>(
 		'idle',
 	);
@@ -290,11 +292,13 @@
 			});
 			if (current !== previewRunId) return;
 			const html = await preview.render(renderable);
+			previewIsolated = preview.isolated;
 			if (current !== previewRunId) return;
 			previewDocument = createPreviewDocument(html, renderable.css);
 			previewStatus = 'ready';
 			previewStale = false;
 		} catch (error) {
+			previewIsolated = preview.isolated;
 			if (current !== previewRunId) return;
 			previewStatus = 'error';
 			previewError = error instanceof Error ? error.message : String(error);
@@ -558,6 +562,7 @@
 				{autoPreview}
 				{previewStale}
 				rendererMode={preview.mode}
+				rendererIsolated={previewIsolated}
 				onTabChange={handleOutputTabChange}
 				onToggleAutoPreview={toggleAutoPreview}
 				onRefreshPreview={refreshPreview}

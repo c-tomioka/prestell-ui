@@ -8,6 +8,16 @@ import type { PreviewRendererMode } from "./preview-protocol";
  */
 export const PREVIEW_RENDERER: PreviewRendererMode =
 	typeof __PREVIEW_RENDERER__ === "string" ? __PREVIEW_RENDERER__ : "browser";
+
+/**
+ * Origin that serves the preview sandbox frame (`/preview/`), e.g.
+ * `https://preview.example.com`. Set with `PUBLIC_PREVIEW_ORIGIN` at build
+ * time. Unset: the dev server swaps `localhost` ↔ `127.0.0.1`; elsewhere the
+ * preview renders in an in-origin Worker and the badge says "not isolated".
+ */
+export const PREVIEW_ORIGIN: string | undefined =
+	(import.meta.env?.PUBLIC_PREVIEW_ORIGIN as string | undefined)?.trim() ||
+	undefined;
 //
 // Preview rendering is the only step that calls the server (`POST /api/render`,
 // a Worker Loader dynamic Worker per render), so these knobs directly control

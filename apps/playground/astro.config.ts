@@ -13,6 +13,10 @@ import {
 	type UserConfig,
 	type ViteDevServer,
 } from "vite";
+import {
+	PREVIEW_FRAME_CSP,
+	PREVIEW_FRAME_CSP_DEV,
+} from "./src/lib/preview-frame-csp";
 
 /**
  * Preview renderer selection. `browser` (default) renders inside a Web Worker;
@@ -50,19 +54,39 @@ const PREVIEW_RENDERER = previewRenderer();
 const COI_HEADERS = {
 	"Cross-Origin-Opener-Policy": "same-origin",
 	"Cross-Origin-Embedder-Policy": "credentialless",
+	// The preview sandbox frame is loaded cross-origin (localhost ↔ 127.0.0.1 in
+	// dev), which COEP only allows when the frame's responses carry CORP.
+	"Cross-Origin-Resource-Policy": "cross-origin",
 };
+
+/** The sandbox frame page (`src/pages/preview/index.astro`); see `public/_headers`. */
+function isPreviewFramePath(url: string | undefined): boolean {
+	const path = (url ?? "").split("?")[0];
+	return (
+		path === "/preview" ||
+		path === "/preview/" ||
+		path === "/preview/index.html"
+	);
+}
 
 /**
  * Force COOP/COEP on every dev/preview response — including the HTML document,
  * which the Cloudflare dev middleware renders and serves without picking up
- * Astro's `server.headers`. We unshift to the front of the connect stack so it
- * runs before the Cloudflare middleware writes the response.
+ * Astro's `server.headers` — and the sandbox CSP on the preview frame. We
+ * unshift to the front of the connect stack so it runs before the Cloudflare
+ * middleware writes the response.
  */
 function crossOriginIsolation(): Plugin {
-	const apply = (server: PreviewServer | ViteDevServer) => {
-		const handle: Connect.NextHandleFunction = (_req, res, next) => {
+	const apply = (server: PreviewServer | ViteDevServer, dev: boolean) => {
+		const handle: Connect.NextHandleFunction = (req, res, next) => {
 			for (const [key, value] of Object.entries(COI_HEADERS)) {
 				res.setHeader(key, value);
+			}
+			if (isPreviewFramePath(req.url)) {
+				res.setHeader(
+					"Content-Security-Policy",
+					dev ? PREVIEW_FRAME_CSP_DEV : PREVIEW_FRAME_CSP,
+				);
 			}
 			next();
 		};
@@ -73,8 +97,8 @@ function crossOriginIsolation(): Plugin {
 	};
 	return {
 		name: "playground:cross-origin-isolation",
-		configureServer: apply,
-		configurePreviewServer: apply,
+		configureServer: (server) => apply(server, true),
+		configurePreviewServer: (server) => apply(server, false),
 	};
 }
 

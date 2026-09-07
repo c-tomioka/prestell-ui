@@ -52,6 +52,7 @@
   - `BrowserPreviewRenderer`（既定）: `astro.config.ts` が rolldown で `astro/compiler-runtime` と `astro/container` をブラウザ向け ES モジュール文字列にバンドル（仮想モジュール `virtual:preview-browser-bundles`）。`preview-browser.worker.ts` がそれらと compiled component を Blob URL から `import()` し、`AstroContainer.renderToString` する。生成コードの無限ループ等はタイムアウト時に Worker を `terminate()` して次回再生成。
   - `ServerPreviewRenderer`: `POST /api/render`（Worker Loader）。
 - 切替は build/dev 時の環境変数 `PUBLIC_PREVIEW_RENDERER`（`pnpm dev` = browser、`pnpm dev:server` = server）。出力ペインのバッジで現在のモードを表示。
+- browser モードの既定は `SandboxPreviewRenderer`（Phase 4）: `BrowserPreviewRenderer` を別オリジンの非表示 iframe（`src/pages/preview/index.astro` + `preview-frame.ts`）の中で動かし、postMessage（`preview-sandbox-protocol.ts`）で要求とキャンセルを渡す。フレームのオリジンは `PUBLIC_PREVIEW_ORIGIN`、dev では `localhost` / `127.0.0.1` / `[::1]` を自動で試す。フレームの HTTP ヘッダー CSP（`preview-frame-csp.ts`、`public/_headers`）で `connect-src 'none'`。sandbox オリジンが無ければ `FallbackPreviewRenderer` が同一オリジンの Worker に切り替え、バッジに「not isolated」を出す（`PREVIEW_RENDERING.md`）。
 - マニフェスト生成（`preview-manifest.ts`）は両実装で共用。`Astro.request.url` は両方 `https://preview.astro.build/` に固定。
 
 ### 1c. AI direct モード（`src/lib/ai/direct/`、Phase 4）
@@ -169,5 +170,5 @@
 - Phase 4 まではプレビューは単一コンポーネント・自己完結が前提。複数ファイル（相対 import）対応は Phase 5「サイトビルダー」で、browser レンダラーは Blob URL のモジュールグラフ、server レンダラーは Worker Loader の `modules` への同梱で実現する（上記「Phase 5 の構成」）。
 - WASM コンパイラのため COOP/COEP（`credentialless`）ヘッダーが必須。同一オリジンの `/api/*` には影響しない。
 - Astro Docs MCP と AI Gateway / Workers AI はブラウザから直接接続できない（CORS）。MCP は常に中継（`/api/mcp-proxy`、静的ホスト版では中継 Worker）を経由し、Workers AI は server モード限定。ローカル LLM と Anthropic / OpenAI / Google は direct モードでブラウザから直接呼べる（ローカルは CORS 許可が必要、`LOCAL_LLM.md`）。
-- browser レンダラーでは生成コードがユーザーのブラウザ（同一オリジンの Worker）で実行される。個人利用では許容するが、公開時は別オリジンの sandbox iframe + CSP で隔離する（Phase 4）。`server` レンダラーは Cloudflare 側の隔離環境で通信遮断済み。
+- browser レンダラーでは生成コードがユーザーのブラウザで実行される。既定では別オリジンの sandbox フレーム内の Worker（fetch 不可、アプリのストレージに届かない）で動き、sandbox オリジンが無い場合だけ同一オリジンの Worker にフォールバックする（バッジ「not isolated」。公開時は `PUBLIC_PREVIEW_ORIGIN` を必ず設定する）。`server` レンダラーは Cloudflare 側の隔離環境で通信遮断済み。
 - browser レンダラーのバンドルに `node:*` 依存が混入した場合は `astro.config.ts` がビルドを失敗させる（Astro 更新時の検知）。
