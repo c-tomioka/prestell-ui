@@ -33,7 +33,7 @@
 - [x] SaaS運営専用ロジック（課金、マルチユーザー管理）を分離したリポジトリ構成にする（`saas/`）（2026-09-07。実装は private リポジトリ `prestell-ui-saas` に置き、`saas/` は境界を示す README のみ。拡張点は `OSS_SCOPE.md`）
 - [x] ライセンス選定（MIT or Apache 2.0）、README・CONTRIBUTING整備（2026-09-07。Apache 2.0 で確定し `package.json` に明記。README を英語化して `README.ja.md` を併置、`CONTRIBUTING.md` / `CODE_OF_CONDUCT.md` / `SECURITY.md` / `.github/`（テンプレート・CI）を追加）
 - [x] APIキー等のシークレット管理を環境変数化し、リポジトリに一切含まれないことを確認（2026-09-07。`.dev.vars` / `.env` は git 管理外、履歴にキーなし、`.dev.vars.example` は全 9 変数を網羅。点検記録と再点検コマンドは `OSS_SCOPE.md`。author メールの書き換えは public 化前に実施）
-- [ ] GitHubにpublicリポジトリとして公開
+- [x] GitHubにpublicリポジトリとして公開（2026-09-07。https://github.com/c-tomioka/prestell-ui 、`v0.1.0`。公開後の設定は `OSS_SCOPE.md` の「公開手順」）
 
 **完了条件**: 第三者がクローンしてローカルで同じ体験を再現できること。
 
