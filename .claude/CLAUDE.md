@@ -15,6 +15,8 @@ Astro公式Playground（`withastro/astro-playground`）をフォークし、AI�
 - `PREVIEW_RENDERING.md`: プレビューレンダラー（browser / server）の設計・比較・セキュリティ方針
 - `EVALUATION.md`: LLM 生成品質・MCP ハルシネーションの評価ハーネス（`pnpm eval`）と最新の所見。記録は `docs/evaluations/`
 - `OSS_SCOPE.md`: OSS 公開範囲、SaaS 専用ロジック（private リポジトリ `prestell-ui-saas`）との境界、シークレット管理の点検記録
+
+リポジトリルートには公開向けの `README.md`（英語）/ `README.ja.md`（日本語）、`CONTRIBUTING.md`、`CODE_OF_CONDUCT.md`、`SECURITY.md`、`.github/`（Issue / PR テンプレート、CI）がある。README の内容を変えるときは両言語を更新する。
 - `DEVELOPMENT.md`: セットアップ手順・実装優先順・コーディング規約
 
 作業前に必ず `ARCHITECTURE.md` と `ROADMAP.md` の該当フェーズを確認し、現在のフェーズ範囲外の実装（特にSaaS化・課金関連）に着手しないこと。
@@ -28,7 +30,7 @@ Astro公式Playground（`withastro/astro-playground`）をフォークし、AI�
 - 言語: TypeScript優先。Workers側もTypeScriptで統一
 - 生成AIコードのファイル書き込みは必ずバリデーションを経由させる（WebContainerで実行不能なコードを弾く）
 - 破壊的変更を伴う変更は、まずブランチを切って提案してから適用する
-- コミットメッセージは変更内容を明確に（日本語・英語どちらでも可、プロジェクト内で統一）
+- コミットメッセージは変更内容を明確に（英語推奨、日本語も可。`CONTRIBUTING.md` に準拠）
 
 ## 作業時の確認事項
 - 新機能追加時: `ROADMAP.md` の該当フェーズのチェックリストに対応しているか確認

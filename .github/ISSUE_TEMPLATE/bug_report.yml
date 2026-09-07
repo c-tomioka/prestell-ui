@@ -1,0 +1,34 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? English or Japanese is fine.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. pnpm dev
+        2. Select provider …
+        3. Send prompt …
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and model
+      placeholder: e.g. Ollama qwen2.5-coder:7b / AI Gateway anthropic/claude-haiku-4.5
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: OS, browser, Node version, preview mode (browser/server)
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Browser console / dev server output. Remove API keys and tokens before pasting.

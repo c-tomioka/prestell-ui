@@ -2,6 +2,16 @@
 	"name": "prestell-ui",
 	"private": true,
 	"version": "0.0.0",
+	"description": "AI chat builder for Astro: generate .astro components, validate them with the Astro compiler, preview in the browser.",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/c-tomioka/prestell-ui.git"
+	},
+	"homepage": "https://github.com/c-tomioka/prestell-ui#readme",
+	"bugs": {
+		"url": "https://github.com/c-tomioka/prestell-ui/issues"
+	},
 	"type": "module",
 	"packageManager": "pnpm@11.5.0",
 	"engines": {

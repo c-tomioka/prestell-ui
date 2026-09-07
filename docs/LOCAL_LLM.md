@@ -38,6 +38,84 @@ provider: "anthropic" / "openai" / "google" / "workers-ai"
 - tool use 対応モデルなら `tools` も使える。CORS は不要（Worker 経由のため）。ブラウザ直結モードを試す場合のみ `lms server start --cors`
 - 実機確認済み: LM Studio 0.3.31 + `google/gemma-4-e4b` で「生成 → 検証 → 適用 → Preview」が動作
 
+## 動作確認手順（Ollama / LM Studio）
+
+外部 API キーなしで「プロンプト → 生成 → 検証 → 適用 → Preview」のループが動くことを目視で確認する手順です（README から移動、2026-09-07）。手順 1 は使うサーバーに合わせて A（Ollama）か B（LM Studio）のどちらかを行います。
+
+1-A. Ollama: モデルを取得してサーバーを起動する（初回のみ pull、約 4.7GB）
+
+   ```bash
+   ollama pull qwen2.5-coder:7b
+   ollama serve
+   ```
+
+   別ターミナルで `curl http://localhost:11434/v1/models` を実行し、`qwen2.5-coder:7b` が含まれていれば準備完了です。
+
+1-B. LM Studio: モデルをロードしてローカルサーバーを起動する
+
+   GUI の場合:
+   - LM Studio を起動し、Discover（虫眼鏡）からコード向けモデル（例: `qwen2.5-coder-7b-instruct`）をダウンロードする
+   - 左のナビゲーションで Developer（`<>` アイコン）を開き、上部のトグルで **Start Server**（既定ポート 1234）
+   - 「Select a model to load」でモデルをロードする（JIT ロードが有効なら未ロードでも初回リクエスト時に自動でロードされる）
+
+   CLI の場合（アプリ同梱の `lms` を使う。`lms bootstrap` を一度実行すると `~/.lmstudio/bin/lms` が作られ PATH に入る）:
+
+   ```bash
+   alias lms="/Applications/LM Studio.app/Contents/Resources/app/.webpack/lms"
+   lms get qwen/qwen2.5-coder-7b-instruct -y   # ダウンロード（既にあるモデルは lms ls で確認）
+   lms server start --port 1234                # CORS 指定は不要（Worker から直接接続するため）
+   lms load qwen/qwen2.5-coder-7b-instruct -y  # メモリにロード
+   lms ps                                      # ロード済みモデルと識別子を確認
+   ```
+
+   `curl http://localhost:1234/v1/models` にモデルが含まれていれば準備完了です。モデル ID は LM Studio が表示する識別子（例: `google/gemma-4-e4b`）をそのまま使います。
+
+2. dev サーバーを起動してブラウザで開く
+
+   ```bash
+   pnpm dev
+   ```
+
+   http://localhost:4321 を開くと、左にエディタ、中央に Preview、右に AI chat パネルが表示されます。
+   AI chat パネルが閉じている場合はツールバー右上の「AI chat」を押してください。
+
+3. AI chat パネルで Provider を「Ollama (local)」または「LM Studio (local)」にする
+   - Model 欄にサーバーの先頭モデル（例: `qwen2.5-coder:7b` / `google/gemma-4-e4b`）が自動で入ります（候補は `/api/models` が各サーバーの `/v1/models` から取得）。以前選んだモデルがサーバーに無い場合も先頭候補に置き換わります
+   - 「Ollama が起動していません」「LM Studio のサーバーが起動していません」等のヒントが出る場合は手順 1 を確認してください
+   - 「Auto-apply valid proposals」がオンになっていることを確認します
+
+4. プロンプトを送る（⌘/Ctrl+Enter でも送信できます）
+
+   ```text
+   Make a pricing section with three tiers and a highlighted middle plan. Use a blue accent.
+   ```
+
+5. 次の順に変化することを目視で確認する
+   - Assistant の返答がストリーミングで表示され、「Component proposal」カードに「Generating…」と行数が出る
+   - 生成完了後にカードが「Validating…」→「Applied to editor」に変わる
+   - 左のエディタが生成コードに置き換わり、中央の Preview が再描画される（7B クラスのモデルで 10〜40 秒程度）
+   - Preview タブ以外（JS / CSS / Diagnostics）でもコンパイル結果が確認できる
+   - 出力ペイン右上の「Auto」を OFF にしてエディタを編集すると Preview は変わらず「Changes not rendered」が出る。↻ を押すと再描画される
+
+6. 検証が働くことを確認する（任意）
+
+   ```text
+   Reuse a Card component imported from ./Card.astro
+   ```
+
+   `import` は Preview 非対応のため、カードが「Cannot render」となり、エディタは変更されません。「Apply anyway」で強制適用もできます。
+
+7. 保存を確認する（任意）
+   - ツールバーの「Save」を押すと `.astro` ファイルとして保存できます（Chromium は保存先ダイアログ、他ブラウザはダウンロード）
+
+8. 終了する
+
+   ```bash
+   pnpm dev:stop
+   # LM Studio を CLI で起動した場合
+   lms unload --all && lms server stop
+   ```
+
 ## フロントエンドのプロバイダー選択 UI
 - チャットパネルのドロップダウンでプロバイダーを選択。未設定（AI Gateway 未構成）のプロバイダーは選択不可で理由を表示
 - ローカルプロバイダー選択時は `GET /api/models?provider=ollama|lmstudio` が `/v1/models` を中継し、モデル候補（datalist）を出す
