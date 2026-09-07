@@ -1,8 +1,22 @@
 // Chat settings persisted per browser (provider/model choice, toggles).
-import type { DocsMode } from "../../server/ai/validate";
+//
+// API keys for the direct mode are NOT part of this blob: it lives in
+// localStorage, keys live in `direct/keys.ts` (sessionStorage / memory).
+import type { DocsMode } from "./docs";
 import { clampFixAttempts, DEFAULT_MAX_FIX_ATTEMPTS } from "./fix-loop";
+import {
+	DEFAULT_LMSTUDIO_BASE_URL,
+	DEFAULT_OLLAMA_BASE_URL,
+	type LocalProviderId,
+} from "./providers-catalog";
 
 export type { DocsMode };
+
+/**
+ * `server` = the chat goes through `/api/chat` (keys stay on the server);
+ * `direct` = the browser calls the provider itself (BYOK, no server needed).
+ */
+export type Connection = "server" | "direct";
 
 export interface ChatSettings {
 	/** Schema version of the stored blob; `loadSettings` migrates older ones. */
@@ -19,6 +33,9 @@ export interface ChatSettings {
 	maxFixAttempts: number;
 	/** Provider offered as "Retry with …" after a failed request ("" = none). */
 	fallbackProvider: string;
+	connection: Connection;
+	/** Where the browser reaches the local servers in direct mode (not secret). */
+	directBaseUrls: Record<LocalProviderId, string>;
 }
 
 const STORAGE_KEY = "prestell.chat.settings";
@@ -28,8 +45,9 @@ const STORAGE_KEY = "prestell.chat.settings";
  * v2 (2026-09-07): docsMode defaults to "inject" (the evaluation showed it
  * removes hallucinations for every model). Stored "off" from v1 is migrated
  * because v1 saved the blob eagerly, so it was rarely a deliberate choice.
+ * v3 (Phase 4): `connection` (server / direct) and `directBaseUrls`.
  */
-export const SETTINGS_VERSION = 2;
+export const SETTINGS_VERSION = 3;
 
 export const DEFAULT_SETTINGS: ChatSettings = {
 	version: SETTINGS_VERSION,
@@ -41,12 +59,19 @@ export const DEFAULT_SETTINGS: ChatSettings = {
 	autoFix: true,
 	maxFixAttempts: DEFAULT_MAX_FIX_ATTEMPTS,
 	fallbackProvider: "",
+	connection: "server",
+	directBaseUrls: {
+		ollama: DEFAULT_OLLAMA_BASE_URL,
+		lmstudio: DEFAULT_LMSTUDIO_BASE_URL,
+	},
 };
 
 function migrate(parsed: Partial<ChatSettings>): Partial<ChatSettings> {
 	const version = typeof parsed.version === "number" ? parsed.version : 1;
 	const next = { ...parsed };
 	if (version < 2 && next.docsMode === "off") next.docsMode = "inject";
+	if (next.connection !== "server" && next.connection !== "direct")
+		next.connection = "server";
 	return { ...next, version: SETTINGS_VERSION };
 }
 
@@ -61,6 +86,10 @@ export function loadSettings(): ChatSettings {
 			...parsed,
 			models: { ...(parsed.models ?? {}) },
 			maxFixAttempts: clampFixAttempts(parsed.maxFixAttempts),
+			directBaseUrls: {
+				...DEFAULT_SETTINGS.directBaseUrls,
+				...(parsed.directBaseUrls ?? {}),
+			},
 		};
 	} catch {
 		return { ...DEFAULT_SETTINGS };

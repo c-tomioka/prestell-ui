@@ -61,6 +61,35 @@ describe("loadSettings", () => {
 		expect(loadSettings().version).toBe(SETTINGS_VERSION);
 	});
 
+	it("adds the direct-mode fields when migrating a v2 blob", () => {
+		storage.setItem(
+			KEY,
+			JSON.stringify({ version: 2, provider: "anthropic", docsMode: "tools" }),
+		);
+		const settings = loadSettings();
+		expect(settings.version).toBe(SETTINGS_VERSION);
+		expect(settings.connection).toBe("server");
+		expect(settings.directBaseUrls).toEqual(DEFAULT_SETTINGS.directBaseUrls);
+		expect(settings.provider).toBe("anthropic");
+	});
+
+	it("keeps a custom local URL and rejects an unknown connection value", () => {
+		storage.setItem(
+			KEY,
+			JSON.stringify({
+				version: 3,
+				connection: "bogus",
+				directBaseUrls: { ollama: "http://box:11434/v1" },
+			}),
+		);
+		const settings = loadSettings();
+		expect(settings.connection).toBe("server");
+		expect(settings.directBaseUrls).toEqual({
+			ollama: "http://box:11434/v1",
+			lmstudio: DEFAULT_SETTINGS.directBaseUrls.lmstudio,
+		});
+	});
+
 	it("falls back to defaults on corrupt storage", () => {
 		storage.setItem(KEY, "{not json");
 		expect(loadSettings()).toEqual(DEFAULT_SETTINGS);

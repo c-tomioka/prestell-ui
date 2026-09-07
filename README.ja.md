@@ -15,13 +15,14 @@ Prestell UI は Astro 公式の [Astro Playground](https://github.com/withastro/
 - **チャットからコードへ** – 単一ファイルの Astro コンポーネントを生成・編集。提案は `@astrojs/compiler`（WASM）でコンパイルし、レンダリングできないコードはエディタに入る前に弾きます。
 - **ブラウザ内ライブプレビュー** – Web Worker 上の `astro/container` でレンダリング（サーバー往復なし）。Cloudflare Worker Loader によるサーバー側レンダリングにも切替可能。
 - **ローカル / クラウド LLM** – Ollama・LM Studio（API キー不要）、または Cloudflare AI Gateway 経由の Anthropic Claude・OpenAI・Google Gemini・Workers AI（BYOK）。
+- **2 つの接続モード** – **Server** はこのアプリの `/api/chat` を経由（キーは `.dev.vars` に置く）、**Direct** はブラウザが自分のキーで Ollama・LM Studio・Anthropic・OpenAI・Google AI Studio を直接呼ぶ（API サーバー不要）。
 - **MCP による Astro 知識** – `inject`（既定）は送信前に Astro Docs を検索して埋め込み、`tools` はモデル自身に検索させます。評価では `inject` が全モデルで Astro API のハルシネーションを 0 にしました（[docs/EVALUATION.md](./docs/EVALUATION.md)）。
 - **自動 fix ループ** – コンパイルエラーを該当行の本文つきでモデルに返し、上限回数まで自動で修正させます。
 - **プロジェクトとテンプレート** – プロジェクトとチャット履歴を IndexedDB に保存、組み込みプロンプトテンプレート 18 種、`.astro` ファイルへのワンクリック保存（File System Access API / ダウンロード）。
 
 ## ステータス
 
-**2026-09-07 に公開（`v0.1.0`）**。[ロードマップ](./docs/ROADMAP.md) の Phase 3 は完了し、次は静的ホスト版（BYOK）です。メンテナーが日常的に単一コンポーネントの生成に使っています。プレビューは自己完結した 1 つの `.astro` コンポーネントが対象で、`import`・フレームワークコンポーネント・`client:*`・外部スクリプトには未対応です。静的ホスト版（BYOK）、複数ファイルのサイトビルダー（ページ・レイアウト・コンポーネント・CSS・画像を Astro プロジェクトとして出力）、SaaS 版は後のフェーズで、SaaS 専用コードはこのリポジトリの外にあります（[docs/OSS_SCOPE.md](./docs/OSS_SCOPE.md)）。
+**2026-09-07 に公開（`v0.1.0`）**。[ロードマップ](./docs/ROADMAP.md) の Phase 3 は完了し、Phase 4「静的ホスト版（BYOK）」に着手中です。direct 接続モードは実装済みで、次は Astro docs の中継 Worker、別オリジンのプレビュー sandbox、静的ビルド構成です。メンテナーが日常的に単一コンポーネントの生成に使っています。プレビューは自己完結した 1 つの `.astro` コンポーネントが対象で、`import`・フレームワークコンポーネント・`client:*`・外部スクリプトには未対応です。静的ホスト版（BYOK）、複数ファイルのサイトビルダー（ページ・レイアウト・コンポーネント・CSS・画像を Astro プロジェクトとして出力）、SaaS 版は後のフェーズで、SaaS 専用コードはこのリポジトリの外にあります（[docs/OSS_SCOPE.md](./docs/OSS_SCOPE.md)）。
 
 ## 必要環境
 
@@ -66,7 +67,20 @@ Make a pricing section with three tiers and a highlighted middle plan. Use a blu
 | Anthropic / OpenAI / Google | AI Gateway とプロバイダーのキー（Gateway 側に保存した BYOK / Unified Billing、またはローカルに置いてパススルー） | 上の 3 つに加えて `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` |
 | Astro Docs MCP | なし | `ASTRO_DOCS_MCP_URL`（既定 `https://mcp.docs.astro.build/mcp`） |
 
-ローカルサーバーへはブラウザではなく Workers ランタイムから接続するため、CORS の設定は不要です。`.dev.vars` は絶対にコミットしないでください（[SECURITY.md](./SECURITY.md)）。
+Server モードではローカルサーバーへブラウザではなく Workers ランタイムから接続するため、CORS の設定は不要です（Direct モードでは必要。次節）。`.dev.vars` は絶対にコミットしないでください（[SECURITY.md](./SECURITY.md)）。
+
+## 接続モード
+
+AI chat パネル上部の **Connection** でリクエストの経路を選びます。
+
+| モード | 経路 | キーの置き場所 | 使えるプロバイダー |
+|---|---|---|---|
+| Server（既定） | ブラウザ → `/api/chat`（Workers ランタイム）→ プロバイダー | サーバーの `.dev.vars` | 上の表の全部 |
+| Direct | ブラウザ → プロバイダー（API サーバーを介さない） | パネルに貼り付け。このタブの `sessionStorage` にだけ保持し、`localStorage` や URL には置かない | Ollama、LM Studio、Anthropic、OpenAI、Google AI Studio |
+
+Direct モードは静的ホスト版の土台です。利用量やレート制限は自分のキーに課金され、Astro docs は MCP サーバーに CORS がないため小さな中継（今は `/api/mcp-proxy`、後に単体の Worker）経由で取得します。Cloudflare AI Gateway と Workers AI はブラウザから呼べない（preflight 応答に CORS ヘッダーがない。2026-09-07 確認）ため、Workers AI は Server モード限定です。
+
+Direct モードでローカルサーバーを使うにはブラウザのオリジンを許可する必要があります。Ollama は `localhost` 系オリジンを既定で許可（それ以外は `OLLAMA_ORIGINS=<origin>`）、LM Studio は `lms server start --cors` か Developer タブの **Enable CORS** が必要です。詳細と検証記録は [docs/LOCAL_LLM.md](./docs/LOCAL_LLM.md)。
 
 ## プレビューのレンダリング
 
@@ -81,7 +95,7 @@ pnpm dev:server
 ## 使い方
 
 1. http://localhost:4321 を開く。左がエディタ、中央がプレビュー、右が AI chat（ツールバーの **AI chat** で開閉）。
-2. プロバイダーとモデルを選ぶ。**Astro docs** で MCP のモードを切り替える（既定は `inject`）。
+2. **Connection**（Server / Direct）、プロバイダー、モデルを選ぶ。**Astro docs** で MCP のモードを切り替える（既定は `inject`）。
 3. 作りたいコンポーネントを書くか、**Template…** からプロンプトテンプレートを選ぶ。`⌘/Ctrl+Enter` で送信。
 4. 検証に通った提案は自動でエディタに反映され、プレビューが更新される。通らなかった場合は自動 fix ループが動く（**Apply anyway** で強制適用も可）。
 5. 追加の指示で調整し、**Save** で `.astro` ファイルとして保存する。

@@ -10,32 +10,38 @@
 // never be registered there; that is why local providers bypass the gateway.
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
+import {
+	CLOUD_MODELS,
+	DEFAULT_LMSTUDIO_BASE_URL,
+	DEFAULT_OLLAMA_BASE_URL,
+	type GatewayKind,
+	type GatewayProviderId,
+	gatewayModelId,
+	isLocalProvider,
+	type LocalProviderId,
+	PROVIDER_LABELS,
+	type ProviderId,
+	type ProviderInfo,
+	trimSlash,
+} from "../../lib/ai/providers-catalog";
 
-export const PROVIDER_IDS = [
-	"ollama",
-	"lmstudio",
-	"anthropic",
-	"openai",
-	"google",
-	"workers-ai",
-] as const;
-export type ProviderId = (typeof PROVIDER_IDS)[number];
-export type LocalProviderId = "ollama" | "lmstudio";
-export type GatewayProviderId = Exclude<ProviderId, LocalProviderId>;
-
-export type ProviderKind = "local" | "gateway";
-
-export interface ProviderInfo {
-	id: ProviderId;
-	label: string;
-	kind: ProviderKind;
-	/** True when the env has what is needed to call this provider. */
-	configured: boolean;
-	/** Shown in the UI next to the provider (setup hints, BYOK notes). */
-	hint?: string;
-	/** Static model suggestions (local providers list models dynamically). */
-	models: string[];
-}
+// The catalogue (ids, labels, static model lists, id spelling) is shared with
+// the browser-side direct mode; see `src/lib/ai/providers-catalog.ts`.
+export {
+	DEFAULT_ASTRO_DOCS_MCP_URL,
+	DEFAULT_LMSTUDIO_BASE_URL,
+	DEFAULT_OLLAMA_BASE_URL,
+	type GatewayKind,
+	type GatewayProviderId,
+	gatewayModelId,
+	isLocalProvider,
+	isProviderId,
+	type LocalProviderId,
+	PROVIDER_IDS,
+	type ProviderId,
+	type ProviderInfo,
+	type ProviderKind,
+} from "../../lib/ai/providers-catalog";
 
 /** Secrets and settings read from `.dev.vars` (dev) or Worker secrets (prod). */
 export interface AiEnv {
@@ -51,25 +57,11 @@ export interface AiEnv {
 	ASTRO_DOCS_MCP_URL?: string;
 }
 
-export const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1";
-export const DEFAULT_LMSTUDIO_BASE_URL = "http://localhost:1234/v1";
-export const DEFAULT_ASTRO_DOCS_MCP_URL = "https://mcp.docs.astro.build/mcp";
-
-function trimSlash(url: string): string {
-	return url.replace(/\/+$/, "");
-}
-
 export function readEnv(env: AiEnv, key: keyof AiEnv): string | undefined {
 	const value = env[key];
 	return typeof value === "string" && value.trim() !== ""
 		? value.trim()
 		: undefined;
-}
-
-export function isLocalProvider(
-	provider: ProviderId,
-): provider is LocalProviderId {
-	return provider === "ollama" || provider === "lmstudio";
 }
 
 export function localBaseUrl(env: AiEnv, provider: LocalProviderId): string {
@@ -80,49 +72,12 @@ export function localBaseUrl(env: AiEnv, provider: LocalProviderId): string {
 	);
 }
 
-interface GatewayProvider {
-	label: string;
-	/** Prefix used by the AI Gateway REST API (`{prefix}/{model}`); empty = model id as-is. */
-	prefix: string;
-	models: string[];
-}
-
-const GATEWAY_PROVIDERS: Record<GatewayProviderId, GatewayProvider> = {
-	anthropic: {
-		label: "Anthropic Claude",
-		prefix: "anthropic",
-		models: [
-			"claude-sonnet-4.5",
-			"claude-sonnet-5",
-			"claude-opus-5",
-			"claude-haiku-4.5",
-		],
-	},
-	openai: {
-		label: "OpenAI",
-		prefix: "openai",
-		models: ["gpt-5.2", "gpt-5-mini"],
-	},
-	google: {
-		label: "Google Gemini",
-		prefix: "google",
-		models: ["gemini-3-flash", "gemini-2.5-pro", "gemini-2.5-flash"],
-	},
-	"workers-ai": {
-		label: "Cloudflare Workers AI",
-		// Workers AI models are addressed as `@cf/author/model` directly.
-		prefix: "",
-		// llama-4-scout handles tool calling (docsMode "tools"); llama-3.3 streams fine
-		// but rejects tool results; frontier models such as kimi-k2.6 need prepaid credits.
-		models: [
-			"@cf/meta/llama-4-scout-17b-16e-instruct",
-			"@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-			"@cf/qwen/qwen2.5-coder-32b-instruct",
-		],
-	},
-};
-
-export type GatewayKind = "rest" | "compat";
+const GATEWAY_PROVIDER_IDS: GatewayProviderId[] = [
+	"anthropic",
+	"openai",
+	"google",
+	"workers-ai",
+];
 
 export interface GatewayConfig {
 	/** `rest` = api.cloudflare.com/.../ai/v1 (current); `compat` = gateway.ai.cloudflare.com/.../compat (legacy). */
@@ -226,32 +181,6 @@ function localProviderKey(
 }
 
 /**
- * Full model id for the gateway, e.g. `anthropic/claude-sonnet-4.5` or `@cf/meta/...`.
- *
- * Anthropic ids differ by endpoint: the REST catalog uses dots in the version
- * (`claude-sonnet-4.5`) while the provider API — reached through the compat
- * endpoint — uses hyphens (`claude-sonnet-4-5`). Accept either spelling.
- */
-export function gatewayModelId(
-	provider: GatewayProviderId,
-	modelId: string,
-	kind: GatewayKind = "rest",
-): string {
-	const prefix = GATEWAY_PROVIDERS[provider].prefix;
-	if (!prefix) return modelId;
-	let bare = modelId.includes("/")
-		? modelId.slice(modelId.indexOf("/") + 1)
-		: modelId;
-	if (provider === "anthropic") {
-		bare =
-			kind === "rest"
-				? bare.replace(/^(claude-[a-z]+-\d)-(\d)(?=$|-)/, "$1.$2")
-				: bare.replace(/^(claude-[a-z]+-\d)\.(\d)/, "$1-$2");
-	}
-	return `${prefix}/${bare}`;
-}
-
-/**
  * Workers AI occasionally streams `delta.content` as a JSON number (e.g. a
  * bare `2`) or, on the trailing usage chunk, as a boolean, which the
  * OpenAI-compatible parser rejects. Coerce numbers to their text and booleans
@@ -330,7 +259,7 @@ export function listProviders(env: AiEnv): ProviderInfo[] {
 	const local: ProviderInfo[] = [
 		{
 			id: "ollama",
-			label: "Ollama (local)",
+			label: PROVIDER_LABELS.ollama,
 			kind: "local",
 			configured: true,
 			hint: `OpenAI-compatible server expected at ${localBaseUrl(env, "ollama")}.`,
@@ -338,7 +267,7 @@ export function listProviders(env: AiEnv): ProviderInfo[] {
 		},
 		{
 			id: "lmstudio",
-			label: "LM Studio (local)",
+			label: PROVIDER_LABELS.lmstudio,
 			kind: "local",
 			configured: true,
 			hint: `LM Studio server expected at ${localBaseUrl(env, "lmstudio")}.`,
@@ -347,9 +276,7 @@ export function listProviders(env: AiEnv): ProviderInfo[] {
 	];
 	const gateway = safeGatewayConfig(env);
 	const configured = gateway !== null && gateway !== "invalid";
-	const entries = (
-		Object.entries(GATEWAY_PROVIDERS) as [GatewayProviderId, GatewayProvider][]
-	).map<ProviderInfo>(([id, spec]) => {
+	const entries = GATEWAY_PROVIDER_IDS.map<ProviderInfo>((id) => {
 		let hint: string | undefined;
 		if (gateway === "invalid") {
 			hint =
@@ -371,23 +298,16 @@ export function listProviders(env: AiEnv): ProviderInfo[] {
 		}
 		return {
 			id,
-			label: spec.label,
+			label: PROVIDER_LABELS[id],
 			kind: "gateway",
 			configured:
 				configured &&
 				!(gateway.kind === "rest" && id === "workers-ai" && !gateway.gatewayId),
 			hint,
-			models: spec.models,
+			models: CLOUD_MODELS[id],
 		};
 	});
 	return [...local, ...entries];
-}
-
-export function isProviderId(value: unknown): value is ProviderId {
-	return (
-		typeof value === "string" &&
-		(PROVIDER_IDS as readonly string[]).includes(value)
-	);
 }
 
 /** Build the AI SDK model for a provider/model pair. Throws with a user-facing message. */

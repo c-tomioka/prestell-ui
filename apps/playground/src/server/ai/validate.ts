@@ -1,13 +1,14 @@
 // Request validation for the AI endpoints.
 import { z } from "zod";
+import { DOCS_MODES, type DocsMode } from "../../lib/ai/docs";
 import type { CodedError } from "../../lib/ai/error-codes";
-import { PROVIDER_IDS } from "./providers";
+import { PROVIDER_IDS } from "../../lib/ai/providers-catalog";
 
 export const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 export const MAX_MESSAGES = 60;
 
-export const DOCS_MODES = ["off", "inject", "tools"] as const;
-export type DocsMode = (typeof DOCS_MODES)[number];
+// Docs modes are shared with the client (`src/lib/ai/docs.ts`).
+export { DOCS_MODES, type DocsMode };
 
 /**
  * UI messages are passed through to `convertToModelMessages`; only the

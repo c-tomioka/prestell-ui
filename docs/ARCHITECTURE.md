@@ -8,9 +8,9 @@
   ├─ Astro コンパイラ（@astrojs/compiler の WASM を Web Worker で実行）
   ├─ プレビューレンダラー（既定 = browser: astro/container を Web Worker で実行、サーバー通信なし）
   ├─ 出力タブ（Preview / JS / CSS / Scripts / Metadata / Diagnostics / AST / Source map）
-  └─ AI チャットパネル（@ai-sdk/svelte、プロバイダー・モデル選択、提案カード）
-            │ fetch / SSE（同一オリジン）
-            ▼
+  └─ AI チャットパネル（@ai-sdk/svelte、Connection = server / direct、プロバイダー・モデル選択、提案カード）
+            │ fetch / SSE（同一オリジン）        ┆ Connection = direct: AI SDK をブラウザで実行し、下の
+            ▼                                    ┆ LLM へ直接 fetch（/api/chat を通らない。docs は /api/mcp-proxy 経由）
 [Cloudflare Workers ランタイム（astro dev = workerd / 本番 Workers）]
   ├─ POST /api/render     … PUBLIC_PREVIEW_RENDERER=server のときだけ使用。コンパイル済み JS を
   │                          Worker Loader で動的 Worker として起動し Astro Container API で HTML 化（上流と同方式）
@@ -42,7 +42,7 @@
 - 上流の Playground を参考に再構成（派生ファイルには MIT 帰属ヘッダー）。上流スナップショットは `tmp/upstream/`（git 管理外）。
 - 追加要素: `src/components/chat/*`（ChatPanel / ProviderSelect / MessageList / CodeProposal）、Toolbar の「AI chat」「Save」ボタン。
 - 提案コードの反映: `src/lib/ai/extract-code.ts` で応答の ```astro フェンスを抽出 → `src/lib/ai/apply.ts` がコンパイラで検証（診断エラー・Preview 非対応構文を拒否）→ 合格なら `Playground.svelte` の通常経路でエディタ置換 → 再コンパイル → Preview 更新。
-- 設定（プロバイダー、モデル、docsMode、自動適用、auto-fix の有無と上限、パネル開閉）は localStorage に保持。`version` を持ち、`loadSettings`（`src/lib/ai/settings.ts`）が旧形式を移行する（v2: docsMode の既定を `inject` に変更し、v1 で保存された `off` を `inject` へ）。
+- 設定（Connection、プロバイダー、モデル、docsMode、自動適用、auto-fix の有無と上限、パネル開閉、direct モードのローカル base URL）は localStorage に保持。`version` を持ち、`loadSettings`（`src/lib/ai/settings.ts`）が旧形式を移行する（v2: docsMode の既定を `inject` に変更し、v1 で保存された `off` を `inject` へ。v3: `connection` と `directBaseUrls` を追加）。direct モードの API キーはこの blob には入れない（下記 1c）。
 - プロジェクト管理（`src/lib/projects/*`）: 1 プロジェクト = 1 コンポーネント + コンパイルオプション + 1 チャットスレッド。`ProjectStore` インターフェース（`types.ts`）を `IdbProjectStore`（IndexedDB `prestell`、ストア `projects` / `chats`）と `MemoryProjectStore`（フォールバック・テスト用）が実装する。エディタは `PROJECT_SAVE_DEBOUNCE_MS` でデバウンス保存、チャットは送信・返答完了・適用時に保存。最後に開いたプロジェクト id は localStorage。起動時の優先順位は `boot.ts` の `resolveInitialProject`（共有 URL の `#code=` > 前回のプロジェクト > 最新 > 新規）。URL ハッシュは Share ボタンを押したときだけ生成する（常時の書き戻しは廃止）。
 - プロンプトテンプレート（`src/lib/ai/templates.ts`、`TemplateMenu.svelte`）: Component / Layout / Style の 3 カテゴリ 18 種。コンポーザーに差し込むだけで送信は従来どおり。文面は system prompt の出力契約（props に既定値、単一ファイル、「the current component」）に合わせてある。
 - fix ループ（`src/lib/ai/fix-loop.ts`）: `validateProposal` が拒否した提案のエラー文を `buildFixPrompt` で user メッセージにして再送する（`metadata: { kind: "fix", attempt, max }`）。直近の手動メッセージ以降の fix 回数（`pendingFixAttempts`）が上限に達するか、返答にコードブロックがない、Stop / 通信エラーで止まる。エラー文は `format-diagnostics.ts` の `formatCompilerErrors` が診断ごとに該当行の本文（`N | …`）を添えて整形する（評価ハーネスの `validateCode` と共用）。サーバー側は無変更（metadata は `convertToModelMessages` が無視する）。送信するメッセージ数は `history.ts` の `trimForRequest` でサーバー上限（60）未満に切り詰め、ローカル履歴は全件残す。
@@ -54,14 +54,24 @@
 - 切替は build/dev 時の環境変数 `PUBLIC_PREVIEW_RENDERER`（`pnpm dev` = browser、`pnpm dev:server` = server）。出力ペインのバッジで現在のモードを表示。
 - マニフェスト生成（`preview-manifest.ts`）は両実装で共用。`Astro.request.url` は両方 `https://preview.astro.build/` に固定。
 
+### 1c. AI direct モード（`src/lib/ai/direct/`、Phase 4）
+- チャット設定の「Connection」で `server`（既定。`/api/chat` 経由）と `direct`（ブラウザ → LLM 直接、BYOK）を切り替える。`ChatPanel` は 2 つの `ChatTransport` を持ち、送信時に設定を見て振り分ける（`DefaultChatTransport` / `DirectChatTransport`）。
+- `transport.ts`: `/api/chat` と同じ処理をブラウザで行う `ChatTransport`。system prompt（`src/lib/ai/prompt.ts`、サーバーと共有）、`streamText` の `maxRetries` / `timeout` / `maxOutputTokens` / `stopWhen`（`src/lib/ai/resilience.ts`、共有）、`createUIMessageStream` で `data-notice` を先頭に書く点まで同じ。履歴は `trimForRequest` で窓を切る。
+- `models.ts`: ローカル（Ollama / LM Studio）は `@ai-sdk/openai-compatible`、クラウドは公式パッケージ（`@ai-sdk/anthropic` は `anthropic-dangerous-direct-browser-access: true` を付与、`@ai-sdk/openai` は chat/completions、`@ai-sdk/google`）。`workers-ai` は `direct-unsupported` として拒否する（下の CORS 検証）。モデル ID は `providers-catalog.ts` の `providerModelId` で各社の綴りに正規化（Anthropic は `claude-sonnet-4.5` → `claude-sonnet-4-5`）。
+- `keys.ts`: API キーはメモリ + sessionStorage（`prestell.chat.keys`）。localStorage / URL / プロジェクトストア / 設定 blob には置かない。「Forget all keys」で消去。
+- `docs-proxy.ts`: Astro Docs MCP は CORS 非対応なので、direct モードでも `inject` は中継（既定 `/api/mcp-proxy`、`PUBLIC_DOCS_PROXY_URL` で差し替え可。次項目の中継 Worker はここを向ける）で検索する。`tools` は MCP クライアントをブラウザに持たず、同名の `search_astro_docs` ツール（`execute` が中継を呼ぶ）を `streamText` に渡す。中継に届かなければ従来どおり「Astro docs unavailable」の通知で継続。
+- `errors.ts`: AI SDK / fetch の失敗を `CodedError` に変換（4b）。プロバイダー一覧はサーバーを呼ばずに `directProviders()` が組み立て、ローカルのモデル一覧はブラウザから `${base}/models` を取る。
+- 共有モジュール: `src/lib/ai/providers-catalog.ts`（ID・ラベル・静的モデル一覧・既定 base URL・ID 綴りの変換）、`prompt.ts`、`resilience.ts`、`docs.ts`（検索結果の整形、docsMode）。`src/server/ai/*` は環境変数・AI Gateway・MCP 接続だけを持ち、カタログは再エクスポートする。
+
 ### 2. バックエンド（`apps/playground/src/pages/api`, `src/server/ai`）
-- `POST /api/chat`: `{ messages, provider, model, docsMode, filename, source }` を受け取り、AI SDK の `streamText` で UI message stream（SSE）を返す。現在のエディタ内容は毎回 system prompt に埋め込む。`streamText` には `maxRetries`（ストリーム前 2 回）と `timeout`（最初のトークン 60 秒、以降の無応答 30 秒）を渡す。docs を使えなかったときは `data-notice` パート（`ChatNotice`）を先頭に書き込んでから本文をマージする（`createUIMessageStream`）。定数は `src/server/ai/resilience.ts`。
+- `POST /api/chat`: `{ messages, provider, model, docsMode, filename, source }` を受け取り、AI SDK の `streamText` で UI message stream（SSE）を返す。現在のエディタ内容は毎回 system prompt に埋め込む。`streamText` には `maxRetries`（ストリーム前 2 回）と `timeout`（最初のトークン 60 秒、以降の無応答 30 秒）を渡す。docs を使えなかったときは `data-notice` パート（`ChatNotice`）を先頭に書き込んでから本文をマージする（`createUIMessageStream`）。定数は `src/lib/ai/resilience.ts`（direct モードと共有）。
 - `GET /api/models`: プロバイダー一覧（設定済みかどうか）と、ローカルサーバーの `/v1/models` を中継。
 - `POST /api/mcp-proxy`: `search_astro_docs` を1回実行して結果を返す（inject モードと手動検索用）。
 - `POST /api/render`: 上流同等のサーバー側プレビューレンダラー（`server` モード時のみ利用）。
 - 環境変数は `.dev.vars`（`astro dev` が自動ロード）を `cloudflare:workers` の `env` から読む。
 
 ### 3. LLM プロバイダー層（`src/server/ai/providers.ts`）
+- ID・ラベル・静的モデル一覧・既定 base URL は `src/lib/ai/providers-catalog.ts`（direct モードと共有）。この層は環境変数から接続先を組み立てる部分だけを持つ。
 - すべて OpenAI 互換 `/chat/completions` なので `@ai-sdk/openai-compatible` 1本で統一。
 - ローカル: Ollama / LM Studio へ Worker から直接 fetch（API キー不要）。
 - クラウド: AI Gateway の REST API `https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/chat/completions`（OpenAI 互換）。認証は Cloudflare API トークン（`Authorization`、Workers AI Read 権限）、Gateway 指定は `cf-aig-gateway-id`。モデルは `anthropic/…`, `openai/…`, `google/…`、Workers AI は `@cf/…`。外部プロバイダーのキーは Gateway 側の BYOK / Unified Billing。旧 `gateway.ai.cloudflare.com/.../compat` 形式も `gatewayConfig()` が判別して対応。
@@ -75,7 +85,8 @@
 
 ### 4b. エラー処理（`src/lib/ai/errors.ts`, ChatPanel）
 - サーバーの `errorResponse` は AI SDK の transport がそのまま `Error.message` にするため、クライアントの `describeChatError` が JSON を剥がして種類（local-down / network / timeout / rate-limit / server / request）を判定する。
-- 既知の状況（ローカル LLM 未到達、タイムアウト）はサーバーが文言ではなくコード（`src/lib/ai/error-codes.ts` の `CodedError`。ストリームでは JSON 文字列、`errorResponse` では `coded` フィールド）を返し、クライアントの `src/lib/ai/messages.ts` が英語の文言に組み立てる。UI 文言はすべて英語で、翻訳するときは `messages.ts` と各コンポーネントの文字列を辞書化する（2026-09-07 決定。i18n は独立 Phase にせず Phase 4 の項目として扱う）。
+- 既知の状況（ローカル LLM 未到達、タイムアウト）はサーバーが文言ではなくコード（`src/lib/ai/error-codes.ts` の `CodedError`。ストリームでは JSON 文字列、`errorResponse` では `coded` フィールド）を返し、クライアントの `src/lib/ai/messages.ts` が英語の文言に組み立てる。
+- direct モードは `/api/chat` を通らないので、`src/lib/ai/direct/errors.ts` が AI SDK のエラー（`AI_APICallError` の status、`AI_RetryError` の unwrap、`fetch` の `TypeError`）を同じ `CodedError` に変換し、`Error(JSON)` として投げる／ストリームの `error` パートに書く。追加コード: `direct-unreachable`（ローカルサーバー未起動か CORS 未許可。ブラウザからは区別できないので両方の対処を書き、オリジンを埋め込む）、`direct-network`（クラウドへ届かない。一時的扱い）、`direct-unsupported`（Workers AI）、`key-missing` / `key-rejected`（401 / 403）、`provider-error`（429 は rate-limit、5xx は server、他は request）。文言はすべて `messages.ts`。UI 文言はすべて英語で、翻訳するときは `messages.ts` と各コンポーネントの文字列を辞書化する（2026-09-07 決定。i18n は独立 Phase にせず Phase 4 の項目として扱う）。
 - network / timeout / rate-limit / server は「一時的」とみなし、1.5 秒後に `chat.regenerate()` で自動リトライを 1 回だけ行う（バナーに「Retrying…」）。fix ループ中なら「auto-fixing…」のカードを保ったまま再試行する。
 - 自動リトライ後も失敗、または一時的でないエラー（ローカル LLM 未起動など）はバナーに `Retry` と、設定でフォールバック先を選んでいれば `Retry with <プロバイダー>` を出す。フォールバックは自動では切り替えない（ユーザー確認済み）。
 
@@ -89,8 +100,21 @@
 [静的ホスティング（Cloudflare Pages 等の無料枠）]  … フロント一式 + ブラウザ内レンダリング
 [別オリジンのプレビューサンドボックス]            … sandbox iframe + CSP（connect-src 'none'）
 [Workers Free の最小 API]                          … Astro Docs MCP 中継のみ（Worker Loader 不要）
-[ブラウザ → LLM 直接（BYOK）]                      … Ollama / LM Studio / Anthropic / OpenAI / Google
+[ブラウザ → LLM 直接（BYOK）]                      … Ollama / LM Studio / Anthropic / OpenAI / Google（実装済み: 1c）
 ```
+
+ブラウザから直接呼べるかの検証（2026-09-07、curl で preflight と実 POST を確認）:
+
+| 宛先 | 結果 | direct モード |
+|---|---|---|
+| AI Gateway REST `api.cloudflare.com/client/v4/accounts/…/ai/v1/chat/completions` | OPTIONS → 405、`Access-Control-*` なし（POST も同様） | 不可 |
+| AI Gateway compat `gateway.ai.cloudflare.com/v1/…/compat` および `…/workers-ai/v1` | OPTIONS → 401、`Access-Control-*` なし | 不可（Workers AI は server モード限定） |
+| Anthropic `api.anthropic.com/v1/messages` | `Access-Control-Allow-Origin: *`、`anthropic-dangerous-direct-browser-access` を許可 | 可（このヘッダーが必須） |
+| OpenAI `api.openai.com/v1/chat/completions` | Origin をエコー、`authorization` を許可 | 可 |
+| Google AI Studio `generativelanguage.googleapis.com` | `content-type, x-goog-api-key` で preflight OK | 可 |
+| Astro Docs MCP `mcp.docs.astro.build/mcp` | CORS ヘッダーなし | 不可（中継が必要） |
+| Ollama `localhost:11434`（既定設定） | `Origin: http://localhost:4321` → 204 + `Access-Control-Allow-Origin`、他オリジン → 403 | 可（他オリジンは `OLLAMA_ORIGINS`） |
+| LM Studio `localhost:1234` | `--cors` / Enable CORS が必要 | 可（要設定） |
 
 ## Phase 5（サイトビルダー）の構成
 
@@ -137,6 +161,6 @@
 ## 設計上の制約
 - Phase 4 まではプレビューは単一コンポーネント・自己完結が前提。複数ファイル（相対 import）対応は Phase 5「サイトビルダー」で、browser レンダラーは Blob URL のモジュールグラフ、server レンダラーは Worker Loader の `modules` への同梱で実現する（上記「Phase 5 の構成」）。
 - WASM コンパイラのため COOP/COEP（`credentialless`）ヘッダーが必須。同一オリジンの `/api/*` には影響しない。
-- ブラウザから Astro Docs MCP / ローカル LLM に直接接続しない（CORS）。常に Worker を経由する。
+- Astro Docs MCP と AI Gateway / Workers AI はブラウザから直接接続できない（CORS）。MCP は常に中継（`/api/mcp-proxy`、静的ホスト版では中継 Worker）を経由し、Workers AI は server モード限定。ローカル LLM と Anthropic / OpenAI / Google は direct モードでブラウザから直接呼べる（ローカルは CORS 許可が必要、`LOCAL_LLM.md`）。
 - browser レンダラーでは生成コードがユーザーのブラウザ（同一オリジンの Worker）で実行される。個人利用では許容するが、公開時は別オリジンの sandbox iframe + CSP で隔離する（Phase 4）。`server` レンダラーは Cloudflare 側の隔離環境で通信遮断済み。
 - browser レンダラーのバンドルに `node:*` 依存が混入した場合は `astro.config.ts` がビルドを失敗させる（Astro 更新時の検知）。

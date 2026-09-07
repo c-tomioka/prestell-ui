@@ -41,8 +41,8 @@
 **目標**: サーバーコストほぼゼロで公開できる「静的フロント + 最小 API」構成に切り替え、ユーザー自身の API キー（BYOK）で AI 機能を使える公開版を出す。
 
 - [x] プレビューのレンダリングをブラウザ内 Web Worker で行うレンダラーを実装し、既定にする（`PUBLIC_PREVIEW_RENDERER=browser|server` で切替。設計: `PREVIEW_RENDERING.md`）
-- [ ] AI direct モード: ブラウザから Ollama / LM Studio / Anthropic / OpenAI / Google AI Studio を直接呼ぶ（AI SDK をクライアントで実行。キーはメモリまたは sessionStorage に保持し、URL や localStorage に置かない）
-- [ ] AI Gateway / Workers AI のブラウザ直接呼び出し（CORS）可否を検証し、不可なら direct モードの対象外と明記
+- [x] AI direct モード: ブラウザから Ollama / LM Studio / Anthropic / OpenAI / Google AI Studio を直接呼ぶ（AI SDK をクライアントで実行。キーはメモリまたは sessionStorage に保持し、URL や localStorage に置かない）。チャット設定の「Connection: Server / Direct」で切替。設計は `ARCHITECTURE.md` の「1c. AI direct モード」、ローカル LLM の CORS 設定は `LOCAL_LLM.md`（2026-09-07）
+- [x] AI Gateway / Workers AI のブラウザ直接呼び出し（CORS）可否を検証し、不可なら direct モードの対象外と明記（検証結果: REST / compat ともに preflight に CORS ヘッダーなし → direct 非対応、server モード限定。`LOCAL_LLM.md` の検証表）
 - [ ] Astro Docs MCP 用の最小中継 Worker（Workers Free、Worker Loader 不要）を用意し、静的フロントから利用
 - [ ] プレビュー用の別オリジン（例: `preview.<domain>`）+ sandbox iframe + CSP（`connect-src 'none'` 等）で生成コードを隔離
 - [ ] 静的ビルド構成（`/api/*` を切り離し、フロントを Cloudflare Pages 等の無料枠で配信）

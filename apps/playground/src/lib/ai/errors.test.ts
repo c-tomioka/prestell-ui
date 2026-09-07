@@ -72,4 +72,31 @@ describe("describeChatError", () => {
 		expect(info.message).toBe("The request failed.");
 		expect(info.transient).toBe(false);
 	});
+
+	it("classifies direct-mode provider errors by status", () => {
+		const limited = describeChatError(
+			'{"code":"provider-error","provider":"google","status":429,"detail":"quota"}',
+		);
+		expect(limited.kind).toBe("rate-limit");
+		expect(limited.transient).toBe(true);
+		expect(limited.message).toContain("rate limiting");
+		const outage = describeChatError(
+			'{"code":"provider-error","provider":"anthropic","status":529,"detail":"overloaded"}',
+		);
+		expect(outage.kind).toBe("server");
+		expect(outage.transient).toBe(true);
+		const bad = describeChatError(
+			'{"code":"provider-error","provider":"ollama","status":404,"detail":"model not found"}',
+		);
+		expect(bad.kind).toBe("request");
+		expect(bad.message).toBe("Ollama returned HTTP 404: model not found.");
+	});
+
+	it("explains providers the browser cannot call", () => {
+		const info = describeChatError(
+			'{"code":"direct-unsupported","provider":"workers-ai"}',
+		);
+		expect(info.kind).toBe("request");
+		expect(info.message).toContain("Switch Connection to Server");
+	});
 });

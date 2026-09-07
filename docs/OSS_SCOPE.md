@@ -10,8 +10,8 @@ Phase 3「OSS 公開」で確定した **公開範囲と SaaS 専用ロジック
 |---|---|---|
 | フロントエンド | `apps/playground/src/components/**`, `src/lib/**`, `src/pages/index.astro` | エディタ（CodeMirror）、ブラウザ内コンパイル・プレビュー、AI チャットパネル、提案の検証・適用、fix ループ、プロジェクト管理（IndexedDB）、テンプレート |
 | Workers 設定・ルート | `apps/playground/wrangler.jsonc`, `astro.config.ts`, `src/pages/api/{chat,models,mcp-proxy,render}.ts` | `astro dev`（workerd）で動く API。`wrangler.jsonc` は `LOADER` バインディングと observability のみで、account_id 等は含まない |
-| MCP 接続ロジック | `apps/playground/src/server/ai/mcp.ts`, `resilience.ts` | Astro Docs MCP（Streamable HTTP）の接続、`tools` / `inject`、タイムアウト・リトライ・グレースフルデグラデーション |
-| LOCAL_LLM 連携・プロバイダー層 | `apps/playground/src/server/ai/providers.ts`, `prompt.ts`, `validate.ts` | Ollama / LM Studio 直結、Cloudflare AI Gateway（BYOK パススルー含む）、system prompt |
+| MCP 接続ロジック | `apps/playground/src/server/ai/mcp.ts`, `src/lib/ai/resilience.ts` | Astro Docs MCP（Streamable HTTP）の接続、`tools` / `inject`、タイムアウト・リトライ・グレースフルデグラデーション |
+| LOCAL_LLM 連携・プロバイダー層 | `apps/playground/src/server/ai/providers.ts`, `validate.ts`, `src/lib/ai/providers-catalog.ts`, `prompt.ts`, `direct/**` | Ollama / LM Studio 直結、Cloudflare AI Gateway（BYOK パススルー含む）、system prompt、ブラウザ直接呼び出し（direct モード） |
 | 評価ハーネス | `apps/playground/scripts/eval/**`, `docs/evaluations/**` | `pnpm eval`（`EVALUATION.md`） |
 | 言語サポート | `packages/lang-astro/**` | CodeMirror 用 Astro 言語（上流由来、MIT） |
 | ドキュメント・開発補助 | `docs/**`, `README.md`, `.claude/`（CLAUDE.md, launch.json）, `biome.json`, `.vscode/extensions.json` | Claude Code 向けガイドも含めて公開する |
@@ -34,7 +34,7 @@ SaaS 運営専用ロジックは **このリポジトリには置かず**、priv
 2. private 側が公開版を **依存として取り込む**方向にする。取り込み方式は Phase 7 着手時に決める（候補: git submodule / pnpm の git 依存 / npm 公開。ここでは決めない）。
 3. private 側が差し替える前提の **拡張点**は公開側でインターフェースとして保つ:
    - `ProjectStore`（`apps/playground/src/lib/projects/types.ts`）: IndexedDB 実装 → Durable Objects 実装
-   - プロバイダー層（`apps/playground/src/server/ai/providers.ts` の `resolveModel` 等）: ローカル LLM は OSS/ローカル専用、SaaS は外部 LLM / Workers AI のみ（`LOCAL_LLM.md`）
+   - プロバイダー層（`apps/playground/src/server/ai/providers.ts` の `resolveModel` 等、共有カタログは `src/lib/ai/providers-catalog.ts`）: ローカル LLM は OSS/ローカル専用、SaaS は外部 LLM / Workers AI のみ（`LOCAL_LLM.md`）。direct モード（`src/lib/ai/direct/*`）はブラウザ完結の BYOK で、SaaS 版では提供しない
    - `PreviewRenderer`（`apps/playground/src/lib/preview.ts`）: browser（既定）/ server（Worker Loader）
 4. 環境変数は `apps/playground/.dev.vars`（ローカル）と Workers Secrets（デプロイ）だけから読む。公開リポジトリ内のファイルに **値を書かない**。
 
@@ -63,7 +63,7 @@ SaaS 運営専用ロジックは **このリポジトリには置かず**、priv
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` | `src/server/ai/providers.ts` | 任意（BYOK パススルー。空なら Gateway 側の設定） |
 | `ASTRO_DOCS_MCP_URL` | `src/server/ai/mcp.ts` | 任意（既定 `https://mcp.docs.astro.build/mcp`） |
 
-`.dev.vars` ではなく Vite の `.env` から読む変数: `PUBLIC_PREVIEW_RENDERER`（`astro.config.ts`。雛形は `apps/playground/.env.example`）。シークレットではない。
+`.dev.vars` ではなく Vite の `.env` から読む変数: `PUBLIC_PREVIEW_RENDERER`（`astro.config.ts`）と `PUBLIC_DOCS_PROXY_URL`（direct モードの Astro docs 中継先。既定 `/api/mcp-proxy`。`src/lib/ai/direct/docs-proxy.ts`）。雛形は `apps/playground/.env.example`。どちらもシークレットではない。direct モードでユーザーが入力する API キーはブラウザの sessionStorage にだけ置かれ、サーバーにもリポジトリにも渡らない（`src/lib/ai/direct/keys.ts`）。
 
 注意: `astro build` は `.dev.vars` を `apps/playground/dist/server/` にコピーする。`dist/` は `.gitignore` 済みだが、**`dist/` を配布・zip・共有しない**。
 

@@ -7,6 +7,11 @@
 //   - "inject": search once up front and paste excerpts into the system prompt
 //               (fallback for local models with weak/no tool calling)
 import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
+import {
+	DOCS_TOOL_NAME,
+	type DocsSearchHit,
+	type DocsSearchResult,
+} from "../../lib/ai/docs";
 import { type AiEnv, DEFAULT_ASTRO_DOCS_MCP_URL, readEnv } from "./providers";
 import {
 	MCP_CONNECT_TIMEOUT_MS,
@@ -16,7 +21,13 @@ import {
 	withRetry,
 } from "./resilience";
 
-export const DOCS_TOOL_NAME = "search_astro_docs";
+// Result types and `formatDocsContext` are shared with the browser (`src/lib/ai/docs.ts`).
+export {
+	DOCS_TOOL_NAME,
+	type DocsSearchHit,
+	type DocsSearchResult,
+	formatDocsContext,
+} from "../../lib/ai/docs";
 
 export function docsMcpUrl(env: AiEnv): string {
 	return readEnv(env, "ASTRO_DOCS_MCP_URL") ?? DEFAULT_ASTRO_DOCS_MCP_URL;
@@ -50,16 +61,6 @@ export function connectDocsMcp(
 		},
 	});
 }
-
-export interface DocsSearchHit {
-	title: string;
-	url: string;
-	content: string;
-}
-
-export type DocsSearchResult =
-	| { ok: true; hits: DocsSearchHit[] }
-	| { ok: false; error: string };
 
 interface KapaSearchPayload {
 	search_results?: Array<{
@@ -163,14 +164,4 @@ export async function searchAstroDocs(
 			error: error instanceof Error ? error.message : String(error),
 		};
 	}
-}
-
-/** Render search hits as a block for the system prompt. */
-export function formatDocsContext(hits: DocsSearchHit[]): string {
-	return hits
-		.map(
-			(hit, index) =>
-				`### [${index + 1}] ${hit.title}${hit.url ? ` (${hit.url})` : ""}\n${hit.content}`,
-		)
-		.join("\n\n");
 }
