@@ -99,7 +99,7 @@ Direct モードでローカルサーバーを使うにはブラウザのオリ�
 pnpm dev:server
 ```
 
-現在のモードは出力ペインのバッジで確認できます。設計は [docs/PREVIEW_RENDERING.md](./docs/PREVIEW_RENDERING.md)。
+現在のモードは出力ペインのバッジで確認できます。browser モードではレンダリング用の Worker が **別オリジン**の非表示 iframe の中で厳格な CSP のもとに動くため、生成コードはネットワークにもこのアプリのストレージにも届きません（バッジ: `browser · sandboxed`）。dev サーバーではそのオリジンを自動で用意します（`localhost` ↔ `127.0.0.1` / `[::1]`）。デプロイしたビルドでは、同じビルドを配信する 2 つ目のオリジン（`preview.` サブドメインや 2 つ目の Pages プロジェクト）を `PUBLIC_PREVIEW_ORIGIN` に指定してください。未設定でもプレビューは動きますが、アプリと同じオリジンで実行され、バッジは `browser · not isolated` になります。設計は [docs/PREVIEW_RENDERING.md](./docs/PREVIEW_RENDERING.md)。
 
 ## 使い方
 

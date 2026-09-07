@@ -1,0 +1,24 @@
+---
+// Preview sandbox frame: loaded by the app in a hidden iframe from a different
+// origin (see docs/PREVIEW_RENDERING.md). It only hosts the render Worker and
+// talks to the app with postMessage; headers (CSP, COEP, CORP) come from
+// `public/_headers` in production and from astro.config.ts in dev.
+export const prerender = true;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="robots" content="noindex" />
+		<title>Prestell UI preview sandbox</title>
+	</head>
+	<body>
+		<script>
+			import { BrowserPreviewRenderer } from "../../lib/preview";
+			import { startPreviewFrame } from "../../lib/preview-frame";
+
+			startPreviewFrame(new BrowserPreviewRenderer());
+		</script>
+	</body>
+</html>

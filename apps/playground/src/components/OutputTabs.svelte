@@ -22,6 +22,8 @@
 		autoPreview: boolean;
 		previewStale: boolean;
 		rendererMode: PreviewRendererMode;
+		/** False when generated code runs in a Worker of this origin (no sandbox origin). */
+		rendererIsolated: boolean;
 		onTabChange: (tab: TabId) => void;
 		onToggleAutoPreview: () => void;
 		onRefreshPreview: () => void;
@@ -37,6 +39,7 @@
 		autoPreview,
 		previewStale,
 		rendererMode,
+		rendererIsolated,
 		onTabChange,
 		onToggleAutoPreview,
 		onRefreshPreview,
@@ -193,11 +196,14 @@
 		<div class="preview-controls" class:inactive={active !== 'preview'}>
 			<span
 				class="renderer"
-				title={rendererMode === 'browser'
-					? 'Rendered in a Web Worker in this browser (no server call)'
-					: 'Rendered on the server via /api/render (Cloudflare Worker Loader)'}
+				class:unisolated={!rendererIsolated}
+				title={rendererMode === 'server'
+					? 'Rendered on the server via /api/render (Cloudflare Worker Loader)'
+					: rendererIsolated
+						? 'Rendered in a Web Worker inside a sandbox frame on a separate origin (no server call, no access to this app)'
+						: 'Rendered in a Web Worker of this origin: no separate preview origin is configured (PUBLIC_PREVIEW_ORIGIN), so generated code is not isolated from this app'}
 			>
-				{rendererMode}
+				{rendererMode === 'server' ? 'server' : rendererIsolated ? 'browser · sandboxed' : 'browser · not isolated'}
 			</span>
 			<label class="switch" title="Render the preview automatically after each edit">
 				<input
@@ -361,6 +367,10 @@
 		border: 1px solid var(--border);
 		border-radius: 999px;
 		padding: 0.05rem 0.45rem;
+	}
+	.renderer.unisolated {
+		color: var(--warn);
+		border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
 	}
 	.switch {
 		display: inline-flex;

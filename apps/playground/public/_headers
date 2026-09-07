@@ -1,3 +1,9 @@
 /*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: credentialless
+  Cross-Origin-Resource-Policy: cross-origin
+
+# Preview sandbox frame (src/pages/preview/index.astro). Keep in sync with
+# src/lib/preview-frame-csp.ts (checked by preview-frame-csp.test.ts).
+/preview/*
+  Content-Security-Policy: default-src 'none'; script-src 'self' blob:; worker-src 'self' blob:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors *

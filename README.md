@@ -99,7 +99,7 @@ The default renders in a browser Web Worker. To use the server-side renderer (Wo
 pnpm dev:server
 ```
 
-The current mode is shown as a badge in the output pane. Design notes: [docs/PREVIEW_RENDERING.md](./docs/PREVIEW_RENDERING.md).
+The current mode is shown as a badge in the output pane. In browser mode the render Worker runs inside a hidden iframe on a **separate origin** with a strict CSP, so generated code cannot reach the network or this app's storage (badge: `browser · sandboxed`). The dev server provides that origin automatically (`localhost` ↔ `127.0.0.1` / `[::1]`); for a deployed build set `PUBLIC_PREVIEW_ORIGIN` to a second origin that serves the same build (for example a `preview.` subdomain or a second Pages project). Without it the preview still works but runs in the app's own origin and the badge says `browser · not isolated`. Design notes: [docs/PREVIEW_RENDERING.md](./docs/PREVIEW_RENDERING.md).
 
 ## Usage
 
