@@ -6,7 +6,7 @@
 		provider: string;
 		model: string;
 		models: string[];
-		modelsError: string;
+		modelsNotice: { level: 'warning' | 'error'; text: string } | null;
 		loadingModels: boolean;
 		disabled: boolean;
 		onProviderChange: (provider: string) => void;
@@ -19,7 +19,7 @@
 		provider,
 		model,
 		models,
-		modelsError,
+		modelsNotice,
 		loadingModels,
 		disabled,
 		onProviderChange,
@@ -63,8 +63,20 @@
 			<button type="button" class="ghost" title="Reload model list" aria-label="Reload model list" onclick={onRefresh} {disabled}>↻</button>
 		</span>
 	</label>
-	{#if modelsError}
-		<p class="hint error" role="alert">{modelsError}</p>
+	{#if modelsNotice}
+		<p
+			class="notice {modelsNotice.level}"
+			role={modelsNotice.level === 'error' ? 'alert' : 'status'}
+		>
+			<svg class="notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+				{#if modelsNotice.level === 'error'}
+					<circle cx="12" cy="12" r="10" /><path d="m15 9-6 6" /><path d="m9 9 6 6" />
+				{:else}
+					<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" />
+				{/if}
+			</svg>
+			<span>{modelsNotice.text}</span>
+		</p>
 	{:else if current?.hint}
 		<p class="hint">{current.hint}</p>
 	{/if}
@@ -120,7 +132,37 @@
 		color: var(--muted);
 		white-space: pre-wrap;
 	}
-	.hint.error {
+	.notice {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.45rem;
+		margin: 0;
+		padding: 0.5rem 0.6rem;
+		border-radius: 6px;
+		border: 1px solid;
+		font-size: 0.72rem;
+		line-height: 1.45;
+		white-space: pre-wrap;
+		color: var(--fg);
+	}
+	.notice-icon {
+		flex: none;
+		width: 16px;
+		height: 16px;
+		margin-top: 0.05rem;
+	}
+	.notice.warning {
+		border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
+		background: color-mix(in srgb, var(--warn) 12%, var(--bg));
+	}
+	.notice.warning .notice-icon {
+		color: var(--warn);
+	}
+	.notice.error {
+		border-color: color-mix(in srgb, var(--err) 55%, var(--border));
+		background: color-mix(in srgb, var(--err) 12%, var(--bg));
+	}
+	.notice.error .notice-icon {
 		color: var(--err);
 	}
 </style>
