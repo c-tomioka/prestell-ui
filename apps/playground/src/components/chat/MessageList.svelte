@@ -10,10 +10,12 @@
 		messages: UIMessage[];
 		proposals: Record<string, Proposal>;
 		streaming: boolean;
+		/** Extra line in the empty state (e.g. the direct-mode note). */
+		emptyNote?: string;
 		onApply: (messageId: string) => void;
 	}
 
-	let { messages, proposals, streaming, onApply }: Props = $props();
+	let { messages, proposals, streaming, emptyNote, onApply }: Props = $props();
 
 	let host: HTMLDivElement;
 
@@ -55,6 +57,7 @@
 		<p class="empty">
 			Describe the component you want — e.g. “A pricing section with three tiers and a highlighted middle plan” — or pick a template next to the Send button.
 			The reply is validated with the Astro compiler before it replaces the editor.
+			{#if emptyNote}<br />{emptyNote}{/if}
 		</p>
 	{/if}
 	{#each messages as message (message.id)}

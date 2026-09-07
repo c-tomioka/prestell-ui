@@ -22,6 +22,7 @@
 	import { trimForRequest } from '../../lib/ai/history';
 	import {
 		describeCodedError,
+		emptyDirectNote,
 		keyMissingNotice,
 		localServerHint,
 		NO_LOCAL_MODELS,
@@ -545,6 +546,9 @@
 			disabled={busy}
 			{apiKey}
 			baseUrl={isLocalProvider(providerId) ? settings.directBaseUrls[providerId] : ''}
+			{origin}
+			helpOpen={settings.directHelpOpen}
+			onHelpToggle={(open) => (settings.directHelpOpen = open)}
 			onConnectionChange={setConnection}
 			onProviderChange={setProvider}
 			onModelChange={(value) => (settings.models[settings.provider] = value)}
@@ -602,7 +606,13 @@
 		</div>
 	</div>
 
-	<MessageList messages={chat.messages} proposals={visibleProposals} streaming={busy} onApply={applyProposal} />
+	<MessageList
+		messages={chat.messages}
+		proposals={visibleProposals}
+		streaming={busy}
+		emptyNote={isDirect ? emptyDirectNote(providerId) : undefined}
+		onApply={applyProposal}
+	/>
 
 	{#if lastError || chat.error}
 		<div class="error" role="alert">

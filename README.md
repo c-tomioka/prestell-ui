@@ -78,7 +78,7 @@ The **Connection** setting at the top of the AI chat panel chooses where request
 | Server (default) | browser → `/api/chat` (Workers runtime) → provider | `.dev.vars` on the server | all of the above |
 | Direct | browser → provider, no API server involved | pasted into the panel; kept in this tab's `sessionStorage`, never in `localStorage` or the URL | Ollama, LM Studio, Anthropic, OpenAI, Google AI Studio |
 
-Direct mode is the basis of the static-host version: usage and rate limits are billed to your own key, and the Astro docs are still fetched through a small relay (`/api/mcp-proxy` today, a stand-alone Worker later) because the MCP server has no CORS headers. Cloudflare AI Gateway and Workers AI cannot be called from a browser (their preflight responses carry no CORS headers, checked 2026-09-07), so Workers AI stays server-only.
+In Direct mode the panel shows a collapsible "How direct mode works" note with the billing and key-storage rules and a link to each provider's API key page. Direct mode is the basis of the static-host version: usage and rate limits are billed to your own key, and the Astro docs are still fetched through a small relay (`/api/mcp-proxy` today, a stand-alone Worker later) because the MCP server has no CORS headers. Cloudflare AI Gateway and Workers AI cannot be called from a browser (their preflight responses carry no CORS headers, checked 2026-09-07), so Workers AI stays server-only.
 
 To use Direct mode without the dev server (the static-host setup), deploy the docs relay to your own Cloudflare account and point the front end at it:
 
