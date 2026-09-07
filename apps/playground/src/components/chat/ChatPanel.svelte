@@ -55,7 +55,8 @@
 	// --- providers / models ---
 	let providers = $state<ProviderInfo[]>([]);
 	let models = $state<string[]>([]);
-	let modelsError = $state('');
+	/** Model-list notice. `warning` = local server not ready (fixable by the user); `error` = the request itself failed. */
+	let modelsNotice = $state<{ level: 'warning' | 'error'; text: string } | null>(null);
 	let loadingModels = $state(false);
 
 	async function loadProviders() {
@@ -67,14 +68,17 @@
 				settings.provider = providers.find((p) => p.configured)?.id ?? settings.provider;
 			}
 		} catch (error) {
-			modelsError = `Could not load providers: ${error instanceof Error ? error.message : String(error)}`;
+			modelsNotice = {
+				level: 'error',
+				text: `Could not load providers: ${error instanceof Error ? error.message : String(error)}`,
+			};
 		}
 	}
 
 	async function loadModels() {
 		const provider = settings.provider;
 		loadingModels = true;
-		modelsError = '';
+		modelsNotice = null;
 		try {
 			const response = await fetch(`/api/models?provider=${encodeURIComponent(provider)}`);
 			const payload = (await response.json()) as
@@ -90,15 +94,18 @@
 					settings.models[provider] = models[0];
 				}
 				if (models.length === 0 && providers.find((p) => p.id === provider)?.kind === 'local') {
-					modelsError = 'No models found on the local server. Pull or load a model, then reload.';
+					modelsNotice = {
+						level: 'warning',
+						text: 'No models found on the local server. Pull or load a model, then reload.',
+					};
 				}
 			} else {
 				models = [];
-				modelsError = payload.hint;
+				modelsNotice = { level: 'warning', text: payload.hint };
 			}
 		} catch (error) {
 			models = [];
-			modelsError = error instanceof Error ? error.message : String(error);
+			modelsNotice = { level: 'error', text: error instanceof Error ? error.message : String(error) };
 		} finally {
 			if (provider === settings.provider) loadingModels = false;
 		}
@@ -195,7 +202,7 @@
 		if (!fallback) return;
 		settings.provider = fallback.id;
 		await loadModels();
-		if (!settings.models[fallback.id]) return; // modelsError explains why
+		if (!settings.models[fallback.id]) return; // modelsNotice explains why
 		autoRetries = 0;
 		await regenerate();
 	}
@@ -414,7 +421,7 @@
 			provider={settings.provider}
 			{model}
 			{models}
-			{modelsError}
+			{modelsNotice}
 			{loadingModels}
 			disabled={busy}
 			onProviderChange={setProvider}
