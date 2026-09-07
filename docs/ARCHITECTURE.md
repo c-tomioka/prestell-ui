@@ -80,7 +80,7 @@
 
 ### 5. コード保存
 - Phase 1: `src/lib/export.ts`。Chromium は File System Access API（保存先を選択）、それ以外は `<a download>`。
-- Worker 側の `/api/files` は実装しない（workerd はローカル FS に書けない）。複数ファイル化時に ZIP export を検討。
+- Worker 側の `/api/files` は実装しない（workerd はローカル FS に書けない）。複数ファイル化（Phase 5）では Astro プロジェクトの ZIP export と File System Access API のディレクトリ書き込みを追加する。
 
 ## Phase 4（静的ホスト版）の構成
 
@@ -91,7 +91,24 @@
 [ブラウザ → LLM 直接（BYOK）]                      … Ollama / LM Studio / Anthropic / OpenAI / Google
 ```
 
-## Phase 5以降（SaaS化）の追加構成
+## Phase 5（サイトビルダー）の構成
+
+```
+[ブラウザ]  ファイルツリー（左端） | エディタ | 出力タブ / Preview | AI チャット
+  ├─ プロジェクト = files: Record<path, text | Blob> + 入口ファイル + モード（component / page / site）
+  ├─ コンパイラ: ファイルごとに WASM でコンパイル（変更ファイルと依存元のみ再コンパイル）
+  ├─ browser レンダラー: 相対 import を Blob URL のモジュールグラフに書き換えて入口ページを描画、
+  │                     `public/` 配下の画像は blob: URL に書き換え
+  ├─ server レンダラー: Worker Loader の `modules` に全ファイルを同梱
+  └─ 書き出し: ZIP（package.json / astro.config.mjs / tsconfig.json / public/ / src/）
+              または File System Access API でディレクトリへ
+```
+
+- モードは同じモデル上のプリセット。Component = 1 ファイル・import 禁止・ツリー折りたたみ（現行と同じ体験、既存プロジェクトの移行先）。Page = `src/pages/index.astro` + `src/layouts/Layout.astro`。Site = Page + `src/components/` + 複数ページとページ切替。
+- 画像: AI は URL / プレースホルダー / SVG（テキスト）だけを書く。ユーザーがアップロードしたバイナリは `public/` 配下として IndexedDB に Blob で保持し、ZIP に含める。`astro:assets` は対象外（Phase 6 で判断）。
+- 参考にした先行例: Svelte Playground と Vue SFC Playground（テキストのみの仮想ファイル群 + ブラウザ内 import 解決）。上流 Astro Playground は単一コンポーネント専用（`modules` は `component.js` 1 本）で複数ファイルを想定していない。
+
+## Phase 7以降（SaaS化）の追加構成
 
 ```
 [Cloudflare Workers 本番環境（`server` レンダラーを使う場合は Workers Paid）]
@@ -117,7 +134,7 @@
 | 状態管理（SaaS化後） | Durable Objects | 強整合性のセッション/残高管理 |
 
 ## 設計上の制約
-- プレビューは単一コンポーネント・自己完結が前提。複数ファイル（相対 import）対応は Worker Loader の `modules` に複数モジュールを同梱する方式で Phase 1 後半に検証する。
+- Phase 4 まではプレビューは単一コンポーネント・自己完結が前提。複数ファイル（相対 import）対応は Phase 5「サイトビルダー」で、browser レンダラーは Blob URL のモジュールグラフ、server レンダラーは Worker Loader の `modules` への同梱で実現する（上記「Phase 5 の構成」）。
 - WASM コンパイラのため COOP/COEP（`credentialless`）ヘッダーが必須。同一オリジンの `/api/*` には影響しない。
 - ブラウザから Astro Docs MCP / ローカル LLM に直接接続しない（CORS）。常に Worker を経由する。
 - browser レンダラーでは生成コードがユーザーのブラウザ（同一オリジンの Worker）で実行される。個人利用では許容するが、公開時は別オリジンの sandbox iframe + CSP で隔離する（Phase 4）。`server` レンダラーは Cloudflare 側の隔離環境で通信遮断済み。

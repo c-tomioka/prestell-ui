@@ -16,14 +16,17 @@ Astro公式Playground（`play.astro.build` / `withastro/astro-playground`）を�
 2. Phase 2: 検証・改善 — 複数LLM切替、Ollama対応、MCP精度検証
 3. Phase 3: OSS公開 — ローカル実行部分をApache 2.0でGitHub公開
 4. Phase 4: 静的ホスト版（プレビュー公開） — BYOK 前提・運営は課金しない。AI direct モード（ブラウザから LLM を直接呼ぶ）と別オリジンのプレビューサンドボックス
-5. Phase 5: SaaS化準備 — マルチユーザー対応、Cloudflare本番デプロイ
-6. Phase 6: 事前クレジット課金モデルでの販売
+5. Phase 5: サイトビルダー — ページ・レイアウト・コンポーネント・CSS・画像を持つサイト（LP / HP）を複数ファイルで生成・編集し、`astro dev` で動く Astro プロジェクトとして出力する。Component / Page / Site モード
+6. Phase 6: Astro フル機能 — content collections / API routes / SSR（実行環境の選定を含む）
+7. Phase 7: SaaS化準備 — マルチユーザー対応、Cloudflare本番デプロイ
+8. Phase 8: 事前クレジット課金モデルでの販売
 
 各フェーズの詳細タスクは `ROADMAP.md` を参照。
 
 ## コア機能要件
 - チャットベースのUIでAstroコンポーネント・ページを生成/編集する
-- 生成コードをブラウザ内でライブプレビュー表示する（Phase 1 は単一 `.astro` コンポーネント。レンダリングは既定でブラウザ内 Web Worker、任意でサーバー側）
+- 生成コードをブラウザ内でライブプレビュー表示する（Phase 1〜4 は単一 `.astro` コンポーネント。レンダリングは既定でブラウザ内 Web Worker、任意でサーバー側）
+- 複数ファイルのサイト（ページ・レイアウト・コンポーネント・CSS・画像）を画面左のファイルツリーで編集し、Astro プロジェクト（`package.json` / `astro.config.mjs` / `public/` / `src/`）として書き出す（Phase 5）。画像は AI が URL / プレースホルダー / SVG を書き、ユーザーのアップロードは `public/` 配下に保持する
 - 満足したらローカルファイルへの反映、または任意のGitHubリポジトリへpush（Phase 3以降）
 - LLMは複数プロバイダーから選択可能（Claude, OpenAI, Google, Workers AI, Ollamaローカルモデル等）
 - Astro Docs MCP Serverを接続し、常に最新のAstro知識に基づいたコード生成を行う
@@ -35,6 +38,7 @@ Astro公式Playground（`play.astro.build` / `withastro/astro-playground`）を�
 - ローカルLLM（Ollama）接続を必須要件とし、外部APIキーなしでも動作するモードを持つこと（詳細は `LOCAL_LLM.md`）
 
 ## スコープ外（現時点）
-- Cloudflare Containersを用いたサーバーサイド実行（Phase 5以降で検討）
-- Stripeによる課金処理（Phase 6で着手）
-- マルチユーザー認証・権限管理（Phase 5以降）
+- content collections / API routes / SSR / `astro:assets` / フレームワークコンポーネント（Phase 6 で実行環境を選定してから対応）
+- Cloudflare Containersを用いたサーバーサイド実行（Phase 7以降で検討）
+- Stripeによる課金処理（Phase 8で着手）
+- マルチユーザー認証・権限管理（Phase 7以降）

@@ -4,7 +4,7 @@
 // Projects and chats live in separate stores so the editor (Playground) and the
 // chat panel can each write their own record without clobbering the other.
 // `ProjectStore` is the seam that a server-backed implementation (Durable
-// Objects, Phase 5) can satisfy later without touching the UI.
+// Objects, Phase 7) can satisfy later without touching the UI.
 import type { UIMessage } from "ai";
 import type { Proposal } from "../ai/types";
 import type { ShareableOptions } from "../share";

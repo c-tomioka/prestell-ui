@@ -75,7 +75,8 @@ PUBLIC_PREVIEW_RENDERER=server pnpm dev
 ### 方針
 - Phase 1〜3（個人利用・OSS）: `browser` 既定。生成コードは自分のブラウザで動くだけなのでリスクは受容範囲。
 - Phase 4（静的ホスト版）: `browser` のまま、プレビュー用の別オリジン + sandbox iframe + CSP で隔離する。
-- Phase 5 以降（SaaS）: 隔離実行や課金連動が必要な機能では `server` を選べる。`PreviewRenderer` のインターフェースを保つことで切替コストを抑える。
+- Phase 5（サイトビルダー）: `browser` のまま複数ファイルに対応する（相対 import を Blob URL のモジュールグラフに書き換え、`public/` の画像は blob: URL）。`server` は Worker Loader の `modules` に同梱。
+- Phase 7 以降（SaaS）: 隔離実行や課金連動が必要な機能では `server` を選べる。`PreviewRenderer` のインターフェースを保つことで切替コストを抑える。
 
 ## 検証記録（2026-09-06）
 
