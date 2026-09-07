@@ -63,6 +63,13 @@
 - `errors.ts`: AI SDK / fetch の失敗を `CodedError` に変換（4b）。プロバイダー一覧はサーバーを呼ばずに `directProviders()` が組み立て、ローカルのモデル一覧はブラウザから `${base}/models` を取る。
 - 共有モジュール: `src/lib/ai/providers-catalog.ts`（ID・ラベル・静的モデル一覧・既定 base URL・ID 綴りの変換）、`prompt.ts`、`resilience.ts`、`docs.ts`（検索結果の整形、docsMode）。`src/server/ai/*` は環境変数・AI Gateway・MCP 接続だけを持ち、カタログは再エクスポートする。
 
+### 1d. Astro docs 中継 Worker（`apps/playground/relay/`、Phase 4）
+- 静的ホスト版で `/api/*` を切り離しても direct モードの docs 検索が動くように、Astro Docs MCP を中継するだけの Worker。Worker Loader・シークレット・KV を使わないので Workers Free で動く。`relay/wrangler.jsonc` は playground 本体とは別設定（`pnpm relay:dev` で 8788 番、`pnpm relay:deploy` で自分のアカウントへ）。
+- 契約は `/api/mcp-proxy` と同一: `POST /search`（`/` も可）に `{ query, maxHits }` → `DocsSearchResult`（成功 200、MCP 失敗 502）。`GET /health`。検索は `src/server/ai/mcp.ts` の `searchAstroDocs` をそのまま import（8 秒接続タイムアウト、1 回リトライ）。ハンドラは純関数 `handleRequest(request, env, deps)`（`relay/handler.ts`）で、Vitest が `Request` を直接渡して検証する。
+- 乱用対策: `ALLOWED_ORIGINS`（vars、カンマ区切り。`*` で全許可）に一致する Origin だけに CORS ヘッダーを返し、不一致は 403。Origin なし（curl 等）は通す（許可リストは「他サイトからの埋め込み防止」であってブラウザ以外は防げない）。Rate Limiting binding `SEARCH_LIMIT` で `cf-connecting-ip` ごとに 60 秒 30 回（超過は 429 + `Retry-After`。フロントは既存の「Astro docs unavailable」通知で継続）。キャッシュは持たない（Cache API は `workers.dev` で効かず、KV Free は書き込み 1,000 回/日で足りないため。必要になれば KV を足す）。
+- 前提: 中継は匿名で到達できること。`workers.dev` を既定で Cloudflare Access 保護しているアカウントでは、この Worker の Access ポリシーを Everyone の Bypass にする（またはこの Worker だけ保護を外す）。Access が挟まると preflight がログイン応答になり CORS が通らないため、フロントは「Astro docs unavailable」で継続する（README のデプロイ手順に記載）。
+- フロント側の切替は `PUBLIC_DOCS_PROXY_URL`（`src/lib/ai/direct/docs-proxy.ts`）を Worker の `/search` に向けるだけ。server モードの `/api/chat` と `/api/mcp-proxy` は従来どおり Worker 内から MCP に直接つなぐ。
+
 ### 2. バックエンド（`apps/playground/src/pages/api`, `src/server/ai`）
 - `POST /api/chat`: `{ messages, provider, model, docsMode, filename, source }` を受け取り、AI SDK の `streamText` で UI message stream（SSE）を返す。現在のエディタ内容は毎回 system prompt に埋め込む。`streamText` には `maxRetries`（ストリーム前 2 回）と `timeout`（最初のトークン 60 秒、以降の無応答 30 秒）を渡す。docs を使えなかったときは `data-notice` パート（`ChatNotice`）を先頭に書き込んでから本文をマージする（`createUIMessageStream`）。定数は `src/lib/ai/resilience.ts`（direct モードと共有）。
 - `GET /api/models`: プロバイダー一覧（設定済みかどうか）と、ローカルサーバーの `/v1/models` を中継。
@@ -99,7 +106,7 @@
 ```
 [静的ホスティング（Cloudflare Pages 等の無料枠）]  … フロント一式 + ブラウザ内レンダリング
 [別オリジンのプレビューサンドボックス]            … sandbox iframe + CSP（connect-src 'none'）
-[Workers Free の最小 API]                          … Astro Docs MCP 中継のみ（Worker Loader 不要）
+[Workers Free の最小 API]                          … Astro Docs MCP 中継のみ（Worker Loader 不要。実装済み: 1d、apps/playground/relay/）
 [ブラウザ → LLM 直接（BYOK）]                      … Ollama / LM Studio / Anthropic / OpenAI / Google（実装済み: 1c）
 ```
 

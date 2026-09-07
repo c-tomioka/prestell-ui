@@ -129,7 +129,8 @@ provider: "anthropic"            → ブラウザ → https://api.anthropic.com/
 provider: "openai"               → ブラウザ → https://api.openai.com/v1/chat/completions（@ai-sdk/openai）
 provider: "google"               → ブラウザ → https://generativelanguage.googleapis.com（@ai-sdk/google）
 provider: "workers-ai"           → 不可（AI Gateway は CORS 非対応）。server モード限定として選択不可
-Astro docs（inject / tools）     → ブラウザ → 中継 /api/mcp-proxy（`PUBLIC_DOCS_PROXY_URL` で差し替え）→ MCP
+Astro docs（inject / tools）     → ブラウザ → 中継 /api/mcp-proxy、または中継 Worker（apps/playground/relay/、
+                                   `PUBLIC_DOCS_PROXY_URL=https://<worker>/search`）→ MCP
 ```
 
 - **キー**: クラウド 3 社はパネルの「API key」欄に貼る。キーはこのタブの `sessionStorage`（`prestell.chat.keys`）とメモリにだけ置き、localStorage・URL・プロジェクト保存・設定 blob には入れない。タブを閉じると消える。「Forget all keys in this tab」で即消去。利用量・レート制限・請求は自分のキーに紐づく（パネルのヒントにも表示）。
@@ -138,7 +139,7 @@ Astro docs（inject / tools）     → ブラウザ → 中継 /api/mcp-proxy（
   - LM Studio: `lms server start --cors`、または Developer タブの Enable CORS。
   - ブラウザからは「サーバー未起動」と「CORS 拒否」を区別できない（どちらも `TypeError: Failed to fetch`）ため、UI の警告は両方の対処を書き、現在のオリジンを埋め込んだ `OLLAMA_ORIGINS` の例を出す（`src/lib/ai/messages.ts`）。
 - **Server URL**: direct + ローカルのときは「Server URL」欄でブラウザから見た base URL を変えられる（localStorage の設定 v3 `directBaseUrls`。`.dev.vars` の `OLLAMA_BASE_URL` とは別）。
-- **docsMode**: `inject` / `tools` とも中継経由で使える。`tools` はブラウザ側で `search_astro_docs` ツールを定義し、`execute` が中継を呼ぶ。中継に届かないと「Astro docs unavailable」の通知を出して docs なしで続ける。
+- **docsMode**: `inject` / `tools` とも中継経由で使える。`tools` はブラウザ側で `search_astro_docs` ツールを定義し、`execute` が中継を呼ぶ。中継に届かないと「Astro docs unavailable」の通知を出して docs なしで続ける。dev サーバーなしで使うときは中継 Worker（`pnpm relay:dev` でローカル 8788 番、`pnpm relay:deploy` で Workers Free）を `PUBLIC_DOCS_PROXY_URL` に指定する（`ARCHITECTURE.md` 1d）。
 - **エラー**: 401 / 403 は「rejected the API key」、429 は「rate limiting」（自動リトライ 1 回）、5xx は一時的エラー、ローカル未到達は上の警告。文言は `messages.ts`、分類は `errors.ts`（`ARCHITECTURE.md` 4b）。
 
 実測（2026-09-07）:

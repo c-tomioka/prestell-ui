@@ -31,6 +31,12 @@ export const chatRequestSchema = z.object({
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
 
+/** Body of `/api/mcp-proxy` and the docs relay Worker (`relay/`). */
+export const docsSearchSchema = z.object({
+	query: z.string().trim().min(1).max(500),
+	maxHits: z.number().int().min(1).max(10).optional(),
+});
+
 export type JsonBodyResult =
 	| { ok: true; value: unknown }
 	| { ok: false; error: string; status: number };
