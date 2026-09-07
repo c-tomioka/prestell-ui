@@ -10,6 +10,7 @@
 		type Theme,
 	} from '../lib/codemirror';
 	import type { ParsedAst } from '../lib/compiler-protocol';
+	import { type MessageKey, t } from '../lib/i18n';
 	import type { PreviewRendererMode } from '../lib/preview-protocol';
 
 	interface Props {
@@ -55,15 +56,15 @@
 		| 'ast'
 		| 'sourcemap';
 
-	const TABS: { id: TabId; label: string }[] = [
-		{ id: 'preview', label: 'Preview' },
-		{ id: 'js', label: 'JS' },
-		{ id: 'css', label: 'CSS' },
-		{ id: 'scripts', label: 'Scripts' },
-		{ id: 'metadata', label: 'Metadata' },
-		{ id: 'diagnostics', label: 'Diagnostics' },
-		{ id: 'ast', label: 'AST' },
-		{ id: 'sourcemap', label: 'Source map' },
+	const TABS: { id: TabId; label: MessageKey }[] = [
+		{ id: 'preview', label: 'tabs.preview' },
+		{ id: 'js', label: 'tabs.js' },
+		{ id: 'css', label: 'tabs.css' },
+		{ id: 'scripts', label: 'tabs.scripts' },
+		{ id: 'metadata', label: 'tabs.metadata' },
+		{ id: 'diagnostics', label: 'tabs.diagnostics' },
+		{ id: 'ast', label: 'tabs.ast' },
+		{ id: 'sourcemap', label: 'tabs.sourcemap' },
 	];
 
 	const CODE_TABS = new Set<TabId>(['js', 'css', 'scripts', 'ast', 'sourcemap']);
@@ -154,7 +155,7 @@
 			doc: '',
 			language: 'javascript',
 			theme: untrack(() => theme),
-			ariaLabel: 'Compiled output (read-only)',
+			ariaLabel: $t('output.compiled'),
 		});
 		return () => view?.destroy();
 	});
@@ -172,7 +173,7 @@
 
 <div class="outputs">
 	<div class="output-head">
-	<div class="tablist" role="tablist" aria-label="Compiler output">
+	<div class="tablist" role="tablist" aria-label={$t('output.tablist')}>
 		{#each TABS as tab (tab.id)}
 			<button
 				type="button"
@@ -186,7 +187,7 @@
 				onclick={() => selectTab(tab.id)}
 				onkeydown={onTabKeydown}
 			>
-				{tab.label}
+				{$t(tab.label)}
 				{#if tab.id === 'diagnostics' && diagnosticCount > 0}
 					<span class="badge">{diagnosticCount}</span>
 				{/if}
@@ -198,14 +199,18 @@
 				class="renderer"
 				class:unisolated={!rendererIsolated}
 				title={rendererMode === 'server'
-					? 'Rendered on the server via /api/render (Cloudflare Worker Loader)'
+					? $t('output.renderer.server')
 					: rendererIsolated
-						? 'Rendered in a Web Worker inside a sandbox frame on a separate origin (no server call, no access to this app)'
-						: 'Rendered in a Web Worker of this origin: no separate preview origin is configured (PUBLIC_PREVIEW_ORIGIN), so generated code is not isolated from this app'}
+						? $t('output.renderer.sandboxed')
+						: $t('output.renderer.unisolated')}
 			>
-				{rendererMode === 'server' ? 'server' : rendererIsolated ? 'browser · sandboxed' : 'browser · not isolated'}
+				{rendererMode === 'server'
+					? $t('output.badge.server')
+					: rendererIsolated
+						? $t('output.badge.sandboxed')
+						: $t('output.badge.unisolated')}
 			</span>
-			<label class="switch" title="Render the preview automatically after each edit">
+			<label class="switch" title={$t('output.autoTitle')}>
 				<input
 					type="checkbox"
 					role="switch"
@@ -215,15 +220,15 @@
 					onchange={onToggleAutoPreview}
 				/>
 				<span class="track" aria-hidden="true"></span>
-				<span class="switch-label">Auto</span>
+				<span class="switch-label">{$t('output.auto')}</span>
 			</label>
 			<button
 				type="button"
 				class="refresh"
 				class:stale={previewStale}
 				class:spinning={previewStatus === 'rendering'}
-				aria-label={previewStale ? 'Render preview now (changes not rendered)' : 'Render preview now'}
-				title={previewStale ? 'Changes not rendered' : 'Render preview now'}
+				aria-label={previewStale ? $t('output.renderNowStale') : $t('output.renderNow')}
+				title={previewStale ? $t('output.stale') : $t('output.renderNow')}
 				disabled={active !== 'preview' || previewStatus === 'rendering'}
 				onclick={onRefreshPreview}
 			>
@@ -249,13 +254,13 @@
 			<div class="preview">
 				{#if previewStatus === 'ready' && previewStale}
 					<div class="stale-banner" role="status">
-						Changes not rendered — press ↻ or enable Auto.
+						{$t('output.staleBanner')}
 					</div>
 				{/if}
 				{#if previewStatus === 'ready'}
 					<iframe
 						class="preview-frame"
-						title="Rendered Astro component"
+						title={$t('output.frameTitle')}
 						sandbox="allow-scripts"
 						referrerpolicy="no-referrer"
 						srcdoc={previewDocument}
@@ -266,7 +271,7 @@
 					</div>
 				{:else}
 					<div class="preview-state" role="status" aria-live="polite">
-						<p>{previewStatus === 'rendering' ? 'Rendering preview…' : 'Select Preview to render.'}</p>
+						<p>{previewStatus === 'rendering' ? $t('output.rendering') : $t('output.selectPreview')}</p>
 					</div>
 				{/if}
 			</div>
@@ -274,25 +279,25 @@
 			<div class="structured">
 				{#if result}
 					<dl>
-						<dt>Scope hash</dt>
+						<dt>{$t('output.scopeHash')}</dt>
 						<dd><code>{result.scope || '—'}</code></dd>
-						<dt>Contains &lt;head&gt;</dt>
+						<dt>{$t('output.containsHead')}</dt>
 						<dd>{result.containsHead}</dd>
-						<dt>Propagation</dt>
+						<dt>{$t('output.propagation')}</dt>
 						<dd>{result.propagation}</dd>
-						<dt>Hydrated components</dt>
+						<dt>{$t('output.hydrated')}</dt>
 						<dd>{formatComponents(result.hydratedComponents)}</dd>
-						<dt>Client-only components</dt>
+						<dt>{$t('output.clientOnly')}</dt>
 						<dd>{formatComponents(result.clientOnlyComponents)}</dd>
-						<dt>Server components</dt>
+						<dt>{$t('output.serverComponents')}</dt>
 						<dd>{formatComponents(result.serverComponents)}</dd>
 						{#if result.styleError.length > 0}
-							<dt>Style errors</dt>
+							<dt>{$t('output.styleErrors')}</dt>
 							<dd class="error">{result.styleError.join('\n')}</dd>
 						{/if}
 					</dl>
 				{:else}
-					<p class="empty">Nothing compiled yet.</p>
+					<p class="empty">{$t('output.nothingCompiled')}</p>
 				{/if}
 			</div>
 		{:else if active === 'diagnostics'}
@@ -315,7 +320,7 @@
 						{/each}
 					</ul>
 				{:else}
-					<p class="empty">No diagnostics.</p>
+					<p class="empty">{$t('output.noDiagnostics')}</p>
 				{/if}
 			</div>
 		{/if}

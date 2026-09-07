@@ -4,6 +4,7 @@
 	import { stripAstroFences } from '../../lib/ai/extract-code';
 	import { fixMetadataOf } from '../../lib/ai/fix-loop';
 	import type { ChatNotice, Proposal } from '../../lib/ai/types';
+	import { t } from '../../lib/i18n';
 	import CodeProposal from './CodeProposal.svelte';
 
 	interface Props {
@@ -55,8 +56,7 @@
 <div class="messages" bind:this={host}>
 	{#if messages.length === 0}
 		<p class="empty">
-			Describe the component you want — e.g. “A pricing section with three tiers and a highlighted middle plan” — or pick a template next to the Send button.
-			The reply is validated with the Astro compiler before it replaces the editor.
+			{$t('chat.empty')}
 			{#if emptyNote}<br />{emptyNote}{/if}
 		</p>
 	{/if}
@@ -67,13 +67,13 @@
 		{#if fix}
 			<article class="message fix" data-role="user" data-kind="fix">
 				<details>
-					<summary>🔧 Auto-fix request {fix.attempt}/{fix.max}</summary>
+					<summary>{$t('chat.fixRequest', { attempt: fix.attempt, max: fix.max })}</summary>
 					<pre class="fix-body">{text}</pre>
 				</details>
 			</article>
 		{:else}
 		<article class="message" data-role={message.role}>
-			<header>{message.role === 'user' ? 'You' : 'Assistant'}</header>
+			<header>{message.role === 'user' ? $t('chat.you') : $t('chat.assistant')}</header>
 			{#each noticeParts(message) as notice, index (index)}
 				<p class="tool notice">ℹ️ {notice.message}</p>
 			{/each}
@@ -91,7 +91,7 @@
 		{/if}
 	{/each}
 	{#if streaming && messages.at(-1)?.role !== 'assistant'}
-		<p class="thinking" role="status">Thinking…</p>
+		<p class="thinking" role="status">{$t('chat.thinking')}</p>
 	{/if}
 </div>
 

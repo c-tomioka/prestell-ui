@@ -52,6 +52,7 @@ committed, opt in to the local hook once: `brew install gitleaks && git config c
 - Secrets live only in `apps/playground/.dev.vars` (git-ignored). If you add an environment variable, update
   `.dev.vars.example`, the README provider table, and the table in `docs/OSS_SCOPE.md`.
 - Keep the preview single-file: no `import`, framework components, `client:*`, or external scripts (they are rejected by `validatePreview`).
+- UI text is not hard-coded: add a key to `apps/playground/src/lib/i18n/en.ts` and its Japanese text to `ja.ts` (the type and a test keep them in sync), then use `{$t('key')}` in Svelte or `tr('key')` in TypeScript.
 
 ## Pull requests
 

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { type PromptTemplate, templatesByCategory } from '../../lib/ai/templates';
+	import { type MessageKey, t } from '../../lib/i18n';
 
 	interface Props {
 		disabled: boolean;
@@ -9,6 +10,8 @@
 	let { disabled, onPick }: Props = $props();
 
 	const groups = templatesByCategory();
+	// Titles are translated by id; the prompt text itself stays English.
+	const templateLabel = (id: string) => $t(`template.${id}` as MessageKey);
 	const byId = new Map(groups.flatMap((g) => g.templates.map((t) => [t.id, t] as const)));
 
 	function pick(event: Event) {
@@ -21,13 +24,13 @@
 </script>
 
 <label class="template">
-	<span class="visually-hidden">Insert a prompt template</span>
+	<span class="visually-hidden">{$t('template.insert')}</span>
 	<select value="" {disabled} onchange={pick}>
-		<option value="">Template…</option>
+		<option value="">{$t('template.placeholder')}</option>
 		{#each groups as group (group.category)}
-			<optgroup label={group.label}>
+			<optgroup label={$t(`template.category.${group.category}`)}>
 				{#each group.templates as template (template.id)}
-					<option value={template.id}>{template.label}</option>
+					<option value={template.id}>{templateLabel(template.id)}</option>
 				{/each}
 			</optgroup>
 		{/each}

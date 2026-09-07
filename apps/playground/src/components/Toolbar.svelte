@@ -2,8 +2,13 @@
 <script lang="ts">
 	import type { CompileOptions } from '@astrojs/compiler-binding';
 	import type { Theme } from '../lib/codemirror';
+	import { t } from '../lib/i18n';
 	import { COMPACT_OPTIONS, SCOPED_STYLE_STRATEGIES, SOURCEMAP_OPTIONS } from '../lib/options';
 	import type { ProjectSummary } from '../lib/projects/types';
+
+	export type SaveFeedback = 'idle' | 'saved' | 'downloaded' | 'failed';
+	export type ShareFeedback = 'idle' | 'copied' | 'failed';
+
 	import Icon from './Icon.svelte';
 	import IconButton from './IconButton.svelte';
 	import ProjectMenu from './ProjectMenu.svelte';
@@ -11,8 +16,8 @@
 	interface Props {
 		options: CompileOptions;
 		theme: Theme;
-		shareLabel: string;
-		saveLabel: string;
+		shareFeedback: ShareFeedback;
+		saveFeedback: SaveFeedback;
 		onSave: () => void;
 		onChange: () => void;
 		onToggleTheme: () => void;
@@ -32,8 +37,8 @@
 	let {
 		options,
 		theme,
-		shareLabel,
-		saveLabel,
+		shareFeedback,
+		saveFeedback,
 		onSave,
 		onChange,
 		onToggleTheme,
@@ -65,12 +70,24 @@
 	// Save / Share show transient feedback ("Saved!", "Copied!", "… failed") in
 	// place of their default label; mirror that in the icon and pin the tooltip.
 	type Feedback = 'idle' | 'done' | 'error';
-	function feedback(label: string, idle: string): Feedback {
-		if (label === idle) return 'idle';
-		return /failed/i.test(label) ? 'error' : 'done';
-	}
-	const saveState = $derived(feedback(saveLabel, 'Save'));
-	const shareState = $derived(feedback(shareLabel, 'Share'));
+	const saveState = $derived<Feedback>(
+		saveFeedback === 'idle' ? 'idle' : saveFeedback === 'failed' ? 'error' : 'done',
+	);
+	const shareState = $derived<Feedback>(
+		shareFeedback === 'idle' ? 'idle' : shareFeedback === 'failed' ? 'error' : 'done',
+	);
+	const saveLabel = $derived(
+		saveFeedback === 'saved'
+			? $t('toolbar.saved')
+			: saveFeedback === 'downloaded'
+				? $t('toolbar.downloaded')
+				: saveFeedback === 'failed'
+					? $t('toolbar.saveFailed')
+					: '',
+	);
+	const shareLabel = $derived(
+		shareFeedback === 'copied' ? $t('toolbar.copied') : shareFeedback === 'failed' ? $t('toolbar.copyFailed') : '',
+	);
 	const feedbackIcon = { done: 'check', error: 'x' } as const;
 </script>
 
@@ -87,7 +104,7 @@
 	/>
 	<form class="options" onsubmit={(e) => e.preventDefault()}>
 		<label for="opt-sourcemap">
-			<span>sourcemap</span>
+			<span>{$t('toolbar.sourcemap')}</span>
 			<select
 				id="opt-sourcemap"
 				name="sourcemap"
@@ -99,7 +116,7 @@
 			</select>
 		</label>
 		<label for="opt-compact">
-			<span>compact</span>
+			<span>{$t('toolbar.compact')}</span>
 			<select
 				id="opt-compact"
 				name="compact"
@@ -110,7 +127,7 @@
 			</select>
 		</label>
 		<label for="opt-scoped-style">
-			<span>scoped style</span>
+			<span>{$t('toolbar.scopedStyle')}</span>
 			<select
 				id="opt-scoped-style"
 				name="scopedStyleStrategy"
@@ -124,21 +141,21 @@
 	</div>
 
 	<div class="actions">
-		<IconButton label={chatOpen ? 'Hide AI chat' : 'Show AI chat'} active={chatOpen} onclick={onToggleChat}>
+		<IconButton label={chatOpen ? $t('toolbar.hideChat') : $t('toolbar.showChat')} active={chatOpen} onclick={onToggleChat}>
 			<Icon name="sparkles" />
 		</IconButton>
-		<IconButton label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onclick={onToggleTheme}>
+		<IconButton label={theme === 'dark' ? $t('toolbar.switchToLight') : $t('toolbar.switchToDark')} onclick={onToggleTheme}>
 			<Icon name={theme === 'dark' ? 'sun' : 'moon'} />
 		</IconButton>
 		<IconButton
-			label={saveState === 'idle' ? 'Save component to disk' : saveLabel}
+			label={saveState === 'idle' ? $t('toolbar.save') : saveLabel}
 			showTip={saveState !== 'idle'}
 			onclick={onSave}
 		>
 			<Icon name={saveState === 'idle' ? 'save' : feedbackIcon[saveState]} />
 		</IconButton>
 		<IconButton
-			label={shareState === 'idle' ? 'Copy shareable link' : shareLabel}
+			label={shareState === 'idle' ? $t('toolbar.share') : shareLabel}
 			showTip={shareState !== 'idle'}
 			variant="accent"
 			tipAlign="end"
@@ -149,8 +166,8 @@
 	</div>
 
 	<span class="visually-hidden" role="status" aria-live="polite">
-		{shareLabel === 'Share' ? '' : shareLabel}
-		{saveLabel === 'Save' ? '' : saveLabel}
+		{shareLabel}
+		{saveLabel}
 	</span>
 </div>
 

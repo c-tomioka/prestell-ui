@@ -1,7 +1,8 @@
 <!-- "How direct mode works": what leaves the browser, who is billed, where the key lives, how to set up the provider. -->
 <script lang="ts">
-	import { DIRECT_HELP_TITLE, directHelp } from '../../lib/ai/messages';
+	import { directHelpSpec } from '../../lib/ai/messages';
 	import type { ProviderId } from '../../lib/ai/providers-catalog';
+	import { t } from '../../lib/i18n';
 
 	interface Props {
 		provider: ProviderId;
@@ -13,18 +14,23 @@
 
 	let { provider, origin, open, onToggle }: Props = $props();
 
-	const help = $derived(directHelp(provider, origin));
+	// Parameters such as the CORS instruction are composed in the current
+	// language; reading `$t` here re-runs this when the language changes.
+	const help = $derived.by(() => {
+		void $t;
+		return directHelpSpec(provider, origin);
+	});
 </script>
 
 <details class="help" {open} ontoggle={(e) => onToggle(e.currentTarget.open)}>
-	<summary>{DIRECT_HELP_TITLE}</summary>
+	<summary>{$t('help.title')}</summary>
 	<ul>
-		{#each help.points as point, index (index)}
-			<li>{point}</li>
+		{#each help.points as line, index (index)}
+			<li>{$t(line.key, line.params)}</li>
 		{/each}
 	</ul>
 	{#if help.link}
-		<a href={help.link.href} target="_blank" rel="noreferrer">{help.link.label} ↗</a>
+		<a href={help.link.href} target="_blank" rel="noreferrer">{$t(help.link.key)} ↗</a>
 	{/if}
 </details>
 

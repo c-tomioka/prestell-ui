@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { CONNECTION_HINTS, KEY_FIELD_NOTE, keySavedLabel } from '../../lib/ai/messages';
 	import { isProviderId, type ProviderId } from '../../lib/ai/providers-catalog';
 	import type { Connection } from '../../lib/ai/settings';
 	import type { ProviderInfo } from '../../lib/ai/types';
+	import { t } from '../../lib/i18n';
 	import Icon from '../Icon.svelte';
 	import IconButton from '../IconButton.svelte';
 	import DirectModeHelp from './DirectModeHelp.svelte';
@@ -69,31 +69,44 @@
 	const needsBaseUrl = $derived(direct && current?.kind === 'local');
 	const providerId = $derived<ProviderId>(isProviderId(provider) ? provider : 'ollama');
 	const listId = 'chat-model-options';
+	const connectionLabel = $derived(
+		connection === 'direct' ? $t('provider.direct') : $t('provider.server'),
+	);
+	const connectionHint = $derived(
+		connection === 'direct' ? $t('provider.hint.direct') : $t('provider.hint.server'),
+	);
+	const keyStatus = $derived.by(() => {
+		const trimmed = apiKey.trim();
+		if (!trimmed) return $t('provider.keyNote');
+		return trimmed.length < 12
+			? $t('provider.keySavedShort')
+			: $t('provider.keySaved', { tail: trimmed.slice(-4) });
+	});
 </script>
 
 <div class="provider">
 	{#if connectionLocked}
 		<p class="hint">
-			<span class="locked-label">{connection === 'direct' ? 'Direct (browser → provider, BYOK)' : 'Server (/api/chat)'}</span>
-			{CONNECTION_HINTS[connection]}
+			<span class="locked-label">{connectionLabel}</span>
+			{connectionHint}
 		</p>
 	{:else}
 		<label>
-			<span>Connection</span>
+			<span>{$t('provider.connection')}</span>
 			<select
 				value={connection}
 				{disabled}
 				aria-describedby="chat-connection-hint"
 				onchange={(e) => onConnectionChange(e.currentTarget.value as Connection)}
 			>
-				<option value="server">Server (/api/chat)</option>
-				<option value="direct">Direct (browser → provider, BYOK)</option>
+				<option value="server">{$t('provider.server')}</option>
+				<option value="direct">{$t('provider.direct')}</option>
 			</select>
-			<span id="chat-connection-hint" class="hint">{CONNECTION_HINTS[connection]}</span>
+			<span id="chat-connection-hint" class="hint">{connectionHint}</span>
 		</label>
 	{/if}
 	<label>
-		<span>Provider</span>
+		<span>{$t('provider.provider')}</span>
 		<select
 			value={provider}
 			{disabled}
@@ -101,7 +114,9 @@
 		>
 			{#each providers as p (p.id)}
 				<option value={p.id} disabled={!p.configured}>
-					{p.label}{p.configured ? '' : ` (${p.unavailableLabel ?? 'not configured'})`}
+					{p.label}{p.configured
+						? ''
+						: ` (${p.unavailable === 'server-only' ? $t('provider.serverOnly') : $t('provider.notConfigured')})`}
 				</option>
 			{/each}
 		</select>
@@ -111,27 +126,27 @@
 	{/if}
 	{#if needsKey}
 		<label>
-			<span>API key</span>
+			<span>{$t('provider.apiKey')}</span>
 			<span class="model-row">
 				<input
 					type="password"
 					value={apiKey}
 					{disabled}
-					placeholder="Paste your {current?.label ?? ''} API key"
+					placeholder={$t('provider.keyPlaceholder', { provider: current?.label ?? '' })}
 					autocomplete="off"
 					spellcheck="false"
 					oninput={(e) => onApiKeyChange(e.currentTarget.value)}
 				/>
-				<IconButton label="Forget all keys in this tab" disabled={disabled || !apiKey} tipAlign="end" onclick={onForgetKeys}>
+				<IconButton label={$t('provider.forgetKeys')} disabled={disabled || !apiKey} tipAlign="end" onclick={onForgetKeys}>
 					<Icon name="trash" />
 				</IconButton>
 			</span>
-			<span class="hint" role="status">{apiKey ? keySavedLabel(apiKey) : KEY_FIELD_NOTE}</span>
+			<span class="hint" role="status">{keyStatus}</span>
 		</label>
 	{/if}
 	{#if needsBaseUrl}
 		<label>
-			<span>Server URL</span>
+			<span>{$t('provider.serverUrl')}</span>
 			<input
 				type="url"
 				value={baseUrl}
@@ -143,20 +158,20 @@
 		</label>
 	{/if}
 	<label>
-		<span>Model</span>
+		<span>{$t('provider.model')}</span>
 		<span class="model-row">
 			<input
 				list={listId}
 				value={model}
 				{disabled}
-				placeholder={loadingModels ? 'Loading models…' : 'model id'}
+				placeholder={loadingModels ? $t('provider.loadingModels') : $t('provider.modelPlaceholder')}
 				spellcheck="false"
 				oninput={(e) => onModelChange(e.currentTarget.value)}
 			/>
 			<datalist id={listId}>
 				{#each models as m (m)}<option value={m}></option>{/each}
 			</datalist>
-			<button type="button" class="ghost" title="Reload model list" aria-label="Reload model list" onclick={onRefresh} {disabled}>↻</button>
+			<button type="button" class="ghost" title={$t('provider.reloadModels')} aria-label={$t('provider.reloadModels')} onclick={onRefresh} {disabled}>↻</button>
 		</span>
 	</label>
 	{#if modelsNotice}
