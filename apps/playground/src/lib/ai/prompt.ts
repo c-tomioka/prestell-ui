@@ -84,6 +84,7 @@ function projectPrompt(
 		"## Output contract",
 		"- When the user asks for UI or code changes, respond with a short explanation followed by ONE fenced code block PER FILE you change or add. Tag every block with the language and the file path, e.g. ```astro path=src/pages/index.astro or ```css path=src/styles/global.css.",
 		"- Each block holds the COMPLETE contents of that file (never diffs, never partial snippets); it replaces the whole file. Leave out files you do not change.",
+		"- The `path=` tag belongs to the code fence line only. Never write `path=` inside the file itself (for example on a `<style>` or `<script>` tag).",
 		"- Paths are relative to the project root. `.astro` files live under `src/` (`src/pages/` for pages, `src/layouts/`, `src/components/`); other text files (`.css`, `.svg`, `.txt`, `.json`, `.xml`, `.html`, `.js`, `.webmanifest`) under `src/` or `public/`. Use only letters, digits, `.`, `-` and `_` in paths.",
 		"- You cannot delete or rename files; if that is needed, say so in prose and leave the file as it is.",
 		"- Import layouts and components with relative paths (`import Layout from '../layouts/Layout.astro'`) and CSS with a side-effect import (`import '../styles/global.css'`). Only files of this project can be imported: no npm packages and no `astro:*` modules.",

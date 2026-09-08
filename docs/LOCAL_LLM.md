@@ -194,3 +194,13 @@ Astro docs（inject / tools）     → ブラウザ → 中継 /api/mcp-proxy、
 - Phase 4 の「AI direct モード」（ブラウザから Ollama / LM Studio / Anthropic / OpenAI / Google を直接呼ぶ）は実装済み（上の節）。残りは Astro docs の中継 Worker、別オリジンの sandbox、静的ビルド構成。
 - SaaS 化時、ユーザー側のローカル Ollama に運営サーバーから直接接続することはできない（ネットワーク的に不可能）ため、SaaS 版では常に外部 LLM / Workers AI のみを提供し、ローカル LLM 対応は OSS 版（ローカル実行版）限定の機能として明確に区別する
 - どうしてもローカルモデルを AI Gateway のログに載せたい場合は `cloudflared tunnel` で HTTPS 公開して Custom Provider に登録する手もあるが、個人利用では推奨しない
+
+## Phase 5 の多ファイル生成とコンテキスト長
+
+Page / Site プロジェクトでは system prompt にプロジェクトの全テキストファイル（Site プリセットで約 9k 文字、上限 40k 文字）が入る。Ollama の既定コンテキスト（4096 トークン）では途中で切れて提案が壊れるので、ローカルで多ファイル生成を使うときはコンテキストを広げて起動する。
+
+```bash
+OLLAMA_CONTEXT_LENGTH=16384 ollama serve
+```
+
+LM Studio ではモデルのロード時に Context Length を 16k 以上にする。2026-09-08 の評価（`EVALUATION.md`）では qwen2.5-coder:7b がこの設定で多ファイル 6 件中 5 件に合格した。

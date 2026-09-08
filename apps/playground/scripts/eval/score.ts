@@ -146,7 +146,14 @@ export function topErrors(
 	const counts = new Map<string, number>();
 	for (const r of results) {
 		if (r.passed) continue;
-		const text = (r.transport ?? r.error ?? "unknown").split("\n")[0].trim();
+		// Project errors start with the file path on its own line; keep the message too.
+		const lines = (r.transport ?? r.error ?? "unknown")
+			.split("\n")
+			.map((line) => line.trim())
+			.filter(Boolean);
+		const text = lines[0]?.endsWith(":")
+			? `${lines[0]} ${lines[1] ?? ""}`.trim()
+			: (lines[0] ?? "unknown");
 		counts.set(text, (counts.get(text) ?? 0) + 1);
 	}
 	return [...counts.entries()]
