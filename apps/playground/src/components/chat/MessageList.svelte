@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { UIMessage } from 'ai';
 	import { tick } from 'svelte';
-	import { stripAstroFences } from '../../lib/ai/extract-code';
+	import { stripCodeFences } from '../../lib/ai/extract-code';
 	import { fixMetadataOf } from '../../lib/ai/fix-loop';
 	import type { ChatNotice, Proposal } from '../../lib/ai/types';
 	import { t } from '../../lib/i18n';
@@ -81,7 +81,7 @@
 				<p class="tool">🔎 {toolLabel(part)}{part.state && part.state !== 'output-available' ? ` (${part.state})` : ''}</p>
 			{/each}
 			{#if message.role === 'assistant' && proposal}
-				{@const prose = stripAstroFences(text)}
+				{@const prose = stripCodeFences(text)}
 				{#if prose}<p class="text">{prose}</p>{/if}
 				<CodeProposal {proposal} onApply={() => onApply(message.id)} />
 			{:else if text}

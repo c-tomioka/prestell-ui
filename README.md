@@ -12,7 +12,7 @@ Prestell UI is a "v0 / bolt.new for Astro" built on top of the official [Astro P
 
 ## Features
 
-- **Chat to code** – generate and edit Astro components. Every proposal is compiled with `@astrojs/compiler` (WASM) and rejected if it cannot render, so broken code never reaches the editor.
+- **Chat to code** – generate and edit Astro components, and in Page / Site projects whole sets of files at once (one path-tagged code block per file: pages, layouts, components, CSS). Every proposal is compiled with `@astrojs/compiler` (WASM) and rejected if it cannot render, so broken code never reaches the editor.
 - **Live preview in the browser** – rendering runs in a Web Worker with `astro/container`; no server round-trip. Server-side rendering via Cloudflare Worker Loader is available as an option.
 - **Components, pages, and sites** – a project is a set of files. Start from a **Component** (one self-contained `.astro` file), a **Page** (index page + layout + global CSS), or a **Site** (pages, layout, shared components); the file tree, editor tabs, and a page switcher in the preview follow relative `import`s of `.astro` and `.css` files.
 - **Images** – upload images into `public/images/` (2 MB per file, 20 MB per project); pages reference them as `/images/name.png`, in `srcset`, or in CSS `url()`, and the preview resolves them like a real site. External `https:` images are allowed in the preview as well.
@@ -26,7 +26,7 @@ Prestell UI is a "v0 / bolt.new for Astro" built on top of the official [Astro P
 
 ## Status
 
-**Public since 2026-09-07 (`v0.1.0`)**; Phase 3 of the [roadmap](./docs/ROADMAP.md) is complete and Phase 4, the static-host (BYOK) version, is in progress: the direct connection mode is done, the Astro docs relay Worker, the sandboxed preview origin, and the static build are next. Phase 5, the multi-file site builder, is in progress: the project model (Component / Page / Site), the file tree, page previews with relative `import`s, export as an Astro project (ZIP / folder), and image uploads are done; AI generation across several files is next. The preview does not support framework components, `client:*` directives, npm or `astro:*` imports, or external scripts. A hosted SaaS is a later phase; SaaS-only code lives outside this repository ([docs/OSS_SCOPE.md](./docs/OSS_SCOPE.md)).
+**Public since 2026-09-07 (`v0.1.0`)**; Phase 3 of the [roadmap](./docs/ROADMAP.md) is complete and Phase 4, the static-host (BYOK) version, is in progress: the direct connection mode is done, the Astro docs relay Worker, the sandboxed preview origin, and the static build are next. Phase 5, the multi-file site builder, is in progress: the project model (Component / Page / Site), the file tree, page previews with relative `import`s, export as an Astro project (ZIP / folder), image uploads, and AI generation across several files are done; the phase now needs real-world use and an evaluation run (`pnpm eval`) before it is called complete. The preview does not support framework components, `client:*` directives, npm or `astro:*` imports, or external scripts. A hosted SaaS is a later phase; SaaS-only code lives outside this repository ([docs/OSS_SCOPE.md](./docs/OSS_SCOPE.md)).
 
 ## Requirements
 
@@ -132,7 +132,7 @@ The current mode is shown as a badge in the output pane. In browser mode the ren
 1. Open http://localhost:4321. The editor is on the left, the preview in the middle, the AI chat on the right (toggle with **AI chat** in the toolbar).
 2. **New project** (＋) asks for a mode: **Component** (one file, as before), **Page**, or **Site**. Page and Site projects show a file tree on the far left (add, rename or move, delete), tabs above the editor, and a **Page** select in the preview to switch the rendered page. A Component project can be converted to a Page project from the toolbar.
 3. Choose a **Connection** (Server or Direct), a provider, and a model. **Astro docs** controls the MCP mode (`inject` by default).
-4. Describe the component, or pick a prompt template with **Template…**. `⌘/Ctrl+Enter` sends. The chat edits the file that is open in the editor.
+4. Describe the component, or pick a prompt template with **Template…**. `⌘/Ctrl+Enter` sends. In Page / Site projects the chat sees every file and may change or add several of them in one reply (the **Page / Site** templates: landing page, add a page, extract a component, add a section, restyle the site).
 5. Valid proposals are applied to the editor automatically and the preview updates. Invalid ones trigger the auto-fix loop; you can also **Apply anyway**.
 6. Refine with follow-up prompts, then **Save** the active `.astro` file, or use **Export** (Page / Site) to download the whole project as a ZIP or write it into a folder. Share links are available for Component projects.
 

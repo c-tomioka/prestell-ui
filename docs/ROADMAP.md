@@ -65,10 +65,10 @@
 - [x] ファイルツリー UI: **画面左端（エディタの左）**に配置。タブ、追加・改名・削除・移動（改名でパスを変える）、折りたたみ。Component モードでは非表示（`FileTree.svelte`、2026-09-08。ドラッグ＆ドロップは未対応）
 - [x] ページプレビュー: 入口ファイルの選択とページ切替、レイアウト・コンポーネント・CSS の import（2026-09-08、Preview コントロールの select）。`public/` 配下の画像の書き換えと外部画像の許可は次の「画像」項目で実装（`blob:` ではなく `data:` URL。表示用 iframe は opaque origin で `blob:` を読めないため）
 - [x] 画像: アップロードを `public/images/` 配下の Blob として IndexedDB に保持（上限: 1 ファイル 2 MB、1 プロジェクト 20 MB）。SVG はテキストファイルとして編集・AI 生成の対象にする。プレビューでは `public/` の参照（`/images/x.png`、`srcset`、CSS の `url()`、`<link rel="stylesheet">`）を `data:` URL に書き換え、表示用 iframe の CSP に `img-src https:` を足して外部画像も許可（`src/lib/preview-assets.ts`、2026-09-08）
-- [ ] AI の多ファイル生成: モード別のシステムプロンプト（Component は現状の import 禁止を維持）、パス付きコードブロックの出力形式、複数ファイルの検証・適用・fix ループ、画像は URL / プレースホルダー / SVG に限定する指示、Page / Site 向けテンプレート（LP 生成、セクション分割、ページ追加など）
+- [x] AI の多ファイル生成: モード別のシステムプロンプト（Component は現状の import 禁止を維持。Page / Site は `project` 付きで全ファイルを渡す）、パス付きコードブロック（```astro path=src/pages/index.astro）の出力形式、複数ファイルの検証（`validateProjectProposal`）・適用・fix ループ、画像はアップロード済み `public/` / https / SVG に限定する指示、Page / Site 向けテンプレート 5 種（LP、ページ追加、コンポーネント切り出し、セクション追加、全体のリスタイル）。削除・改名は AI に指示させない（2026-09-08）
 - [x] 書き出し: Site / Page は Astro プロジェクトの ZIP（`package.json`、`astro.config.mjs`、`tsconfig.json`、`.gitignore`、`README.md`、`public/`、`src/`）と File System Access API によるディレクトリ書き込み（非対応ブラウザは ZIP に自動フォールバック）。Component は従来の 1 ファイル保存（`src/lib/export-project.ts`、`src/lib/zip.ts`、2026-09-08。Site プリセットの書き出しを `npm install && npm run build` で確認済み）
 - [x] Share URL: **Component モード限定**に決定（2026-09-08）。Page / Site では Share ボタンを無効にし、ZIP / フォルダー書き出しを案内する。多ファイルを圧縮して `#project=` に載せる案は、URL 長と共有経路での切り詰めが読めないため見送り（必要になれば別途検討）
-- [ ] 評価ハーネス（`pnpm eval`）の多ファイル対応と、`OVERVIEW.md` / `ARCHITECTURE.md` / `PREVIEW_RENDERING.md` / README（EN/JA）の更新
+- [x] 評価ハーネス（`pnpm eval`）の多ファイル対応（`PROJECT_CASES` 3 件、`runProjectCase`、レポートの「多ファイル生成」表）と、`ARCHITECTURE.md` / `PREVIEW_RENDERING.md` / `EVALUATION.md` / README（EN/JA）の更新（2026-09-08。実測は次回の `pnpm eval` で記録する）
 
 **完了条件**: Site モードで LP を生成→プレビュー→ZIP 出力し、展開先で `npm install && npm run dev` を実行するとプレビューと同じ表示になること。既存の Component プロジェクトが移行後もそのまま使えること。
 

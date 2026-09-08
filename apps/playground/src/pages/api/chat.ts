@@ -1,6 +1,6 @@
 // POST /api/chat — streams an assistant reply for the chat panel.
 //
-// Body: { messages: UIMessage[], provider, model, docsMode, filename, source }
+// Body: { messages: UIMessage[], provider, model, docsMode, filename, source, project? }
 // Response: AI SDK UI message stream (SSE), consumed by `@ai-sdk/svelte`.
 import { env } from "cloudflare:workers";
 import type { MCPClient } from "@ai-sdk/mcp";
@@ -110,7 +110,7 @@ export const POST: APIRoute = async ({ request }) => {
 			400,
 		);
 	}
-	const { provider, model, docsMode, filename, source } = parsed.data;
+	const { provider, model, docsMode, filename, source, project } = parsed.data;
 	const messages = parsed.data.messages as UIMessage[];
 
 	let languageModel: ReturnType<typeof resolveModel>;
@@ -163,7 +163,7 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 
 	const system = [
-		buildSystemPrompt({ filename, source, docsContext }),
+		buildSystemPrompt({ filename, source, project, docsContext }),
 		docsNote,
 	]
 		.filter(Boolean)

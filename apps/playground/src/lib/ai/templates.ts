@@ -3,7 +3,7 @@
 // sending. Wording follows the system prompt's output contract (one complete,
 // self-contained component; props with defaults; "the current component").
 
-export type TemplateCategory = "component" | "layout" | "style";
+export type TemplateCategory = "component" | "layout" | "style" | "project";
 
 export interface PromptTemplate {
 	id: string;
@@ -17,6 +17,7 @@ export const TEMPLATE_CATEGORY_LABELS: Record<TemplateCategory, string> = {
 	component: "Component",
 	layout: "Layout",
 	style: "Style",
+	project: "Page / Site",
 };
 
 const STYLE_TAIL =
@@ -147,20 +148,59 @@ export const PROMPT_TEMPLATES: readonly PromptTemplate[] = [
 		"Use CSS custom properties",
 		"move every color, radius, and spacing value into CSS custom properties declared on the component root.",
 	),
+	// --- project (Page / Site mode: several files per reply) ---
+	{
+		id: "site-landing",
+		category: "project",
+		label: "Landing page (multi-file)",
+		prompt:
+			"Turn src/pages/index.astro into a landing page for [product]: a hero, a three-item feature section, a testimonials section, and a call-to-action band. Put each section in its own component under src/components/ with props that have defaults, compose them from the page inside the existing layout, and keep shared colors and spacing in src/styles/global.css.",
+	},
+	{
+		id: "site-add-page",
+		category: "project",
+		label: "Add a page",
+		prompt:
+			"Add a new page src/pages/[pricing].astro about [what it covers] using the existing layout and components, and link to it from the navigation. Give it a heading, an intro paragraph, and one main section with real placeholder content.",
+	},
+	{
+		id: "site-extract",
+		category: "project",
+		label: "Extract a component",
+		prompt:
+			"Extract the [hero] section of the open page into src/components/[Hero].astro. Expose the text it needs as props with defaults, move its styles with it, and use the new component from the page so the result looks the same.",
+	},
+	{
+		id: "site-section",
+		category: "project",
+		label: "Add a section",
+		prompt:
+			"Add a [pricing] section to the open page as a new component src/components/[Pricing].astro: [three tiers with a highlighted middle plan]. Define the data as an array in the component's frontmatter and match the site's existing styles.",
+	},
+	{
+		id: "site-theme",
+		category: "project",
+		label: "Restyle the whole site",
+		prompt:
+			"Restyle the site for [brand or mood]: update the color palette, typography, and spacing scale as CSS custom properties in src/styles/global.css and adjust the layout, header, and footer so every page picks up the new look. Keep the content as it is.",
+	},
 ];
 
-export function templatesByCategory(): Array<{
+/** Grouped templates; `project` templates only make sense in Page / Site mode. */
+export function templatesByCategory(
+	options: { multiFile?: boolean } = {},
+): Array<{
 	category: TemplateCategory;
 	label: string;
 	templates: PromptTemplate[];
 }> {
-	return (Object.keys(TEMPLATE_CATEGORY_LABELS) as TemplateCategory[]).map(
-		(category) => ({
+	return (Object.keys(TEMPLATE_CATEGORY_LABELS) as TemplateCategory[])
+		.filter((category) => options.multiFile || category !== "project")
+		.map((category) => ({
 			category,
 			label: TEMPLATE_CATEGORY_LABELS[category],
 			templates: PROMPT_TEMPLATES.filter((t) => t.category === category),
-		}),
-	);
+		}));
 }
 
 const PLACEHOLDER = /\[[^\]\n]+\]/;

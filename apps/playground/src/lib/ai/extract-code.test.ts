@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { extractAstroCode, stripAstroFences } from "./extract-code";
+import {
+	extractAstroCode,
+	extractProposalFiles,
+	stripAstroFences,
+	stripCodeFences,
+} from "./extract-code";
 
 const component = "---\nconst a = 1;\n---\n<h1>{a}</h1>";
 
@@ -58,5 +63,67 @@ describe("stripAstroFences", () => {
 
 	it("removes an unterminated fence", () => {
 		expect(stripAstroFences("Intro.\n```astro\n<p>")).toBe("Intro.");
+	});
+});
+
+describe("extractProposalFiles", () => {
+	it("collects path-tagged fences of any file language", () => {
+		const text = [
+			"Here:",
+			"```astro path=src/pages/index.astro",
+			"<h1>a</h1>",
+			"```",
+			"and",
+			"```css path=./src/styles/global.css",
+			"body {}",
+			"```",
+			"```bash",
+			"npm run dev",
+			"```",
+		].join("\n");
+		expect(extractProposalFiles(text, "src/pages/index.astro")).toEqual({
+			files: [
+				{ path: "src/pages/index.astro", code: "<h1>a</h1>", complete: true },
+				{ path: "src/styles/global.css", code: "body {}", complete: true },
+			],
+			complete: true,
+		});
+	});
+
+	it("takes the last block for a repeated path and flags streaming", () => {
+		const text =
+			"```astro path=a.astro\n<p>1</p>\n```\n```astro path=a.astro\n<p>2</p>";
+		expect(extractProposalFiles(text, "x.astro")).toEqual({
+			files: [{ path: "a.astro", code: "<p>2</p>", complete: false }],
+			complete: false,
+		});
+	});
+
+	it("falls back to the open file for an untagged astro fence", () => {
+		const text = "```astro\n<p>x</p>\n```";
+		expect(extractProposalFiles(text, "src/pages/index.astro")).toEqual({
+			files: [
+				{ path: "src/pages/index.astro", code: "<p>x</p>", complete: true },
+			],
+			complete: true,
+		});
+		expect(extractProposalFiles("prose only", "x.astro")).toBeNull();
+	});
+
+	it("accepts file= / title= attributes and quotes", () => {
+		const text = '```astro file="src/components/Card.astro"\n<p/>\n```';
+		expect(extractProposalFiles(text, "x")?.files[0].path).toBe(
+			"src/components/Card.astro",
+		);
+	});
+});
+
+describe("stripCodeFences", () => {
+	it("removes file fences but keeps other code", () => {
+		const text =
+			"Intro\n```astro path=a.astro\n<p/>\n```\nRun:\n```bash\nnpm i\n```\nEnd";
+		expect(stripCodeFences(text)).toBe(
+			"Intro\n\nRun:\n```bash\nnpm i\n```\nEnd",
+		);
 	});
 });

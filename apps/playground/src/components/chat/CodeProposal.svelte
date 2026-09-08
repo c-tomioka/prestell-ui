@@ -10,7 +10,13 @@
 	let { proposal, onApply }: Props = $props();
 
 	let expanded = $state(false);
-	const lineCount = $derived(proposal.code.split('\n').length);
+	/** Page / Site proposals: which file is shown. */
+	let selectedPath = $state<string | null>(null);
+	const files = $derived(proposal.files ?? []);
+	const shown = $derived(
+		files.find((file) => file.path === selectedPath) ?? files[0] ?? { path: '', code: proposal.code },
+	);
+	const lineCount = $derived(shown.code.split('\n').length);
 	const retrying = $derived(proposal.fix?.state === 'retrying');
 	const label = $derived.by(() => {
 		switch (proposal.status) {
@@ -36,16 +42,35 @@
 
 <div class="proposal" data-status={proposal.status}>
 	<div class="head">
-		<span class="title">{$t('proposal.title')}</span>
-		<span class="meta">{$t('proposal.lines', { count: lineCount })} · {label}</span>
+		<span class="title">{files.length > 0 ? $t('proposal.projectTitle') : $t('proposal.title')}</span>
+		<span class="meta">
+			{#if files.length > 0}{$t('proposal.files', { count: files.length })} · {/if}{$t('proposal.lines', { count: lineCount })} · {label}
+		</span>
 	</div>
+	{#if files.length > 0}
+		<div class="files" role="tablist">
+			{#each files as file (file.path)}
+				<button
+					type="button"
+					role="tab"
+					class="file"
+					class:selected={file.path === shown.path}
+					aria-selected={file.path === shown.path}
+					title={file.path}
+					onclick={() => (selectedPath = file.path)}
+				>
+					{file.path}
+				</button>
+			{/each}
+		</div>
+	{/if}
 	{#if proposal.error}
 		<pre class="error" role="alert">{proposal.error}</pre>
 	{/if}
 	{#if proposal.warnings && proposal.warnings.length > 0}
 		<pre class="warning">{proposal.warnings.join('\n')}</pre>
 	{/if}
-	<pre class="code" class:expanded>{proposal.code}</pre>
+	<pre class="code" class:expanded>{shown.code}</pre>
 	<div class="actions">
 		<button type="button" class="ghost" onclick={() => (expanded = !expanded)}>
 			{expanded ? $t('proposal.collapse') : $t('proposal.expand')}
@@ -86,6 +111,32 @@
 		gap: 0.5rem;
 		padding: 0.4rem 0.6rem;
 		border-bottom: 1px solid var(--border);
+	}
+	.files {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+		padding: 0.35rem 0.6rem;
+		border-bottom: 1px solid var(--border);
+	}
+	.file {
+		appearance: none;
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--muted);
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		font-size: 0.68rem;
+		padding: 0.1rem 0.5rem;
+		cursor: pointer;
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.file.selected {
+		color: var(--fg);
+		border-color: var(--accent);
 	}
 	.title {
 		font-weight: 600;
