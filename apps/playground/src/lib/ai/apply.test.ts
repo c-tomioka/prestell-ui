@@ -116,6 +116,55 @@ describe("validateProjectProposal", () => {
 			);
 	});
 
+	it("rejects static HTML pages and public-only replies", async () => {
+		const html = await validateProjectProposal(
+			{
+				mode: "site",
+				entry: page.entry,
+				project: page.files,
+				files: [
+					{ path: "public/index.html", code: "<!doctype html><h1>LP</h1>" },
+				],
+			},
+			compile,
+		);
+		expect(html.ok).toBe(false);
+		if (!html.ok)
+			expect(html.error).toContain(
+				"public/index.html: static HTML files are not part of an Astro site",
+			);
+
+		const publicOnly = await validateProjectProposal(
+			{
+				mode: "site",
+				entry: page.entry,
+				project: page.files,
+				files: [{ path: "public/robots.txt", code: "User-agent: *" }],
+			},
+			compile,
+		);
+		expect(publicOnly.ok).toBe(false);
+		if (!publicOnly.ok)
+			expect(publicOnly.error).toContain("only adds files under public/");
+
+		const withPage = await validateProjectProposal(
+			{
+				mode: "site",
+				entry: page.entry,
+				project: page.files,
+				files: [
+					{ path: "public/robots.txt", code: "User-agent: *" },
+					{
+						path: page.entry,
+						code: `---\nimport Layout from '../layouts/Layout.astro';\n---\n<Layout><h1>ok</h1></Layout>`,
+					},
+				],
+			},
+			compile,
+		);
+		expect(withPage.ok).toBe(true);
+	});
+
 	it("rejects empty proposals", async () => {
 		expect(
 			await validateProjectProposal(
