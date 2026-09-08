@@ -62,6 +62,12 @@ export const ja: Record<MessageKey, string> = {
 	"files.entryBadge": "入口",
 	"files.entryTitle": "プレビューが描画するファイル",
 	"files.binary": "バイナリファイル（ここでは編集できません）",
+	"files.upload": "画像をアップロード",
+	"files.uploadTooLarge":
+		"「{name}」は {max} を超えています。縮小または圧縮してください。",
+	"files.projectTooLarge":
+		"「{name}」を追加するとプロジェクトの画像の上限 {max} を超えます。",
+	"files.imageInfo": "{path} · {size} · {url} として参照できます",
 	"files.invalidPath":
 		"英数字・ドット・ハイフン・アンダースコアからなる相対パスを指定してください（例: src/components/Card.astro）。",
 	"files.componentPath":

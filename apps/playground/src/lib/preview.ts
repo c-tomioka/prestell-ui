@@ -14,6 +14,7 @@
 import type { CompileResult } from "@astrojs/compiler-binding";
 import type { ParsedAst } from "./compiler-protocol";
 import { PREVIEW_ORIGIN, PREVIEW_RENDERER, PREVIEW_TIMEOUT_MS } from "./config";
+import { type AssetUrls, rewriteDocumentAssets } from "./preview-assets";
 import type { ImportCheck } from "./preview-graph";
 import type {
 	PreviewRendererMode,
@@ -130,21 +131,38 @@ export function validatePreview(
 	return null;
 }
 
-export function createPreviewDocument(html: string, css: string[]): string {
+/**
+ * CSP of the display iframe (`srcdoc`, `sandbox="allow-scripts"`). Images may
+ * come from `https:` (Phase 5: external images in pages), from the project's
+ * `public/` files inlined as `data:` URLs, or from `blob:`; scripts and styles
+ * are inline only and nothing may connect to the network.
+ */
+export const PREVIEW_DOCUMENT_CSP = [
+	"default-src 'none'",
+	"base-uri 'none'",
+	"script-src 'unsafe-inline'",
+	"style-src 'unsafe-inline'",
+	"img-src https: data: blob:",
+	"media-src data: blob:",
+	"font-src data:",
+	"connect-src 'none'",
+	"form-action 'none'",
+].join("; ");
+
+/**
+ * Wrap rendered HTML into the sandboxed preview document. `assets` maps the
+ * project's `public/` files (`/images/logo.png`) to `data:` URLs so the
+ * markup and CSS can reference them like a real Astro site does.
+ */
+export function createPreviewDocument(
+	html: string,
+	css: string[],
+	assets: AssetUrls = {},
+): string {
 	const document = new DOMParser().parseFromString(html, "text/html");
 	const csp = document.createElement("meta");
 	csp.httpEquiv = "Content-Security-Policy";
-	csp.content = [
-		"default-src 'none'",
-		"base-uri 'none'",
-		"script-src 'unsafe-inline'",
-		"style-src 'unsafe-inline'",
-		"img-src data: blob:",
-		"media-src data: blob:",
-		"font-src data:",
-		"connect-src 'none'",
-		"form-action 'none'",
-	].join("; ");
+	csp.content = PREVIEW_DOCUMENT_CSP;
 
 	const viewport = document.createElement("meta");
 	viewport.name = "viewport";
@@ -153,6 +171,7 @@ export function createPreviewDocument(html: string, css: string[]): string {
 	const style = document.createElement("style");
 	style.textContent = css.join("\n\n");
 	document.head.prepend(csp, viewport, style);
+	rewriteDocumentAssets(document, assets);
 
 	return `<!doctype html>\n${document.documentElement.outerHTML}`;
 }

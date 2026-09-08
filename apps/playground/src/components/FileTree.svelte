@@ -13,13 +13,32 @@
 		collapsed: boolean;
 		onOpen: (path: string) => void;
 		onAdd: () => void;
+		onUpload: (files: FileList) => void;
 		onRename: (path: string) => void;
 		onDelete: (path: string) => void;
 		onToggle: () => void;
 	}
 
-	let { files, activePath, entry, collapsed, onOpen, onAdd, onRename, onDelete, onToggle }: Props =
-		$props();
+	let {
+		files,
+		activePath,
+		entry,
+		collapsed,
+		onOpen,
+		onAdd,
+		onUpload,
+		onRename,
+		onDelete,
+		onToggle,
+	}: Props = $props();
+
+	let uploadInput: HTMLInputElement | undefined;
+
+	function onUploadChange(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		if (input.files && input.files.length > 0) onUpload(input.files);
+		input.value = '';
+	}
 
 	const tree = $derived(buildFileTree(files));
 </script>
@@ -85,6 +104,19 @@
 			<IconButton label={$t('files.add')} onclick={onAdd}>
 				<Icon name="file-plus" />
 			</IconButton>
+			<IconButton label={$t('files.upload')} onclick={() => uploadInput?.click()}>
+				<Icon name="image" />
+			</IconButton>
+			<input
+				class="visually-hidden"
+				type="file"
+				accept="image/*"
+				multiple
+				tabindex="-1"
+				aria-hidden="true"
+				bind:this={uploadInput}
+				onchange={onUploadChange}
+			/>
 		{/if}
 		<IconButton
 			label={collapsed ? $t('files.expand') : $t('files.collapse')}
