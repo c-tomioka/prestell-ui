@@ -116,6 +116,14 @@ export const PROJECT_CASES: ProjectCase[] = [
 		filename: SITE.entry,
 		project: SITE_PROJECT,
 	},
+	// A short instruction in Japanese with no path or file hints: a small model
+	// once answered with public/index.html instead of an Astro page.
+	{
+		id: "site-ja-lp",
+		prompt: "化粧水のLPを作成して",
+		filename: SITE.entry,
+		project: SITE_PROJECT,
+	},
 ];
 
 export const KNOWLEDGE_CASES: KnowledgeCase[] = [

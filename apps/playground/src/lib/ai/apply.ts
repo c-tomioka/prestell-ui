@@ -111,6 +111,12 @@ export async function validateProjectProposal(
 			);
 			continue;
 		}
+		if (extensionOf(checked.path) === ".html") {
+			errors.push(
+				`${file.path}: static HTML files are not part of an Astro site. Write the page as src/pages/<name>.astro using the layout (src/layouts/Layout.astro) instead.`,
+			);
+			continue;
+		}
 		if (file.code.trim() === "") {
 			errors.push(`${file.path}: the file is empty.`);
 			continue;
@@ -118,6 +124,16 @@ export async function validateProjectProposal(
 		merged[checked.path] = file.code;
 	}
 	if (errors.length > 0) return { ok: false, error: errors.join("\n") };
+	if (
+		input.mode !== "component" &&
+		input.files.every((file) => file.path.startsWith("public/"))
+	) {
+		return {
+			ok: false,
+			error:
+				"The reply only adds files under public/, which the preview never renders. Pages and components must be .astro files under src/ (pages in src/pages/, using src/layouts/Layout.astro); put only static assets in public/.",
+		};
+	}
 
 	const compiled = new Map<string, CompiledFile>();
 	const cachedCompile: PreviewCompiler = async (path, text) => {

@@ -35,8 +35,8 @@ pnpm eval                # 既定: Claude Haiku 4.5 + Workers AI 2 種 + 検出�
 | 非対応 | import / client:* / 外部 script などプレビュー非対応構文で最終的に落ちた件数 |
 | 通信失敗 | HTTP エラー・ストリーム中の error チャンク・タイムアウト |
 
-### 多ファイル生成（`PROJECT_CASES`、3 件、Phase 5）
-Page / Site モードのテンプレート（Landing page (multi-file) / Add a page / Extract a component）を Page / Site プリセットのプロジェクトに対して送る。system prompt はプロジェクト全ファイルを含む多ファイル契約（`src/lib/ai/prompt.ts`、`project` 付き）。返答からパス付きコードブロック（```astro path=src/pages/index.astro）を取り出し（`extractProposalFiles`）、チャットパネルと同じ `validateProjectProposal`（パス規則 → 各 `.astro` のコンパイルとプレビュー規則 → 入口ページのグラフ構築）にかける。不合格なら多ファイル用の `buildFixPrompt` で最大 2 回再送。指標はコード生成と同じで、レポートでは「多ファイル生成」の表に分けて出す（明細のケース名は `project/` 接頭辞）。
+### 多ファイル生成（`PROJECT_CASES`、4 件、Phase 5）
+Page / Site モードのテンプレート（Landing page (multi-file) / Add a page / Extract a component）と、パスやファイル名のヒントが無い日本語の短い指示（`site-ja-lp`「化粧水のLPを作成して」）を Page / Site プリセットのプロジェクトに対して送る。system prompt はプロジェクト全ファイルを含む多ファイル契約（`src/lib/ai/prompt.ts`、`project` 付き）。返答からパス付きコードブロック（```astro path=src/pages/index.astro）を取り出し（`extractProposalFiles`）、チャットパネルと同じ `validateProjectProposal`（パス規則 → 各 `.astro` のコンパイルとプレビュー規則 → 入口ページのグラフ構築）にかける。不合格なら多ファイル用の `buildFixPrompt` で最大 2 回再送。指標はコード生成と同じで、レポートでは「多ファイル生成」の表に分けて出す（明細のケース名は `project/` 接頭辞）。
 
 ### Astro 知識問答（`KNOWLEDGE_CASES`、8 件）
 Astro 5 で変わった、または間違えやすい API を問う。`must`（正解に含まれるべき語）がすべて含まれ、`mustNot`（削除済み / 存在しない API）に一致しなければ correct。`mustNot` に 1 つでも一致すれば hallucinated。
@@ -65,7 +65,7 @@ Astro 5 で変わった、または間違えやすい API を問う。`must`（�
 | 区分 | off | inject |
 |---|---|---|
 | コード生成（Component、8 件） | 8/8（pass@0 8） | 8/8（pass@0 7、hero が fix 1 回で合格） |
-| 多ファイル生成（Page / Site、3 件） | 3/3（pass@0 2、site-landing が fix 1 回で合格） | 2/3（site-add-page が fix 2 回でも不合格） |
+| 多ファイル生成（Page / Site、3 件 + 追加の `site-ja-lp`） | 4/4（pass@0 3、site-landing が fix 1 回で合格） | 3/4（site-add-page が fix 2 回でも不合格。`site-ja-lp` は fix 1 回で合格） |
 | 知識問答（8 問、正答率 / ハルシネーション） | 50% / 1 | 50% / 1 |
 
 - **多ファイル契約は 7B のローカルモデルでも成立した。** 6 件すべてでパス付きコードブロックが返り（fence 100%）、5 件が検証に合格。新しいページ・コンポーネントの追加、既存ページからの切り出し、レイアウトの再利用、`import '../styles/global.css'` の書き方まで契約どおりだった。
@@ -73,6 +73,7 @@ Astro 5 で変わった、または間違えやすい API を問う。`must`（�
 - 唯一の不合格（inject の site-add-page）は、モデルがコードフェンスの `path=` タグを **`<style path=src/pages/pricing.astro` のようにファイル内に書いてしまった**もの。コンパイラの診断は CSS 側の「Expected `}` but found `:`」になり、原因の行を指さないため fix 2 回でも直らなかった。対策として system prompt に「`path=` はフェンス行だけに書く」の 1 行を追加した（このファイルの変更）。効果は次回の評価で確認する。
 - 知識問答は off / inject とも 50% で、inject が効いていない。前回の 3 モデルでは inject でハルシネーションが 0 になったが、7B では検索結果を渡しても `client:defer`（存在しない）や `Astro.glob()` を書く。**小型ローカルモデルではコード生成には十分でも Astro の新 API の知識は補いきれない**ので、知識が要る質問はクラウドモデルか `tools` 対応モデルに寄せるのが妥当。
 - 速度は 1 件あたり 7〜25 秒（inject は検索と長いプロンプトぶん遅い）。多ファイルの system prompt はプロジェクト全体（Site プリセットで約 9k 文字）を含むため、Ollama の既定コンテキスト（4096 トークン）では切れる。ローカルで多ファイル生成を使うときは `OLLAMA_CONTEXT_LENGTH=16384 ollama serve` のようにコンテキストを広げること（`LOCAL_LLM.md` にも記載）。
+- 評価後の実使用で、同じモデルが日本語の短い指示（「化粧水のLPを作成して」）に対して `public/index.html` を返す例が出た。契約が `.html` を `public/` 配下で許していて、検証も `.astro` しか見ないため「合格」扱いになっていた。対策（同日）: プロンプトに「ページは必ず `src/pages/*.astro`、`.html` は作らない、`public/` は静的アセット専用」を追加し、`validateProjectProposal` が `.html` と「`public/` だけの提案」を拒否して fix ループに回すようにした。評価ケース `site-ja-lp` を追加し、同日に同じモデルで再測定した: off は `src/pages/toner.astro` を新規作成して pass@0、inject は fix 1 回で `src/pages/index.astro` を書き換えて合格（`docs/evaluations/2026-09-08.md` にマージ済み）。
 - ハーネス側の修正: 多ファイルのエラー文は 1 行目がファイルパスだけなので、レポートの「失敗理由」がパスだけになっていた。`topErrors` が 2 行目のメッセージも含めるようにした。
 
 ## 所見（2026-09-06）

@@ -103,6 +103,7 @@ describe("project context", () => {
 		});
 		expect(prompt).toContain("ONE fenced code block PER FILE");
 		expect(prompt).toContain("## Project files");
+		expect(prompt).toContain("Never create `.html` files");
 		expect(prompt).not.toContain("No `import` / `export` statements");
 		const single = buildSystemPrompt({
 			filename: "Component.astro",
