@@ -1,12 +1,20 @@
 // Talks to the running dev server's /api/chat and /api/models, and validates
 // generated code with the native Astro compiler (same checks as apply.ts).
 import { compileAstroSync, parseAstroSync } from "@astrojs/compiler-binding";
-import type { ProposalValidation } from "../../src/lib/ai/apply";
-import { extractAstroCode } from "../../src/lib/ai/extract-code";
+import {
+	type ProposalValidation,
+	validateProjectProposal,
+} from "../../src/lib/ai/apply";
+import {
+	extractAstroCode,
+	extractProposalFiles,
+} from "../../src/lib/ai/extract-code";
 import { buildFixPrompt } from "../../src/lib/ai/fix-loop";
 import { formatCompilerErrors } from "../../src/lib/ai/format-diagnostics";
+import type { ProjectContext } from "../../src/lib/ai/project-context";
 import { validatePreview } from "../../src/lib/preview";
-import type { CodeCase, KnowledgeCase } from "./cases";
+import type { PreviewCompiler } from "../../src/lib/preview-graph";
+import type { CodeCase, KnowledgeCase, ProjectCase } from "./cases";
 import { scoreKnowledge } from "./score";
 
 export type DocsMode = "off" | "inject" | "tools";
@@ -34,7 +42,7 @@ export interface ChatResult {
 }
 
 export interface CodeRunResult {
-	kind: "code";
+	kind: "code" | "project";
 	caseId: string;
 	provider: string;
 	model: string;
@@ -94,6 +102,7 @@ export async function chat(
 		docsMode: DocsMode;
 		filename: string;
 		source: string;
+		project?: ProjectContext;
 	},
 	fetchImpl: typeof fetch = fetch,
 ): Promise<ChatResult> {
@@ -226,6 +235,30 @@ export function validateCode(
 			error: error instanceof Error ? error.message : String(error),
 		};
 	}
+}
+
+/** Native-compiler counterpart of `workerCompiler` (apply.ts). */
+const nativeCompile: PreviewCompiler = async (path, text) => ({
+	result: compileAstroSync(text, {
+		filename: path,
+		internalURL: "./runtime.js",
+		resolvePathProvided: true,
+	}),
+	ast: (() => {
+		const parsed = parseAstroSync(text);
+		return { ast: JSON.parse(parsed.ast), diagnostics: parsed.diagnostics };
+	})(),
+});
+
+/** Same checks as the chat panel for a Page / Site proposal. */
+export function validateProjectCode(
+	files: Array<{ path: string; code: string }>,
+	project: ProjectContext,
+): Promise<ProposalValidation> {
+	return validateProjectProposal(
+		{ files, project: project.files, entry: project.entry, mode: project.mode },
+		nativeCompile,
+	);
 }
 
 export interface Discovery {
@@ -368,6 +401,95 @@ export async function runCodeCase(
 				attempt: round + 1,
 				max: maxFix,
 			}),
+		);
+	}
+	return result;
+}
+
+/** One Page / Site case: path-tagged blocks, project validation, fix loop. */
+export async function runProjectCase(
+	baseUrl: string,
+	target: ChatTarget,
+	docsMode: DocsMode,
+	testCase: ProjectCase,
+	maxFix = 2,
+	fetchImpl: typeof fetch = fetch,
+): Promise<CodeRunResult> {
+	const messages: ChatMessage[] = [message("user", testCase.prompt)];
+	const result: CodeRunResult = {
+		kind: "project",
+		caseId: testCase.id,
+		provider: target.provider,
+		model: target.model,
+		docsMode,
+		fence: false,
+		pass0: false,
+		passed: false,
+		attempts: 0,
+		unsupported: false,
+		toolCalls: 0,
+		latencyMs: 0,
+		chars: 0,
+	};
+	for (let round = 0; ; round++) {
+		const reply = await chat(
+			baseUrl,
+			{
+				messages,
+				...target,
+				docsMode,
+				filename: testCase.filename,
+				source: testCase.project.files[testCase.filename] ?? "",
+				project: testCase.project,
+			},
+			fetchImpl,
+		);
+		result.latencyMs += reply.latencyMs;
+		result.chars += reply.text.length;
+		result.toolCalls += reply.toolCalls.length;
+		if (reply.notices[0]) result.notice = reply.notices[0];
+		if (reply.error) {
+			result.transport = reply.error;
+			break;
+		}
+		messages.push(message("assistant", reply.text));
+		const extracted = extractProposalFiles(reply.text, testCase.filename);
+		if (!extracted) {
+			result.error = "No path-tagged code block in the reply.";
+			break;
+		}
+		result.fence = true;
+		result.code = extracted.files
+			.map((file) => `// ${file.path}\n${file.code}`)
+			.join("\n\n")
+			.slice(0, 6000);
+		if (!extracted.complete) {
+			result.error = "Reply ended before the last code block was closed.";
+			result.truncated = true;
+			break;
+		}
+		const validation = await validateProjectCode(
+			extracted.files.map((file) => ({ path: file.path, code: file.code })),
+			testCase.project,
+		);
+		if (validation.ok) {
+			if (round === 0) result.pass0 = true;
+			result.passed = true;
+			result.error = undefined;
+			break;
+		}
+		result.error = validation.error;
+		result.unsupported = UNSUPPORTED.test(validation.error);
+		if (round >= maxFix) break;
+		result.attempts = round + 1;
+		messages.push(
+			message(
+				"user",
+				buildFixPrompt(validation.error, round + 1, maxFix, {
+					multiFile: true,
+				}),
+				{ kind: "fix", attempt: round + 1, max: maxFix },
+			),
 		);
 	}
 	return result;

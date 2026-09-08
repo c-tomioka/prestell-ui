@@ -164,10 +164,12 @@ export const ja: Record<MessageKey, string> = {
 	"chat.assistant": "アシスタント",
 	"chat.fixRequest": "🔧 自動修正リクエスト {attempt}/{max}",
 	"chat.thinking": "考え中…",
-	"chat.multiFileNote":
-		"チャットはアクティブなファイル（{path}）を 1 つのコンポーネントとして編集します。複数ファイルの同時生成は今後対応します。",
+	"chat.projectNote":
+		"チャットはこのプロジェクトのどのファイルも変更でき、src/ や public/ に新しいファイルを追加できます。プレビューは {entry} を描画します。",
 
 	"proposal.title": "コンポーネントの提案",
+	"proposal.projectTitle": "プロジェクトの提案",
+	"proposal.files": "{count} ファイル",
 	"proposal.lines": "{count} 行",
 	"proposal.generating": "生成中…",
 	"proposal.validating": "検証中…",
@@ -211,6 +213,7 @@ export const ja: Record<MessageKey, string> = {
 	"template.category.component": "コンポーネント",
 	"template.category.layout": "レイアウト",
 	"template.category.style": "スタイル",
+	"template.category.project": "Page / Site",
 	"template.card": "カード",
 	"template.hero": "ヒーローセクション",
 	"template.pricing": "料金セクション",
@@ -229,6 +232,11 @@ export const ja: Record<MessageKey, string> = {
 	"template.states": "hover / focus の状態を追加",
 	"template.simplify-css": "CSS を簡潔にする",
 	"template.css-vars": "CSS カスタムプロパティを使う",
+	"template.site-landing": "ランディングページ（複数ファイル）",
+	"template.site-add-page": "ページを追加",
+	"template.site-extract": "コンポーネントに切り出す",
+	"template.site-section": "セクションを追加",
+	"template.site-theme": "サイト全体のスタイルを変える",
 
 	"help.title": "ダイレクトモードの仕組み",
 	"help.cloud.route":

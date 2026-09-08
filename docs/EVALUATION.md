@@ -23,7 +23,7 @@ pnpm eval                # 既定: Claude Haiku 4.5 + Workers AI 2 種 + 検出�
 
 ## 何を測るか
 
-### コード生成（`scripts/eval/cases.ts` の `CODE_CASES`、8 件）
+### コード生成（`scripts/eval/cases.ts` の `CODE_CASES`、8 件、Component モード）
 プロンプトテンプレート（Card / Hero / Pricing / Navbar / Contact form / Landing）のプレースホルダーを埋めたものと、既定コンポーネントへのスタイル調整 2 件（responsive / dark mode）。返答から ```astro ブロックを取り出し（`extractAstroCode`）、チャットパネルと同じ検証（コンパイラ診断 + `validatePreview`）にかける。不合格なら `buildFixPrompt` で最大 2 回再送し、fix ループの効果も測る。
 
 | 指標 | 意味 |
@@ -34,6 +34,9 @@ pnpm eval                # 既定: Claude Haiku 4.5 + Workers AI 2 種 + 検出�
 | 平均 fix | 使った fix 回数 |
 | 非対応 | import / client:* / 外部 script などプレビュー非対応構文で最終的に落ちた件数 |
 | 通信失敗 | HTTP エラー・ストリーム中の error チャンク・タイムアウト |
+
+### 多ファイル生成（`PROJECT_CASES`、3 件、Phase 5）
+Page / Site モードのテンプレート（Landing page (multi-file) / Add a page / Extract a component）を Page / Site プリセットのプロジェクトに対して送る。system prompt はプロジェクト全ファイルを含む多ファイル契約（`src/lib/ai/prompt.ts`、`project` 付き）。返答からパス付きコードブロック（```astro path=src/pages/index.astro）を取り出し（`extractProposalFiles`）、チャットパネルと同じ `validateProjectProposal`（パス規則 → 各 `.astro` のコンパイルとプレビュー規則 → 入口ページのグラフ構築）にかける。不合格なら多ファイル用の `buildFixPrompt` で最大 2 回再送。指標はコード生成と同じで、レポートでは「多ファイル生成」の表に分けて出す（明細のケース名は `project/` 接頭辞）。
 
 ### Astro 知識問答（`KNOWLEDGE_CASES`、8 件）
 Astro 5 で変わった、または間違えやすい API を問う。`must`（正解に含まれるべき語）がすべて含まれ、`mustNot`（削除済み / 存在しない API）に一致しなければ correct。`mustNot` に 1 つでも一致すれば hallucinated。

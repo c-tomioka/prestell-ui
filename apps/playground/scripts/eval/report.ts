@@ -9,6 +9,8 @@ export interface ReportInput {
 	skipped: string[];
 	docsModes: string[];
 	code: CodeRunResult[];
+	/** Page / Site cases (Phase 5); optional for older records. */
+	project?: CodeRunResult[];
 	knowledge: KnowledgeRunResult[];
 	durationMs: number;
 }
@@ -61,7 +63,25 @@ export function renderReport(input: ReportInput): string {
 		);
 	}
 
-	const errors = topErrors(input.code);
+	const project = input.project ?? [];
+	if (project.length > 0) {
+		lines.push("", "## 多ファイル生成（Page / Site モード、検証合格率）", "");
+		lines.push(
+			"パス付きコードブロックを取り出し（`extractProposalFiles`）、`validateProjectProposal` 相当の検証（パス規則・各ファイルのコンパイル・入口ページのグラフ構築）にかける。列の意味はコード生成と同じ。",
+			"",
+		);
+		lines.push(
+			"| モデル | docsMode | n | fence | pass@0 | pass@fix | 平均 fix | 非対応 | 通信失敗 | 平均時間 |",
+			"|---|---|---|---|---|---|---|---|---|---|",
+		);
+		for (const r of aggregateCode(project)) {
+			lines.push(
+				`| ${cell(modelLabel(r.provider, r.model))} | ${r.docsMode} | ${r.n} | ${pct(r.fence, r.n)} | ${pct(r.pass0, r.n)} | ${pct(r.passed, r.n)} | ${r.meanAttempts.toFixed(2)} | ${r.unsupported} | ${r.transportErrors} | ${sec(r.meanLatencyMs)} |`,
+			);
+		}
+	}
+
+	const errors = topErrors([...input.code, ...project]);
 	if (errors.length > 0) {
 		lines.push(
 			"",
@@ -104,7 +124,7 @@ export function renderReport(input: ReportInput): string {
 	}
 
 	lines.push("", "### コード生成の明細（不合格のみ）", "");
-	const failed = input.code.filter((r) => !r.passed);
+	const failed = [...input.code, ...project].filter((r) => !r.passed);
 	if (failed.length === 0) lines.push("なし");
 	else {
 		lines.push(
@@ -113,7 +133,7 @@ export function renderReport(input: ReportInput): string {
 		);
 		for (const r of failed) {
 			lines.push(
-				`| ${cell(modelLabel(r.provider, r.model))} | ${r.docsMode} | ${r.caseId} | ${r.fence ? "yes" : "no"} | ${r.attempts} | ${cell((r.transport ?? r.error ?? "").slice(0, 160))} |`,
+				`| ${cell(modelLabel(r.provider, r.model))} | ${r.docsMode} | ${r.kind === "project" ? "project/" : ""}${r.caseId} | ${r.fence ? "yes" : "no"} | ${r.attempts} | ${cell((r.transport ?? r.error ?? "").slice(0, 160))} |`,
 			);
 		}
 	}

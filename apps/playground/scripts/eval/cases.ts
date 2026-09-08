@@ -1,6 +1,9 @@
 // Evaluation cases: code generation (from the built-in prompt templates) and
 // Astro knowledge questions with a regex rubric for hallucination detection.
+import type { ProjectContext } from "../../src/lib/ai/project-context";
+import { projectContextOf } from "../../src/lib/ai/project-context";
 import { PROMPT_TEMPLATES } from "../../src/lib/ai/templates";
+import { createPreset } from "../../src/lib/projects/presets";
 import { DEFAULT_SOURCE } from "../../src/lib/samples";
 
 export interface CodeCase {
@@ -8,6 +11,15 @@ export interface CodeCase {
 	prompt: string;
 	/** Editor contents sent as "the current component". */
 	source: string;
+}
+
+/** Page / Site mode: the model edits a whole project (Phase 5). */
+export interface ProjectCase {
+	id: string;
+	prompt: string;
+	/** File open in the editor. */
+	filename: string;
+	project: ProjectContext;
 }
 
 export interface KnowledgeCase {
@@ -71,6 +83,40 @@ export const CODE_CASES: CodeCase[] = [
 
 /** Keeps the model from answering inside the "one component" frame of the system prompt. */
 const GENERAL = "General Astro question, not about the current component: ";
+
+const PAGE = createPreset("page");
+const PAGE_PROJECT = projectContextOf({
+	mode: "page",
+	entry: PAGE.entry,
+	files: PAGE.files,
+});
+const SITE = createPreset("site");
+const SITE_PROJECT = projectContextOf({
+	mode: "site",
+	entry: SITE.entry,
+	files: SITE.files,
+});
+
+export const PROJECT_CASES: ProjectCase[] = [
+	{
+		id: "site-landing",
+		prompt: template("site-landing", "a note-taking app"),
+		filename: PAGE.entry,
+		project: PAGE_PROJECT,
+	},
+	{
+		id: "site-add-page",
+		prompt: template("site-add-page", "pricing", "plans and prices"),
+		filename: SITE.entry,
+		project: SITE_PROJECT,
+	},
+	{
+		id: "site-extract",
+		prompt: template("site-extract", "hero", "Hero"),
+		filename: SITE.entry,
+		project: SITE_PROJECT,
+	},
+];
 
 export const KNOWLEDGE_CASES: KnowledgeCase[] = [
 	{

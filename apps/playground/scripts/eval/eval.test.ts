@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "vitest";
-import { CODE_CASES, KNOWLEDGE_CASES } from "./cases";
+import { CODE_CASES, KNOWLEDGE_CASES, PROJECT_CASES } from "./cases";
 import {
 	type ChatTarget,
 	type CodeRunResult,
@@ -13,6 +13,7 @@ import {
 	type KnowledgeRunResult,
 	runCodeCase,
 	runKnowledgeCase,
+	runProjectCase,
 } from "./client";
 import { renderReport } from "./report";
 import { mergeRuns } from "./score";
@@ -49,6 +50,7 @@ interface RawRecord {
 	targets?: ChatTarget[];
 	skipped?: string[];
 	code: CodeRunResult[];
+	project?: CodeRunResult[];
 	knowledge: KnowledgeRunResult[];
 }
 
@@ -70,6 +72,7 @@ function log(message: string) {
 async function runTarget(target: ChatTarget) {
 	const label = `${target.provider}/${target.model}`;
 	const code: CodeRunResult[] = [];
+	const project: CodeRunResult[] = [];
 	const knowledge: KnowledgeRunResult[] = [];
 	for (const docsMode of DOCS_MODES) {
 		for (const testCase of CODE_CASES) {
@@ -78,6 +81,14 @@ async function runTarget(target: ChatTarget) {
 			code.push(r);
 			log(
 				`${label} ${docsMode} code/${testCase.id}: ${r.passed ? "pass" : "FAIL"} (fix ${r.attempts}, ${(r.latencyMs / 1000).toFixed(1)}s)${r.transport ? ` transport=${r.transport}` : ""}`,
+			);
+		}
+		for (const testCase of PROJECT_CASES) {
+			if (CASE_FILTER && !CASE_FILTER.includes(testCase.id)) continue;
+			const r = await runProjectCase(BASE_URL, target, docsMode, testCase);
+			project.push(r);
+			log(
+				`${label} ${docsMode} project/${testCase.id}: ${r.passed ? "pass" : "FAIL"} (fix ${r.attempts}, ${(r.latencyMs / 1000).toFixed(1)}s)${r.transport ? ` transport=${r.transport}` : ""}`,
 			);
 		}
 		for (const testCase of KNOWLEDGE_CASES) {
@@ -89,7 +100,7 @@ async function runTarget(target: ChatTarget) {
 			);
 		}
 	}
-	return { code, knowledge };
+	return { code, project, knowledge };
 }
 
 describe.skipIf(!ENABLED)("evaluation harness", () => {
@@ -112,6 +123,7 @@ describe.skipIf(!ENABLED)("evaluation harness", () => {
 			}),
 		);
 		let code = perProvider.flat().flatMap((t) => t.code);
+		let project = perProvider.flat().flatMap((t) => t.project);
 		let knowledge = perProvider.flat().flatMap((t) => t.knowledge);
 		const durationMs = Math.round(performance.now() - started);
 
@@ -123,6 +135,7 @@ describe.skipIf(!ENABLED)("evaluation harness", () => {
 		if (MERGE && existsSync(rawPath)) {
 			const previous = JSON.parse(readFileSync(rawPath, "utf8")) as RawRecord;
 			code = mergeRuns(previous.code ?? [], code);
+			project = mergeRuns(previous.project ?? [], project);
 			knowledge = mergeRuns(previous.knowledge ?? [], knowledge);
 			const seen = new Set(targets.map((t) => `${t.provider}:${t.model}`));
 			targets = [
@@ -145,6 +158,7 @@ describe.skipIf(!ENABLED)("evaluation harness", () => {
 			skipped,
 			discovery,
 			code,
+			project,
 			knowledge,
 			durationMs,
 		};
@@ -162,6 +176,7 @@ describe.skipIf(!ENABLED)("evaluation harness", () => {
 				skipped,
 				docsModes: DOCS_MODES,
 				code,
+				project,
 				knowledge,
 				durationMs,
 			}),

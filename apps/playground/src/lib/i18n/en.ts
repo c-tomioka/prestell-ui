@@ -166,11 +166,13 @@ export const en = {
 	"chat.assistant": "Assistant",
 	"chat.fixRequest": "🔧 Auto-fix request {attempt}/{max}",
 	"chat.thinking": "Thinking…",
-	"chat.multiFileNote":
-		"The chat edits the active file ({path}) as one component; generating several files at once is coming later.",
+	"chat.projectNote":
+		"The chat can change any file of this project and add new ones under src/ or public/; the preview renders {entry}.",
 
 	// --- code proposal card ---
 	"proposal.title": "Component proposal",
+	"proposal.projectTitle": "Project proposal",
+	"proposal.files": "{count} files",
 	"proposal.lines": "{count} lines",
 	"proposal.generating": "Generating…",
 	"proposal.validating": "Validating…",
@@ -216,6 +218,7 @@ export const en = {
 	"template.category.component": "Component",
 	"template.category.layout": "Layout",
 	"template.category.style": "Style",
+	"template.category.project": "Page / Site",
 	"template.card": "Card",
 	"template.hero": "Hero section",
 	"template.pricing": "Pricing section",
@@ -234,6 +237,11 @@ export const en = {
 	"template.states": "Add hover / focus states",
 	"template.simplify-css": "Simplify the CSS",
 	"template.css-vars": "Use CSS custom properties",
+	"template.site-landing": "Landing page (multi-file)",
+	"template.site-add-page": "Add a page",
+	"template.site-extract": "Extract a component",
+	"template.site-section": "Add a section",
+	"template.site-theme": "Restyle the whole site",
 
 	// --- direct-mode help ---
 	"help.title": "How direct mode works",

@@ -22,6 +22,7 @@ import {
 	formatDocsContext,
 } from "../docs";
 import { trimForRequest } from "../history";
+import type { ProjectContext } from "../project-context";
 import { buildSystemPrompt } from "../prompt";
 import { isLocalProvider, type ProviderId } from "../providers-catalog";
 import {
@@ -42,6 +43,8 @@ export interface DirectRequest {
 	docsMode: DocsMode;
 	filename: string;
 	source: string;
+	/** Page / Site projects: the files the model may edit. */
+	project?: ProjectContext;
 	apiKey?: string;
 	/** Local providers: where the browser reaches the server. */
 	baseUrl?: string;
@@ -130,6 +133,7 @@ export class DirectChatTransport implements ChatTransport<UIMessage> {
 			buildSystemPrompt({
 				filename: request.filename,
 				source: request.source,
+				project: request.project,
 				docsContext,
 			}),
 			tools ? DOCS_TOOL_NOTE : undefined,

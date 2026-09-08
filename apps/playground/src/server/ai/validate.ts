@@ -20,13 +20,27 @@ const uiMessageSchema = z.looseObject({
 	parts: z.array(z.looseObject({ type: z.string() })),
 });
 
+const projectPath = z.string().trim().min(1).max(300);
+
+/** Page / Site projects (Phase 5): text files by path, binaries listed by path. */
+export const projectContextSchema = z.object({
+	mode: z.enum(["page", "site"]),
+	entry: projectPath,
+	files: z.record(projectPath, z.string().max(200_000)),
+	assets: z
+		.array(z.object({ path: projectPath, bytes: z.number().int().min(0) }))
+		.max(200)
+		.default([]),
+});
+
 export const chatRequestSchema = z.object({
 	messages: z.array(uiMessageSchema).min(1).max(MAX_MESSAGES),
 	provider: z.enum(PROVIDER_IDS),
 	model: z.string().trim().min(1).max(200),
 	docsMode: z.enum(DOCS_MODES).default("inject"),
-	filename: z.string().trim().min(1).max(200).default("index.astro"),
+	filename: z.string().trim().min(1).max(300).default("index.astro"),
 	source: z.string().max(200_000).default(""),
+	project: projectContextSchema.optional(),
 });
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;

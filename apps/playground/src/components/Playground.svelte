@@ -4,6 +4,7 @@
 	import type { CompileResult } from '@astrojs/compiler-binding';
 	import { onDestroy } from 'svelte';
 	import { loadSettings, saveSettings } from '../lib/ai/settings';
+	import type { ProposalFile } from '../lib/ai/types';
 	import { compiler } from '../lib/compiler';
 	import type { ParsedAst } from '../lib/compiler-protocol';
 	import { COMPILE_DEBOUNCE_MS, PREVIEW_DEBOUNCE_MS, PROJECT_SAVE_DEBOUNCE_MS } from '../lib/config';
@@ -734,6 +735,19 @@
 		handleSourceChange(code);
 	}
 
+	/** Page / Site: write every proposed file (new ones included) and show the first changed one. */
+	function applyProposalFiles(list: ProposalFile[]) {
+		if (list.length === 0) return;
+		let next = files;
+		for (const file of list) next = addFile(next, file.path, file.code);
+		touchFiles(next);
+		const target = list.some((file) => file.path === activePath) ? activePath : list[0].path;
+		if (!openPaths.includes(target)) openPaths = [...openPaths, target];
+		activePath = target;
+		renderAfterCompile = !autoPreview;
+		onProjectContentChanged();
+	}
+
 	function toggleTheme() {
 		theme = theme === 'dark' ? 'light' : 'dark';
 		applyTheme(theme);
@@ -966,7 +980,9 @@
 				filename={activePath}
 				checkImport={importCheck}
 				multiFile={mode !== 'component'}
+				project={() => ({ mode, entry, files: $state.snapshot(files) as Record<string, ProjectFile> })}
 				onApply={applyProposal}
+				onApplyFiles={applyProposalFiles}
 				onClose={toggleChat}
 			/>
 		</aside>

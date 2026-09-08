@@ -28,8 +28,17 @@ export interface ChatNotice {
 	message: string;
 }
 
-export interface Proposal {
+/** One file of a Page / Site proposal. */
+export interface ProposalFile {
+	path: string;
 	code: string;
+}
+
+export interface Proposal {
+	/** Component mode: the component. Page / Site: the first file (for older records). */
+	code: string;
+	/** Page / Site mode: every file the reply changes or adds. */
+	files?: ProposalFile[];
 	status: ProposalStatus;
 	error?: string;
 	warnings?: string[];

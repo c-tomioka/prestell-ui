@@ -2,7 +2,7 @@
 	import { Chat } from '@ai-sdk/svelte';
 	import { type ChatTransport, DefaultChatTransport, type UIMessage } from 'ai';
 	import { onMount, tick, untrack } from 'svelte';
-	import { validateProposal } from '../../lib/ai/apply';
+	import { validateProjectProposal, validateProposal } from '../../lib/ai/apply';
 	import { type ApiKeys, forgetKeys, loadKeys, saveKey } from '../../lib/ai/direct/keys';
 	import { directProviders, listDirectLocalModels } from '../../lib/ai/direct/models';
 	import { DirectChatTransport } from '../../lib/ai/direct/transport';
@@ -12,7 +12,7 @@
 		describeChatError,
 		MAX_AUTO_RETRIES,
 	} from '../../lib/ai/errors';
-	import { extractAstroCode } from '../../lib/ai/extract-code';
+	import { extractAstroCode, extractProposalFiles } from '../../lib/ai/extract-code';
 	import {
 		buildFixPrompt,
 		clampFixAttempts,
@@ -27,6 +27,7 @@
 		localServerHint,
 		noLocalModels,
 	} from '../../lib/ai/messages';
+	import { projectContextOf } from '../../lib/ai/project-context';
 	import {
 		CLOUD_MODELS,
 		isDirectCloudProvider,
@@ -42,12 +43,13 @@
 		saveSettings,
 	} from '../../lib/ai/settings';
 	import { insertTemplate, type PromptTemplate } from '../../lib/ai/templates';
-	import type { Proposal, ProviderInfo } from '../../lib/ai/types';
+	import type { Proposal, ProposalFile, ProviderInfo } from '../../lib/ai/types';
 	import { AI_CONNECTIONS } from '../../lib/config';
 	import { t } from '../../lib/i18n';
 	import type { ImportCheck } from '../../lib/preview-graph';
 	import { persistableProposals } from '../../lib/projects/record';
 	import { openProjectStore } from '../../lib/projects/store';
+	import type { ProjectFile, ProjectMode } from '../../lib/projects/types';
 	import Icon from '../Icon.svelte';
 	import IconButton from '../IconButton.svelte';
 	import MessageList from './MessageList.svelte';
@@ -62,14 +64,48 @@
 		filename: string;
 		/** Set for Page / Site projects: which imports a proposal may keep. */
 		checkImport?: ImportCheck;
-		/** True when the project has more files than the one the chat edits. */
+		/** Page / Site projects: the model may change or add any file. */
 		multiFile?: boolean;
+		/** Page / Site projects: current files (read at send / validate time). */
+		project?: () => { mode: ProjectMode; entry: string; files: Record<string, ProjectFile> };
 		onApply: (code: string) => void;
+		onApplyFiles?: (files: ProposalFile[]) => void;
 		onClose: () => void;
 	}
 
-	let { projectId, getSource, filename, checkImport, multiFile = false, onApply, onClose }: Props =
-		$props();
+	let {
+		projectId,
+		getSource,
+		filename,
+		checkImport,
+		multiFile = false,
+		project,
+		onApply,
+		onApplyFiles,
+		onClose,
+	}: Props = $props();
+
+	/** Project files as the model sees them (Page / Site only). */
+	function projectContext() {
+		const current = multiFile ? project?.() : undefined;
+		if (!current || current.mode === 'component') return undefined;
+		return projectContextOf({ mode: current.mode, entry: current.entry, files: current.files });
+	}
+
+	/** Code (and files, in Page / Site mode) proposed by an assistant reply. */
+	function extractProposal(text: string): { code: string; files?: ProposalFile[]; complete: boolean } | null {
+		if (multiFile) {
+			const found = extractProposalFiles(text, filename);
+			if (!found) return null;
+			return {
+				code: found.files[0]?.code ?? '',
+				files: found.files.map((file) => ({ path: file.path, code: file.code })),
+				complete: found.complete,
+			};
+		}
+		const found = extractAstroCode(text);
+		return found ? { code: found.code, complete: found.complete } : null;
+	}
 
 	// --- settings (persisted) ---
 	let settings = $state<ChatSettings>(loadSettings());
@@ -240,6 +276,7 @@
 			docsMode: settings.docsMode,
 			filename,
 			source: getSource(),
+			project: projectContext(),
 		}),
 		// The full thread stays in the browser; only a window is sent (server cap).
 		prepareSendMessagesRequest: ({ id, messages, body, trigger, messageId }) => ({
@@ -253,6 +290,7 @@
 		docsMode: settings.docsMode,
 		filename,
 		source: getSource(),
+		project: projectContext(),
 		apiKey: apiKey || undefined,
 		baseUrl: isLocalProvider(providerId) ? settings.directBaseUrls[providerId] : undefined,
 	}));
@@ -407,8 +445,10 @@
 		const last = chat.messages.at(-1);
 		if (!last || last.role !== 'assistant' || !busy) return null;
 		if (proposals[last.id]) return null;
-		const extracted = extractAstroCode(assistantText(last));
-		return extracted ? [last.id, { code: extracted.code, status: 'streaming' }] : null;
+		const extracted = extractProposal(assistantText(last));
+		return extracted
+			? [last.id, { code: extracted.code, files: extracted.files, status: 'streaming' }]
+			: null;
 	});
 	const visibleProposals = $derived<Record<string, Proposal>>(
 		streamingProposal ? { ...proposals, [streamingProposal[0]]: streamingProposal[1] } : proposals,
@@ -427,7 +467,7 @@
 	async function finalizeProposal(message: UIMessage) {
 		const current = generation;
 		settleRetrying('resolved');
-		const extracted = extractAstroCode(assistantText(message));
+		const extracted = extractProposal(assistantText(message));
 		if (!extracted) {
 			// Prose-only reply (answer or question): nothing to validate, and no auto-fix.
 			delete proposals[message.id];
@@ -435,18 +475,28 @@
 			return;
 		}
 		const code = extracted.code;
+		const files = extracted.files;
 		if (!extracted.complete) {
 			// The reply stopped before the closing fence (output limit reached):
 			// re-asking would be cut off the same way, so no auto-fix here.
-			proposals[message.id] = { code, status: 'invalid', error: $t('chat.truncated') };
+			proposals[message.id] = { code, files, status: 'invalid', error: $t('chat.truncated') };
 			void persistChat();
 			return;
 		}
-		proposals[message.id] = { code, status: 'validating' };
-		const result = await validateProposal(code, { filename }, checkImport);
+		proposals[message.id] = { code, files, status: 'validating' };
+		const current_project = files ? project?.() : undefined;
+		const result =
+			files && current_project
+				? await validateProjectProposal({
+						files,
+						project: current_project.files,
+						entry: current_project.entry,
+						mode: current_project.mode,
+					})
+				: await validateProposal(code, { filename }, checkImport);
 		if (current !== generation) return;
 		if (result.ok) {
-			proposals[message.id] = { code, status: 'valid', warnings: result.warnings };
+			proposals[message.id] = { code, files, status: 'valid', warnings: result.warnings };
 			if (settings.autoApply) applyProposal(message.id);
 			else void persistChat();
 			return;
@@ -459,6 +509,7 @@
 			const attempt = attempts + 1;
 			proposals[message.id] = {
 				code,
+				files,
 				status: 'invalid',
 				error: result.error,
 				fix: { attempt, max, state: 'retrying' },
@@ -466,13 +517,14 @@
 			await persistChat();
 			if (current !== generation) return;
 			void chat.sendMessage({
-				text: buildFixPrompt(result.error, attempt, max),
+				text: buildFixPrompt(result.error, attempt, max, { multiFile: Boolean(files) }),
 				metadata: { kind: 'fix', attempt, max },
 			});
 			return;
 		}
 		proposals[message.id] = {
 			code,
+			files,
 			status: 'invalid',
 			error: result.error,
 			fix: attempts > 0 ? { attempt: attempts, max, state: 'gave-up' } : undefined,
@@ -483,7 +535,8 @@
 	function applyProposal(messageId: string) {
 		const proposal = proposals[messageId];
 		if (!proposal) return;
-		onApply(proposal.code);
+		if (proposal.files && onApplyFiles) onApplyFiles(proposal.files);
+		else onApply(proposal.code);
 		proposals[messageId] = { ...proposal, status: 'applied' };
 		void persistChat();
 	}
@@ -614,7 +667,7 @@
 	</div>
 
 	{#if multiFile}
-		<p class="multi-file-note">{$t('chat.multiFileNote', { path: filename })}</p>
+		<p class="multi-file-note">{$t('chat.projectNote', { entry: project?.().entry ?? '' })}</p>
 	{/if}
 
 	<MessageList
@@ -656,7 +709,7 @@
 			disabled={busy}
 		></textarea>
 		<div class="composer-actions">
-			<TemplateMenu disabled={busy} onPick={(template) => void applyTemplate(template)} />
+			<TemplateMenu disabled={busy} {multiFile} onPick={(template) => void applyTemplate(template)} />
 			{#if busy}
 				<IconButton label={$t('chat.stop')} tipSide="top" onclick={() => chat.stop()}>
 					<Icon name="square" />

@@ -4,15 +4,17 @@
 
 	interface Props {
 		disabled: boolean;
+		/** Page / Site mode: also offer the multi-file templates. */
+		multiFile?: boolean;
 		onPick: (template: PromptTemplate) => void;
 	}
 
-	let { disabled, onPick }: Props = $props();
+	let { disabled, multiFile = false, onPick }: Props = $props();
 
-	const groups = templatesByCategory();
+	const groups = $derived(templatesByCategory({ multiFile }));
 	// Titles are translated by id; the prompt text itself stays English.
 	const templateLabel = (id: string) => $t(`template.${id}` as MessageKey);
-	const byId = new Map(groups.flatMap((g) => g.templates.map((t) => [t.id, t] as const)));
+	const byId = $derived(new Map(groups.flatMap((g) => g.templates.map((t) => [t.id, t] as const))));
 
 	function pick(event: Event) {
 		const select = event.currentTarget as HTMLSelectElement;

@@ -55,7 +55,20 @@ export function buildFixPrompt(
 	error: string,
 	attempt: number,
 	max: number,
+	options: { multiFile?: boolean } = {},
 ): string {
+	if (options.multiFile) {
+		return [
+			`The files in your previous reply failed validation (auto-fix attempt ${attempt}/${max}). The project still holds the older files; fix the code from your previous reply, not the project contents.`,
+			"",
+			"Errors:",
+			"```",
+			error.trim(),
+			"```",
+			"",
+			"Return the COMPLETE corrected contents of every file that needs a change, one fenced code block per file tagged with its path (```astro path=src/pages/index.astro). Only relative imports of project `.astro` / `.css` files, no framework components, no `client:*` directives, no external scripts; keep everything that already worked.",
+		].join("\n");
+	}
 	return [
 		`The component in your previous reply failed validation (auto-fix attempt ${attempt}/${max}). The editor still holds the older component; fix the code from your previous reply, not the editor contents.`,
 		"",
