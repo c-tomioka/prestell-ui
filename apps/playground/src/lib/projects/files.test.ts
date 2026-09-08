@@ -3,11 +3,17 @@ import {
 	addFile,
 	basename,
 	buildFileTree,
+	checkUploadSize,
 	deleteFile,
 	entryCandidates,
+	formatBytes,
 	languageFor,
+	MAX_UPLOAD_BYTES,
+	projectBlobBytes,
 	renameFile,
+	sanitizeUploadName,
 	templateForNewFile,
+	uploadPathFor,
 	validateFilePath,
 } from "./files";
 
@@ -107,5 +113,33 @@ describe("file helpers", () => {
 		expect(templateForNewFile("public/x.svg")).toContain("<svg");
 		expect(templateForNewFile("public/robots.txt")).toBe("");
 		expect(basename("src/pages/index.astro")).toBe("index.astro");
+	});
+});
+
+describe("uploads", () => {
+	it("sanitises names and keeps them unique", () => {
+		expect(sanitizeUploadName("My Photo (1).PNG")).toBe("my-photo-1.png");
+		expect(sanitizeUploadName("...")).toBe("file");
+		const files = { "public/images/logo.png": new Blob([]) };
+		expect(uploadPathFor(files, "Logo.png")).toBe("public/images/logo-2.png");
+		expect(uploadPathFor(files, "new.png")).toBe("public/images/new.png");
+	});
+
+	it("enforces the size limits", () => {
+		const big = new Blob([new Uint8Array(19 * 1024 * 1024)]);
+		const files = { "public/images/big.bin": big };
+		expect(projectBlobBytes(files)).toBe(big.size);
+		expect(checkUploadSize(files, MAX_UPLOAD_BYTES + 1)).toEqual({
+			ok: false,
+			error: "files.uploadTooLarge",
+		});
+		expect(checkUploadSize(files, MAX_UPLOAD_BYTES)).toEqual({
+			ok: false,
+			error: "files.projectTooLarge",
+		});
+		expect(checkUploadSize({}, MAX_UPLOAD_BYTES)).toEqual({ ok: true });
+		expect(formatBytes(512)).toBe("512 B");
+		expect(formatBytes(2048)).toBe("2.0 KB");
+		expect(formatBytes(3 * 1024 * 1024)).toBe("3.0 MB");
 	});
 });

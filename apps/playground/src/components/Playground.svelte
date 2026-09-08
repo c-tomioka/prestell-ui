@@ -21,6 +21,7 @@
 		preview,
 		validatePreview,
 	} from '../lib/preview';
+	import { assetDataUrls, isImagePath, publicUrlPath } from '../lib/preview-assets';
 	import {
 		buildPreviewGraph,
 		createCachedCompiler,
@@ -34,11 +35,16 @@
 	import {
 		addFile,
 		basename,
+		checkUploadSize,
 		deleteFile,
 		entryCandidates,
+		formatBytes,
 		languageFor,
+		MAX_PROJECT_BLOB_BYTES,
+		MAX_UPLOAD_BYTES,
 		renameFile,
 		templateForNewFile,
+		uploadPathFor,
 		validateFilePath,
 	} from '../lib/projects/files';
 	import { defaultProjectName, importedProjectName } from '../lib/projects/naming';
@@ -88,6 +94,23 @@
 	const source = $derived(typeof files[activePath] === 'string' ? (files[activePath] as string) : '');
 	const activeIsAstro = $derived(extensionOf(activePath) === '.astro');
 	const activeIsBinary = $derived(files[activePath] instanceof Blob);
+	/** `data:` URL of the active binary file when it is an image (for the side panel). */
+	let activeImageUrl = $state('');
+	$effect(() => {
+		const content = files[activePath];
+		const path = activePath;
+		if (!(content instanceof Blob) || !isImagePath(path)) {
+			activeImageUrl = '';
+			return;
+		}
+		let cancelled = false;
+		void assetDataUrls({ [path]: content }, assetCache).then((urls) => {
+			if (!cancelled) activeImageUrl = urls[publicUrlPath(path) ?? ''] ?? '';
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
 	const entries = $derived(entryCandidates(files));
 	const editorLanguage = $derived(languageFor(activePath));
 	const showTree = $derived(mode !== 'component');
@@ -427,6 +450,31 @@
 		onProjectContentChanged();
 	}
 
+	/** Add uploaded images under `public/images/` (size limits from ROADMAP Phase 5). */
+	async function uploadFiles(list: FileList) {
+		let next = files;
+		let added = '';
+		for (const file of Array.from(list)) {
+			const check = checkUploadSize(next, file.size);
+			if (!check.ok) {
+				window.alert(
+					tr(check.error, {
+						name: file.name,
+						max: formatBytes(check.error === 'files.uploadTooLarge' ? MAX_UPLOAD_BYTES : MAX_PROJECT_BLOB_BYTES),
+					}),
+				);
+				continue;
+			}
+			const path = uploadPathFor(next, file.name);
+			next = addFile(next, path, file);
+			added = path;
+		}
+		if (next === files) return;
+		touchFiles(next);
+		if (added) openFile(added);
+		onProjectContentChanged();
+	}
+
 	function changeEntry(path: string) {
 		if (!(path in files) || path === entry) return;
 		entry = path;
@@ -478,6 +526,8 @@
 		return { result: compiled, ast: parsed };
 	});
 	let previewOptionsKey = '';
+	/** `data:` URLs of `public/` files, encoded once per Blob. */
+	const assetCache = new Map<ProjectFile, string>();
 
 	async function runPreview(compiled = result, parsed = ast) {
 		const current = ++previewRunId;
@@ -521,10 +571,13 @@
 			});
 			previewCompiler.prune(Object.keys(previewFiles));
 			if (current !== previewRunId) return;
-			const html = await preview.render(graph);
+			const [html, assets] = await Promise.all([
+				preview.render(graph),
+				assetDataUrls(previewFiles, assetCache),
+			]);
 			previewIsolated = preview.isolated;
 			if (current !== previewRunId) return;
-			previewDocument = createPreviewDocument(html, graph.css);
+			previewDocument = createPreviewDocument(html, graph.css, assets);
 			previewStatus = 'ready';
 			previewStale = false;
 		} catch (error) {
@@ -788,6 +841,7 @@
 				collapsed={treeCollapsed}
 				onOpen={openFile}
 				onAdd={addNewFile}
+				onUpload={(list) => void uploadFiles(list)}
 				onRename={renameExistingFile}
 				onDelete={deleteExistingFile}
 				onToggle={() => (treeCollapsed = !treeCollapsed)}
@@ -848,7 +902,20 @@
 			</div>
 			<div class="pane-body">
 				{#if activeIsBinary}
-					<div class="binary" role="status"><p>{$t('files.binary')}</p></div>
+					<div class="binary" role="status">
+						{#if activeImageUrl}
+							<img src={activeImageUrl} alt={basename(activePath)} />
+						{/if}
+						<p>
+							{activeImageUrl
+								? $t('files.imageInfo', {
+										path: activePath,
+										size: formatBytes((files[activePath] as Blob).size),
+										url: publicUrlPath(activePath) ?? '',
+									})
+								: $t('files.binary')}
+						</p>
+					</div>
 				{:else}
 					<Editor value={source} {diagnostics} {theme} language={editorLanguage} onChange={handleSourceChange} />
 				{/if}
@@ -1069,10 +1136,25 @@
 		min-height: 0;
 	}
 	.binary {
-		display: grid;
-		place-items: center;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.75rem;
 		height: 100%;
+		padding: 1rem;
 		color: var(--muted);
+		font-size: 0.78rem;
+		text-align: center;
+		overflow: auto;
+	}
+	.binary img {
+		max-width: 100%;
+		max-height: 70%;
+		object-fit: contain;
+		background:
+			linear-gradient(45deg, var(--border) 25%, transparent 25%, transparent 75%, var(--border) 75%) 0 0 / 16px 16px,
+			linear-gradient(45deg, var(--border) 25%, transparent 25%, transparent 75%, var(--border) 75%) 8px 8px / 16px 16px;
 	}
 	@media (max-width: 800px) {
 		.workspace.with-chat {

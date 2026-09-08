@@ -63,8 +63,8 @@
 - [x] プロジェクトモデルの多ファイル化: `source` を `files: Record<path, text | Blob>` に変え、プレビューの入口ファイルとモード（`component` / `page` / `site`）を持たせる。レコードの `schemaVersion: 2` へ読み出し時に移行（既存プロジェクトは Component モードとして自動変換。`src/lib/projects/record.ts`、2026-09-08）
 - [x] モード: Component（`Component.astro` 1 本、自己完結・import 禁止、ツリー非表示）/ Page（`src/pages/index.astro` + `src/layouts/Layout.astro`）/ Site（Page + `src/components/`、複数ページとページ切替）。Component → Page への昇格を提供（`src/lib/projects/presets.ts`、2026-09-08）
 - [x] ファイルツリー UI: **画面左端（エディタの左）**に配置。タブ、追加・改名・削除・移動（改名でパスを変える）、折りたたみ。Component モードでは非表示（`FileTree.svelte`、2026-09-08。ドラッグ＆ドロップは未対応）
-- [x] ページプレビュー: 入口ファイルの選択とページ切替、レイアウト・コンポーネント・CSS の import（2026-09-08、Preview コントロールの select）。`public/` 配下の画像の `blob:` URL 書き換えと外部画像の許可（`img-src`）は次の「画像」項目で扱う
-- [ ] 画像: アップロードを `public/` 配下の Blob として IndexedDB に保持（上限の目安: 1 ファイル 2 MB、1 プロジェクト 20 MB）。SVG はテキストファイルとして編集・AI 生成の対象にする
+- [x] ページプレビュー: 入口ファイルの選択とページ切替、レイアウト・コンポーネント・CSS の import（2026-09-08、Preview コントロールの select）。`public/` 配下の画像の書き換えと外部画像の許可は次の「画像」項目で実装（`blob:` ではなく `data:` URL。表示用 iframe は opaque origin で `blob:` を読めないため）
+- [x] 画像: アップロードを `public/images/` 配下の Blob として IndexedDB に保持（上限: 1 ファイル 2 MB、1 プロジェクト 20 MB）。SVG はテキストファイルとして編集・AI 生成の対象にする。プレビューでは `public/` の参照（`/images/x.png`、`srcset`、CSS の `url()`、`<link rel="stylesheet">`）を `data:` URL に書き換え、表示用 iframe の CSP に `img-src https:` を足して外部画像も許可（`src/lib/preview-assets.ts`、2026-09-08）
 - [ ] AI の多ファイル生成: モード別のシステムプロンプト（Component は現状の import 禁止を維持）、パス付きコードブロックの出力形式、複数ファイルの検証・適用・fix ループ、画像は URL / プレースホルダー / SVG に限定する指示、Page / Site 向けテンプレート（LP 生成、セクション分割、ページ追加など）
 - [x] 書き出し: Site / Page は Astro プロジェクトの ZIP（`package.json`、`astro.config.mjs`、`tsconfig.json`、`.gitignore`、`README.md`、`public/`、`src/`）と File System Access API によるディレクトリ書き込み（非対応ブラウザは ZIP に自動フォールバック）。Component は従来の 1 ファイル保存（`src/lib/export-project.ts`、`src/lib/zip.ts`、2026-09-08。Site プリセットの書き出しを `npm install && npm run build` で確認済み）
 - [x] Share URL: **Component モード限定**に決定（2026-09-08）。Page / Site では Share ボタンを無効にし、ZIP / フォルダー書き出しを案内する。多ファイルを圧縮して `#project=` に載せる案は、URL 長と共有経路での切り詰めが読めないため見送り（必要になれば別途検討）

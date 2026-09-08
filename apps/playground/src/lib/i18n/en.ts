@@ -63,6 +63,12 @@ export const en = {
 	"files.entryBadge": "entry",
 	"files.entryTitle": "The file the preview renders",
 	"files.binary": "Binary file (not editable here)",
+	"files.upload": "Upload images",
+	"files.uploadTooLarge":
+		"“{name}” is larger than {max}. Resize or compress it first.",
+	"files.projectTooLarge":
+		"Uploading “{name}” would exceed the {max} of images a project can hold.",
+	"files.imageInfo": "{path} · {size} · use it as {url}",
 	"files.invalidPath":
 		"Use a relative path made of letters, digits, dots, dashes and underscores, e.g. src/components/Card.astro.",
 	"files.componentPath":

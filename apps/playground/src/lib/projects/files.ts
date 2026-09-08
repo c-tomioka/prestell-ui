@@ -189,3 +189,69 @@ export function deleteFile(
 	const { [path]: _removed, ...rest } = files;
 	return rest;
 }
+
+/** Upload limits (ROADMAP Phase 5): per file and per project, in bytes. */
+export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+export const MAX_PROJECT_BLOB_BYTES = 20 * 1024 * 1024;
+/** Folder uploads land in. */
+export const UPLOAD_DIR = "public/images";
+
+/** Total size of the binary files in the project. */
+export function projectBlobBytes(files: Record<string, ProjectFile>): number {
+	let total = 0;
+	for (const content of Object.values(files)) {
+		if (content instanceof Blob) total += content.size;
+	}
+	return total;
+}
+
+/** `My Photo (1).PNG` → `my-photo-1.png`; keeps the extension. */
+export function sanitizeUploadName(name: string): string {
+	const dot = name.lastIndexOf(".");
+	const hasExtension = dot > 0 && dot < name.length - 1;
+	const stem = hasExtension ? name.slice(0, dot) : name;
+	const extension = hasExtension ? name.slice(dot).toLowerCase() : "";
+	const slug = stem
+		.toLowerCase()
+		.normalize("NFKD")
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+	return `${slug || "file"}${extension.replace(/[^a-z0-9.]/g, "")}`;
+}
+
+/** Path for an uploaded file, made unique against the existing files. */
+export function uploadPathFor(
+	files: Record<string, ProjectFile>,
+	name: string,
+	dir = UPLOAD_DIR,
+): string {
+	const clean = sanitizeUploadName(name);
+	const dot = clean.lastIndexOf(".");
+	const stem = dot > 0 ? clean.slice(0, dot) : clean;
+	const extension = dot > 0 ? clean.slice(dot) : "";
+	let path = `${dir}/${clean}`;
+	for (let n = 2; path in files; n++) path = `${dir}/${stem}-${n}${extension}`;
+	return path;
+}
+
+export type UploadCheck =
+	| { ok: true }
+	| { ok: false; error: "files.uploadTooLarge" | "files.projectTooLarge" };
+
+/** Whether `size` more bytes fit within the limits. */
+export function checkUploadSize(
+	files: Record<string, ProjectFile>,
+	size: number,
+): UploadCheck {
+	if (size > MAX_UPLOAD_BYTES)
+		return { ok: false, error: "files.uploadTooLarge" };
+	if (projectBlobBytes(files) + size > MAX_PROJECT_BLOB_BYTES)
+		return { ok: false, error: "files.projectTooLarge" };
+	return { ok: true };
+}
+
+export function formatBytes(bytes: number): string {
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
