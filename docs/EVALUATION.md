@@ -58,6 +58,23 @@ Astro 5 で変わった、または間違えやすい API を問う。`must`（�
 - 知識問答も通常の system prompt（「1 つのコンポーネントを編集する」枠）付きで送る。質問文の先頭に「一般的な Astro の質問」と明記して枠から外しているが、製品の実挙動を測る設計であり、素のモデル評価ではない。
 - `tools` モードの tool 呼び出し回数は `tool-input-available` チャンクの数。ローカルモデルが tool calling に対応しない場合は通信失敗や 0 回として現れる。
 
+## 所見（2026-09-08、ローカル LLM / Phase 5 多ファイル）
+
+対象: Ollama の qwen2.5-coder:7b（Apple Silicon、`OLLAMA_CONTEXT_LENGTH=16384` で起動）。docsMode は off / inject（tools は 7B の tool calling が不安定なため省略）。LM Studio は未起動で対象外。所要 6.5 分。詳細は `docs/evaluations/2026-09-08.md`。
+
+| 区分 | off | inject |
+|---|---|---|
+| コード生成（Component、8 件） | 8/8（pass@0 8） | 8/8（pass@0 7、hero が fix 1 回で合格） |
+| 多ファイル生成（Page / Site、3 件） | 3/3（pass@0 2、site-landing が fix 1 回で合格） | 2/3（site-add-page が fix 2 回でも不合格） |
+| 知識問答（8 問、正答率 / ハルシネーション） | 50% / 1 | 50% / 1 |
+
+- **多ファイル契約は 7B のローカルモデルでも成立した。** 6 件すべてでパス付きコードブロックが返り（fence 100%）、5 件が検証に合格。新しいページ・コンポーネントの追加、既存ページからの切り出し、レイアウトの再利用、`import '../styles/global.css'` の書き方まで契約どおりだった。
+- **fix ループが不合格を合格に変えた例が今回は 2 件あった**（hero、site-landing）。2026-09-07 に fix 依頼へ該当行の本文を添えた効果とみられる（前回は 0 件）。
+- 唯一の不合格（inject の site-add-page）は、モデルがコードフェンスの `path=` タグを **`<style path=src/pages/pricing.astro` のようにファイル内に書いてしまった**もの。コンパイラの診断は CSS 側の「Expected `}` but found `:`」になり、原因の行を指さないため fix 2 回でも直らなかった。対策として system prompt に「`path=` はフェンス行だけに書く」の 1 行を追加した（このファイルの変更）。効果は次回の評価で確認する。
+- 知識問答は off / inject とも 50% で、inject が効いていない。前回の 3 モデルでは inject でハルシネーションが 0 になったが、7B では検索結果を渡しても `client:defer`（存在しない）や `Astro.glob()` を書く。**小型ローカルモデルではコード生成には十分でも Astro の新 API の知識は補いきれない**ので、知識が要る質問はクラウドモデルか `tools` 対応モデルに寄せるのが妥当。
+- 速度は 1 件あたり 7〜25 秒（inject は検索と長いプロンプトぶん遅い）。多ファイルの system prompt はプロジェクト全体（Site プリセットで約 9k 文字）を含むため、Ollama の既定コンテキスト（4096 トークン）では切れる。ローカルで多ファイル生成を使うときは `OLLAMA_CONTEXT_LENGTH=16384 ollama serve` のようにコンテキストを広げること（`LOCAL_LLM.md` にも記載）。
+- ハーネス側の修正: 多ファイルのエラー文は 1 行目がファイルパスだけなので、レポートの「失敗理由」がパスだけになっていた。`topErrors` が 2 行目のメッセージも含めるようにした。
+
 ## 所見（2026-09-06）
 
 対象: Claude Haiku 4.5（AI Gateway 経由、BYOK）、Workers AI の llama-4-scout-17b-16e-instruct と qwen2.5-coder-32b-instruct。Ollama は実行時に未起動だったため未測定。詳細は `docs/evaluations/2026-09-06.md`。
@@ -90,6 +107,6 @@ Astro 5 で変わった、または間違えやすい API を問う。`must`（�
 3. **ハーネス側**: 同一プロバイダーの 2 モデルを並列に走らせると Workers AI のレート制限に当たる。プロバイダー内は直列に変更。
 
 ### 未実施・次回
-- Ollama（qwen2.5-coder:7b 等）: `ollama serve` 後に `EVAL_MERGE=1 EVAL_MODELS= pnpm eval`（`EVAL_MODELS` を空にするとローカルのみ）。
+- Ollama（qwen2.5-coder:7b）は 2026-09-08 に測定済み（上の所見）。LM Studio や他のローカルモデルは `EVAL_MERGE=1 EVAL_MODELS= pnpm eval`（`EVAL_MODELS` を空にするとローカルのみ）。
 - GPT-5 mini / Gemini 2.5 Flash: `EVAL_MERGE=1 EVAL_MODELS="openai:gpt-5-mini,google:gemini-2.5-flash" pnpm eval`。
 - Workers AI の tools 列（上記）。
