@@ -270,3 +270,33 @@ function findImportSpecifiers(code: string): string[] {
 	});
 	return specifiers;
 }
+
+/**
+ * Memoises `compile` per (path, source) so editing one file only recompiles
+ * that file and the graph is rebuilt from cached results otherwise. Call
+ * `prune(paths)` after a build to forget files that no longer exist; changing
+ * the compile options needs a new cache (`key` them in).
+ */
+export function createCachedCompiler(compile: PreviewCompiler): {
+	compile: PreviewCompiler;
+	prune(paths: Iterable<string>): void;
+	clear(): void;
+} {
+	const cache = new Map<string, { source: string; result: CompiledFile }>();
+	return {
+		compile: async (path, source) => {
+			const hit = cache.get(path);
+			if (hit && hit.source === source) return hit.result;
+			const result = await compile(path, source);
+			cache.set(path, { source, result });
+			return result;
+		},
+		prune(paths) {
+			const keep = new Set(paths);
+			for (const path of cache.keys()) if (!keep.has(path)) cache.delete(path);
+		},
+		clear() {
+			cache.clear();
+		},
+	};
+}

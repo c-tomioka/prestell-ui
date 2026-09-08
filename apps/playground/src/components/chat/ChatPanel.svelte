@@ -45,6 +45,7 @@
 	import type { Proposal, ProviderInfo } from '../../lib/ai/types';
 	import { AI_CONNECTIONS } from '../../lib/config';
 	import { t } from '../../lib/i18n';
+	import type { ImportCheck } from '../../lib/preview-graph';
 	import { persistableProposals } from '../../lib/projects/record';
 	import { openProjectStore } from '../../lib/projects/store';
 	import Icon from '../Icon.svelte';
@@ -59,11 +60,16 @@
 		/** Current editor contents (read at request time so edits are incremental). */
 		getSource: () => string;
 		filename: string;
+		/** Set for Page / Site projects: which imports a proposal may keep. */
+		checkImport?: ImportCheck;
+		/** True when the project has more files than the one the chat edits. */
+		multiFile?: boolean;
 		onApply: (code: string) => void;
 		onClose: () => void;
 	}
 
-	let { projectId, getSource, filename, onApply, onClose }: Props = $props();
+	let { projectId, getSource, filename, checkImport, multiFile = false, onApply, onClose }: Props =
+		$props();
 
 	// --- settings (persisted) ---
 	let settings = $state<ChatSettings>(loadSettings());
@@ -437,7 +443,7 @@
 			return;
 		}
 		proposals[message.id] = { code, status: 'validating' };
-		const result = await validateProposal(code, { filename });
+		const result = await validateProposal(code, { filename }, checkImport);
 		if (current !== generation) return;
 		if (result.ok) {
 			proposals[message.id] = { code, status: 'valid', warnings: result.warnings };
@@ -607,6 +613,10 @@
 		</div>
 	</div>
 
+	{#if multiFile}
+		<p class="multi-file-note">{$t('chat.multiFileNote', { path: filename })}</p>
+	{/if}
+
 	<MessageList
 		messages={chat.messages}
 		proposals={visibleProposals}
@@ -729,6 +739,16 @@
 		border: 1px solid var(--border);
 		border-radius: 6px;
 		padding: 0.15rem 0.3rem;
+	}
+	.multi-file-note {
+		flex: none;
+		margin: 0 0.75rem;
+		padding: 0.4rem 0.6rem;
+		border-radius: 6px;
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+		color: var(--muted);
+		font-size: 0.74rem;
+		line-height: 1.4;
 	}
 	.error {
 		flex: none;

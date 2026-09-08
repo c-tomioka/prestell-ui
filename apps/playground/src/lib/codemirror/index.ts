@@ -118,6 +118,7 @@ export interface InputEditorHandle {
 	setDoc(text: string): void;
 	setDiagnostics(diagnostics: readonly Diagnostic[]): void;
 	setTheme(theme: Theme): void;
+	setLanguage(language: EditorLanguage): void;
 	destroy(): void;
 }
 
@@ -130,13 +131,15 @@ export function createInputEditor(options: {
 	onChange: (value: string) => void;
 }): InputEditorHandle {
 	const themeCompartment = new Compartment();
+	const languageCompartment = new Compartment();
+	let currentLanguage = options.language;
 	const view = new EditorView({
 		parent: options.parent,
 		state: EditorState.create({
 			doc: options.doc,
 			extensions: [
 				baseExtensions(),
-				languageExtension(options.language),
+				languageCompartment.of(languageExtension(options.language)),
 				highlightActiveLine(),
 				lintGutter(),
 				EditorView.contentAttributes.of({ "aria-label": options.ariaLabel }),
@@ -166,6 +169,13 @@ export function createInputEditor(options: {
 		setTheme(theme) {
 			view.dispatch({
 				effects: themeCompartment.reconfigure(themeExtension(theme)),
+			});
+		},
+		setLanguage(language) {
+			if (language === currentLanguage) return;
+			currentLanguage = language;
+			view.dispatch({
+				effects: languageCompartment.reconfigure(languageExtension(language)),
 			});
 		},
 		destroy() {

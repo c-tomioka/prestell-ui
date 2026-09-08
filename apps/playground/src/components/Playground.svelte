@@ -8,38 +8,85 @@
 	import type { ParsedAst } from '../lib/compiler-protocol';
 	import { COMPILE_DEBOUNCE_MS, PREVIEW_DEBOUNCE_MS, PROJECT_SAVE_DEBOUNCE_MS } from '../lib/config';
 	import { toCodeMirrorDiagnostics } from '../lib/diagnostics';
-	import { saveComponent } from '../lib/export';
-	import { t } from '../lib/i18n';
+	import { normalizeFilename, saveComponent } from '../lib/export';
+	import { t, tr } from '../lib/i18n';
 	import { DEFAULT_COMPILE_OPTIONS } from '../lib/options';
 	import {
 		createPreviewDocument,
 		preview,
 		validatePreview,
 	} from '../lib/preview';
-	import { buildPreviewGraph, PreviewUnsupportedError } from '../lib/preview-graph';
+	import {
+		buildPreviewGraph,
+		createCachedCompiler,
+		extensionOf,
+		importChecker,
+		PreviewUnsupportedError,
+	} from '../lib/preview-graph';
 	import { loadAutoPreview, saveAutoPreview } from '../lib/preview-settings';
 	import { resolveInitialProject } from '../lib/projects/boot';
 	import { loadCurrentProjectId, saveCurrentProjectId } from '../lib/projects/current';
-	import { defaultProjectName, importedProjectName } from '../lib/projects/naming';
-	import { createProjectRecord, sortByUpdated, toSummary } from '../lib/projects/record';
-	import { openProjectStore } from '../lib/projects/store';
-	import type { ProjectRecord, ProjectStore, ProjectSummary } from '../lib/projects/types';
-	import { DEFAULT_SOURCE } from '../lib/samples';
 	import {
-		pickShareableOptions,
-		readSharedState,
-		type ShareableOptions,
-		shareUrl,
-	} from '../lib/share';
+		addFile,
+		basename,
+		deleteFile,
+		entryCandidates,
+		languageFor,
+		renameFile,
+		templateForNewFile,
+		validateFilePath,
+	} from '../lib/projects/files';
+	import { defaultProjectName, importedProjectName } from '../lib/projects/naming';
+	import { createPreset, promoteToPage } from '../lib/projects/presets';
+	import {
+		createProjectRecord,
+		pickProjectOptions,
+		sortByUpdated,
+		toSummary,
+	} from '../lib/projects/record';
+	import { openProjectStore } from '../lib/projects/store';
+	import type {
+		ProjectFile,
+		ProjectMode,
+		ProjectOptions,
+		ProjectRecord,
+		ProjectStore,
+		ProjectSummary,
+	} from '../lib/projects/types';
+	import { readSharedState, shareUrl } from '../lib/share';
 	import { applyTheme, initialTheme, type Theme } from '../lib/theme';
 	import ChatPanel from './chat/ChatPanel.svelte';
 	import Editor from './Editor.svelte';
+	import FileTree from './FileTree.svelte';
 	import OutputTabs from './OutputTabs.svelte';
 	import Toolbar, { type SaveFeedback, type ShareFeedback } from './Toolbar.svelte';
 
+	// --- project contents (the file map is the model; see lib/projects/types.ts) ---
 	const shared = readSharedState();
-	let source = $state(shared?.code ?? DEFAULT_SOURCE);
-	let options = $state({ ...DEFAULT_COMPILE_OPTIONS, ...(shared?.options ?? {}) });
+	const initial = createPreset('component');
+	let files = $state<Record<string, ProjectFile>>(
+		shared?.code !== undefined
+			? { [normalizeFilename(shared.options.filename ?? '')]: shared.code }
+			: initial.files,
+	);
+	let entry = $state(shared?.code !== undefined ? normalizeFilename(shared.options.filename ?? '') : initial.entry);
+	let mode = $state<ProjectMode>('component');
+	/** File shown in the editor. */
+	let activePath = $state(entry);
+	/** Editor tabs (Page / Site modes). */
+	let openPaths = $state<string[]>([entry]);
+	let options = $state({ ...DEFAULT_COMPILE_OPTIONS, ...pickProjectOptions(shared?.options ?? {}) });
+	/** Bumped on every change to files / entry / mode so the save effect can watch one primitive. */
+	let revision = $state(0);
+	let treeCollapsed = $state(false);
+
+	const source = $derived(typeof files[activePath] === 'string' ? (files[activePath] as string) : '');
+	const activeIsAstro = $derived(extensionOf(activePath) === '.astro');
+	const activeIsBinary = $derived(files[activePath] instanceof Blob);
+	const entries = $derived(entryCandidates(files));
+	const editorLanguage = $derived(languageFor(activePath));
+	const showTree = $derived(mode !== 'component');
+	const importCheck = $derived(mode === 'component' ? undefined : importChecker(files, activePath));
 
 	let theme = $state<Theme>(initialTheme());
 	// Ensure theme application reacts to changes (avoids stale capture warning)
@@ -87,37 +134,45 @@
 	let projectsReady = $state(false);
 	let saveTimer: ReturnType<typeof setTimeout> | undefined;
 	/** What the store holds for the current project; edits are saved only when they differ. */
-	let savedSource = '';
+	let savedRevision = 0;
 	let savedOptionsKey = '';
 
-	function optionsKey(shareable: Partial<ShareableOptions>): string {
-		return JSON.stringify(shareable);
+	function optionsKey(project: Partial<ProjectOptions>): string {
+		return JSON.stringify(project);
 	}
 
-	async function saveProject(nextSource: string, nextOptions: Partial<ShareableOptions>) {
-		if (!store || !currentProject) return;
-		const project = currentProject;
-		const now = Date.now();
-		const record: ProjectRecord = {
+	function snapshotRecord(project: ProjectSummary, now: number): ProjectRecord {
+		return {
 			id: project.id,
 			name: project.name,
 			createdAt: project.createdAt,
 			updatedAt: now,
-			source: nextSource,
-			options: nextOptions,
-			schemaVersion: 1,
+			schemaVersion: 2,
+			mode,
+			entry,
+			files: { ...$state.snapshot(files) } as Record<string, ProjectFile>,
+			options: pickProjectOptions($state.snapshot(options)),
 		};
+	}
+
+	async function saveProject(nextRevision: number, nextOptionsKey: string) {
+		if (!store || !currentProject) return;
+		const project = currentProject;
+		const now = Date.now();
+		const record = snapshotRecord(project, now);
 		try {
 			await store.put(record);
 		} catch (error) {
 			console.error('[projects] save failed', error);
 			return;
 		}
-		savedSource = nextSource;
-		savedOptionsKey = optionsKey(nextOptions);
+		savedRevision = nextRevision;
+		savedOptionsKey = nextOptionsKey;
 		if (currentProject?.id === project.id) {
-			currentProject = { ...project, updatedAt: now };
-			projects = sortByUpdated(projects.map((p) => (p.id === project.id ? { ...p, updatedAt: now } : p)));
+			currentProject = { ...project, mode, updatedAt: now };
+			projects = sortByUpdated(
+				projects.map((p) => (p.id === project.id ? { ...p, mode, updatedAt: now } : p)),
+			);
 		}
 	}
 
@@ -126,18 +181,18 @@
 		if (saveTimer === undefined) return Promise.resolve();
 		clearTimeout(saveTimer);
 		saveTimer = undefined;
-		return saveProject(source, pickShareableOptions($state.snapshot(options)));
+		return saveProject(revision, optionsKey(pickProjectOptions($state.snapshot(options))));
 	}
 
 	$effect(() => {
-		const nextSource = source;
-		const nextOptions = pickShareableOptions($state.snapshot(options));
+		const nextRevision = revision;
+		const nextOptionsKey = optionsKey(pickProjectOptions($state.snapshot(options)));
 		if (!projectsReady || !currentProject) return;
-		if (nextSource === savedSource && optionsKey(nextOptions) === savedOptionsKey) return;
+		if (nextRevision === savedRevision && nextOptionsKey === savedOptionsKey) return;
 		clearTimeout(saveTimer);
 		saveTimer = setTimeout(() => {
 			saveTimer = undefined;
-			void saveProject(nextSource, nextOptions);
+			void saveProject(nextRevision, nextOptionsKey);
 		}, PROJECT_SAVE_DEBOUNCE_MS);
 	});
 
@@ -156,19 +211,28 @@
 
 	/** Put a project into the editor without triggering a save of its own contents. */
 	function applyRecord(record: ProjectRecord) {
-		savedSource = record.source;
-		savedOptionsKey = optionsKey(record.options);
-		source = record.source;
+		files = { ...record.files };
+		entry = record.entry;
+		mode = record.mode;
+		activePath = record.entry;
+		openPaths = [record.entry];
 		options = { ...DEFAULT_COMPILE_OPTIONS, ...record.options };
+		revision++;
+		savedRevision = revision;
+		savedOptionsKey = optionsKey(record.options);
+		previewCompiler.clear();
 		currentProject = toSummary(record);
 		saveCurrentProjectId(record.id);
 	}
 
-	async function createFreshRecord(existing: ProjectSummary[]): Promise<ProjectRecord> {
+	async function createFreshRecord(existing: ProjectSummary[], presetMode: ProjectMode): Promise<ProjectRecord> {
+		const preset = createPreset(presetMode);
 		const record = createProjectRecord({
 			name: defaultProjectName(existing),
-			source: DEFAULT_SOURCE,
-			options: pickShareableOptions(DEFAULT_COMPILE_OPTIONS),
+			mode: presetMode,
+			entry: preset.entry,
+			files: preset.files,
+			options: pickProjectOptions(DEFAULT_COMPILE_OPTIONS),
 		});
 		await store?.put(record);
 		return record;
@@ -185,17 +249,20 @@
 			});
 			let record: ProjectRecord | undefined;
 			if (decision.kind === 'import') {
+				const filename = normalizeFilename(decision.options.filename ?? '');
 				record = createProjectRecord({
-					name: importedProjectName(decision.options.filename),
-					source: decision.code,
-					options: decision.options,
+					name: importedProjectName(filename),
+					mode: 'component',
+					entry: filename,
+					files: { [filename]: decision.code },
+					options: pickProjectOptions(decision.options),
 				});
 				await store.put(record);
 				history.replaceState(null, '', `${location.pathname}${location.search}`);
 			} else if (decision.kind === 'open') {
 				record = await store.get(decision.id);
 			}
-			record ??= await createFreshRecord(summaries);
+			record ??= await createFreshRecord(summaries, 'component');
 			projects = sortByUpdated([...summaries.filter((p) => p.id !== record.id), toSummary(record)]);
 			applyRecord(record);
 		} catch (error) {
@@ -207,29 +274,30 @@
 		}
 	}
 
+	function resetPreviewForSwitch() {
+		clearTimeout(previewTimer);
+		previewRunId++;
+		preview.cancel();
+		renderAfterCompile = !autoPreview;
+	}
+
 	/** Switch the editor + chat to another project; the preview re-renders like an apply. */
 	async function openProject(id: string) {
 		if (!store || id === currentProject?.id) return;
 		await flushSave();
 		const record = await store.get(id);
 		if (!record) return;
-		clearTimeout(previewTimer);
-		previewRunId++;
-		preview.cancel();
-		renderAfterCompile = !autoPreview;
+		resetPreviewForSwitch();
 		applyRecord(record);
 		void runCompile();
 	}
 
-	async function createProject() {
+	async function createProject(presetMode: ProjectMode) {
 		if (!store) return;
 		await flushSave();
-		const record = await createFreshRecord(projects);
+		const record = await createFreshRecord(projects, presetMode);
 		projects = sortByUpdated([...projects, toSummary(record)]);
-		clearTimeout(previewTimer);
-		previewRunId++;
-		preview.cancel();
-		renderAfterCompile = !autoPreview;
+		resetPreviewForSwitch();
 		applyRecord(record);
 		void runCompile();
 	}
@@ -255,7 +323,132 @@
 		currentProject = null;
 		const next = projects[0];
 		if (next) await openProject(next.id);
-		else await createProject();
+		else await createProject('component');
+	}
+
+	/** Component → Page: keeps the project id and chat, changes its files and mode. */
+	async function promoteProject() {
+		if (!currentProject || mode !== 'component') return;
+		if (!window.confirm(tr('project.promoteConfirm', { file: entry }))) return;
+		await flushSave();
+		const promoted = promoteToPage(snapshotRecord(currentProject, Date.now()));
+		resetPreviewForSwitch();
+		applyRecord(promoted);
+		// applyRecord marks the contents as saved; this one must be written.
+		savedRevision = -1;
+		void runCompile();
+	}
+
+	// --- files ---
+	function touchFiles(next: Record<string, ProjectFile>) {
+		files = next;
+		revision++;
+	}
+
+	function openFile(path: string) {
+		if (!(path in files) || path === activePath) return;
+		if (!openPaths.includes(path)) openPaths = [...openPaths, path];
+		activePath = path;
+		void runCompile();
+	}
+
+	function closeTab(path: string) {
+		const index = openPaths.indexOf(path);
+		if (index === -1 || openPaths.length === 1) return;
+		openPaths = openPaths.filter((p) => p !== path);
+		if (activePath === path) {
+			activePath = openPaths[Math.max(0, index - 1)];
+			void runCompile();
+		}
+	}
+
+	function promptPath(message: string, initial: string): string | null {
+		const answer = window.prompt(message, initial);
+		return answer === null ? null : answer;
+	}
+
+	function addNewFile() {
+		const input = promptPath(tr('files.addPrompt'), 'src/components/');
+		if (input === null) return;
+		const checked = validateFilePath(input, mode);
+		if ('error' in checked) {
+			window.alert(tr(checked.error));
+			return;
+		}
+		if (checked.path in files) {
+			window.alert(tr('files.exists', { path: checked.path }));
+			return;
+		}
+		touchFiles(addFile(files, checked.path, templateForNewFile(checked.path)));
+		openFile(checked.path);
+		onProjectContentChanged();
+	}
+
+	function renameExistingFile(from: string) {
+		const input = promptPath(tr('files.renamePrompt', { path: from }), from);
+		if (input === null) return;
+		const checked = validateFilePath(input, mode);
+		if ('error' in checked) {
+			window.alert(tr(checked.error));
+			return;
+		}
+		const to = checked.path;
+		if (to === from) return;
+		if (to in files) {
+			window.alert(tr('files.exists', { path: to }));
+			return;
+		}
+		touchFiles(renameFile(files, from, to));
+		if (entry === from) entry = to;
+		openPaths = openPaths.map((p) => (p === from ? to : p));
+		if (activePath === from) activePath = to;
+		onProjectContentChanged();
+	}
+
+	function deleteExistingFile(path: string) {
+		if (path === entry) {
+			window.alert(tr('files.cannotDeleteEntry', { path }));
+			return;
+		}
+		if (!window.confirm(tr('files.deleteConfirm', { path }))) return;
+		touchFiles(deleteFile(files, path));
+		const index = openPaths.indexOf(path);
+		if (index !== -1) {
+			openPaths = openPaths.filter((p) => p !== path);
+			if (openPaths.length === 0) openPaths = [entry];
+		}
+		if (activePath === path) activePath = openPaths[Math.max(0, index - 1)] ?? openPaths[0];
+		onProjectContentChanged();
+	}
+
+	function changeEntry(path: string) {
+		if (!(path in files) || path === entry) return;
+		entry = path;
+		revision++;
+		onProjectContentChanged();
+	}
+
+	/** In Component mode the pane-head input renames the single file. */
+	function renameComponentFile(input: string) {
+		const checked = validateFilePath(input, 'component');
+		if ('error' in checked || checked.path === entry) return;
+		touchFiles(renameFile(files, entry, checked.path));
+		entry = checked.path;
+		activePath = checked.path;
+		openPaths = [checked.path];
+		scheduleCompile();
+	}
+
+	/** Structure changed (not just the active file's text): recompile and re-render. */
+	function onProjectContentChanged() {
+		if (previewActive) {
+			clearTimeout(previewTimer);
+			previewRunId++;
+			preview.cancel();
+			if (autoPreview || renderAfterCompile) previewStatus = 'rendering';
+			else if (previewDocument) previewStale = true;
+		}
+		scheduleCompile();
 	}
 
 	let runId = 0;
@@ -263,51 +456,64 @@
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 	let previewTimer: ReturnType<typeof setTimeout> | undefined;
 
-	async function runPreview(
-		compiled = result,
-		parsed = ast,
-		previewSource = source,
-		previewOptions = $state.snapshot(options),
-	) {
+	/** Compiles files for the preview; a file is recompiled only when its text changed. */
+	const previewCompiler = createCachedCompiler(async (path, text) => {
+		const previewOptions = $state.snapshot(options);
+		const [compiled, parsed] = await Promise.all([
+			compiler.compile(text, {
+				...previewOptions,
+				filename: path,
+				internalURL: './runtime.js',
+				resolvePathProvided: true,
+				sourcemap: undefined,
+			}),
+			compiler.parse(text),
+		]);
+		return { result: compiled, ast: parsed };
+	});
+	let previewOptionsKey = '';
+
+	async function runPreview(compiled = result, parsed = ast) {
 		const current = ++previewRunId;
-		if (!compiled || !parsed) {
+		const previewFiles = $state.snapshot(files) as Record<string, ProjectFile>;
+		const previewEntry = entry;
+		const previewMode = mode;
+		if (!(previewEntry in previewFiles)) {
 			previewStatus = 'idle';
 			return;
 		}
 
-		const unsupported = validatePreview(compiled, parsed);
-		if (unsupported) {
-			preview.cancel();
-			previewStatus = 'unsupported';
-			previewError = unsupported;
-			return;
+		// Cheap early exit when the active file is the entry and already compiled.
+		if (compiled && parsed && activePath === previewEntry) {
+			const unsupported = validatePreview(
+				compiled,
+				parsed,
+				previewMode === 'component' ? undefined : importChecker(previewFiles, previewEntry),
+			);
+			if (unsupported) {
+				preview.cancel();
+				previewStatus = 'unsupported';
+				previewError = unsupported;
+				return;
+			}
 		}
 
 		previewStatus = 'rendering';
 		previewError = '';
 		try {
-			// One self-contained file for now; Page / Site projects (Phase 5) hand
-			// the whole file map to the same builder with `allowImports: true`.
-			const entry = previewOptions.filename ?? 'index.astro';
+			const key = optionsKey(pickProjectOptions($state.snapshot(options)));
+			if (key !== previewOptionsKey) {
+				previewOptionsKey = key;
+				previewCompiler.clear();
+			}
 			const graph = await buildPreviewGraph({
-				entry,
-				files: { [entry]: previewSource },
-				allowImports: false,
+				entry: previewEntry,
+				files: previewFiles,
+				allowImports: previewMode !== 'component',
 				validate: validatePreview,
-				compile: async (path, text) => {
-					const [compiled, parsed] = await Promise.all([
-						compiler.compile(text, {
-							...previewOptions,
-							filename: path,
-							internalURL: './runtime.js',
-							resolvePathProvided: true,
-							sourcemap: undefined,
-						}),
-						compiler.parse(text),
-					]);
-					return { result: compiled, ast: parsed };
-				},
+				compile: previewCompiler.compile,
 			});
+			previewCompiler.prune(Object.keys(previewFiles));
 			if (current !== previewRunId) return;
 			const html = await preview.render(graph);
 			previewIsolated = preview.isolated;
@@ -327,7 +533,23 @@
 		const current = ++runId;
 		const start = performance.now();
 		const compileSource = source;
-		const compileOptions = $state.snapshot(options);
+		const compilePath = activePath;
+		const compileOptions = { ...$state.snapshot(options), filename: compilePath };
+		if (!activeIsAstro) {
+			// Nothing to compile for CSS / SVG / text; the preview still follows the entry.
+			result = null;
+			ast = null;
+			status = 'ready';
+			errorMessage = '';
+			compileMs = 0;
+			if (previewActive && (autoPreview || renderAfterCompile || previewStatus === 'idle')) {
+				renderAfterCompile = false;
+				schedulePreview(null, null);
+			} else if (previewDocument) {
+				previewStale = true;
+			}
+			return;
+		}
 		if (result) status = 'compiling';
 		try {
 			const [compiled, parsed] = await Promise.all([
@@ -344,7 +566,7 @@
 			const firstRender = previewStatus === 'idle';
 			if (previewActive && (autoPreview || renderAfterCompile || firstRender)) {
 				renderAfterCompile = false;
-				schedulePreview(compiled, parsed, compileSource, compileOptions);
+				schedulePreview(compiled, parsed);
 			} else if (previewDocument) {
 				previewStale = true;
 			}
@@ -371,7 +593,9 @@
 	}
 
 	function handleSourceChange(next: string) {
-		source = next;
+		if (activeIsBinary) return;
+		if (files[activePath] === next) return;
+		touchFiles({ ...files, [activePath]: next });
 		if (previewActive) {
 			clearTimeout(previewTimer);
 			previewRunId++;
@@ -410,7 +634,7 @@
 
 	async function save() {
 		try {
-			const outcome = await saveComponent(source, options.filename ?? 'index.astro');
+			const outcome = await saveComponent(source, basename(activePath) || 'index.astro');
 			saveFeedback = outcome === 'saved' ? 'saved' : outcome === 'downloaded' ? 'downloaded' : 'idle';
 		} catch (error) {
 			saveFeedback = 'failed';
@@ -427,7 +651,7 @@
 		saveSettings({ ...loadSettings(), chatOpen });
 	}
 
-	/** Replace the editor contents with an AI proposal; recompiles + previews via the normal path. */
+	/** Replace the active file with an AI proposal; recompiles + previews via the normal path. */
 	function applyProposal(code: string) {
 		// Applying is an explicit action, so render once even when Auto is off.
 		renderAfterCompile = !autoPreview;
@@ -440,8 +664,11 @@
 	}
 
 	async function share() {
+		if (mode !== 'component') return;
 		try {
-			await navigator.clipboard.writeText(shareUrl(source, $state.snapshot(options)));
+			await navigator.clipboard.writeText(
+				shareUrl(source, { ...pickProjectOptions($state.snapshot(options)), filename: entry }),
+			);
 			shareFeedback = 'copied';
 		} catch {
 			shareFeedback = 'failed';
@@ -507,15 +734,17 @@
 		onChange={scheduleCompile}
 		onToggleTheme={toggleTheme}
 		onShare={share}
+		shareAvailable={mode === 'component'}
 		{chatOpen}
 		onToggleChat={toggleChat}
 		{projects}
 		{currentProjectId}
 		projectsBusy={!projectsReady}
-		onCreateProject={() => void createProject()}
+		onCreateProject={(presetMode) => void createProject(presetMode)}
 		onOpenProject={(id) => void openProject(id)}
 		onRenameProject={(name) => void renameProject(name)}
 		onDeleteProject={() => void deleteProject()}
+		onPromoteProject={() => void promoteProject()}
 	/>
 
 	{#if status === 'error'}
@@ -523,21 +752,59 @@
 	{/if}
 
 	<div class="workspace" class:with-chat={chatOpen}>
-	<div class="split" class:dragging bind:this={splitEl} style="--left: {leftPct}%">
+	<div class="split" class:dragging class:with-tree={showTree} class:tree-collapsed={treeCollapsed} bind:this={splitEl} style="--left: {leftPct}%">
+		{#if showTree}
+			<FileTree
+				{files}
+				{activePath}
+				{entry}
+				collapsed={treeCollapsed}
+				onOpen={openFile}
+				onAdd={addNewFile}
+				onRename={renameExistingFile}
+				onDelete={deleteExistingFile}
+				onToggle={() => (treeCollapsed = !treeCollapsed)}
+			/>
+		{/if}
 		<section class="pane">
 			<div class="pane-head">
-				<label class="visually-hidden" for="filename">{$t('editor.filename')}</label>
-				<input
-					class="filename"
-					id="filename"
-					name="filename"
-					value={options.filename}
-					spellcheck="false"
-					oninput={(e) => {
-						options.filename = e.currentTarget.value;
-						scheduleCompile();
-					}}
-				/>
+				{#if mode === 'component'}
+					<label class="visually-hidden" for="filename">{$t('editor.filename')}</label>
+					<input
+						class="filename"
+						id="filename"
+						name="filename"
+						value={entry}
+						spellcheck="false"
+						onchange={(e) => renameComponentFile(e.currentTarget.value)}
+					/>
+				{:else}
+					<div class="tabs" role="tablist" aria-label={$t('editor.tabs')}>
+						{#each openPaths as path (path)}
+							<span class="tab" class:active={path === activePath} role="presentation">
+								<button
+									type="button"
+									role="tab"
+									aria-selected={path === activePath}
+									title={path}
+									onclick={() => openFile(path)}
+								>
+									{basename(path)}
+								</button>
+								{#if openPaths.length > 1}
+									<button
+										type="button"
+										class="close"
+										aria-label={$t('editor.closeTab', { path })}
+										onclick={() => closeTab(path)}
+									>
+										×
+									</button>
+								{/if}
+							</span>
+						{/each}
+					</div>
+				{/if}
 				<span class="status" data-status={status} role="status" aria-live="polite">
 					{#if status === 'loading'}
 						{$t('editor.starting')}
@@ -545,13 +812,19 @@
 						{$t('editor.compiling')}
 					{:else if status === 'error'}
 						{$t('editor.compilerError')}
+					{:else if !activeIsAstro}
+						{basename(activePath)}
 					{:else}
 						{$t('editor.compiledIn', { ms: compileMs })}
 					{/if}
 				</span>
 			</div>
 			<div class="pane-body">
-				<Editor value={source} {diagnostics} {theme} onChange={handleSourceChange} />
+				{#if activeIsBinary}
+					<div class="binary" role="status"><p>{$t('files.binary')}</p></div>
+				{:else}
+					<Editor value={source} {diagnostics} {theme} language={editorLanguage} onChange={handleSourceChange} />
+				{/if}
 			</div>
 		</section>
 		<!-- biome-ignore lint/a11y/useSemanticElements: a focusable, draggable window-splitter has no semantic HTML equivalent -->
@@ -581,6 +854,10 @@
 				{previewStale}
 				rendererMode={preview.mode}
 				rendererIsolated={previewIsolated}
+				entries={mode === 'component' ? [] : entries}
+				{entry}
+				{activeIsAstro}
+				onEntryChange={changeEntry}
 				onTabChange={handleOutputTabChange}
 				onToggleAutoPreview={toggleAutoPreview}
 				onRefreshPreview={refreshPreview}
@@ -592,7 +869,9 @@
 			<ChatPanel
 				projectId={currentProjectId}
 				getSource={() => source}
-				filename={options.filename ?? 'index.astro'}
+				filename={activePath}
+				checkImport={importCheck}
+				multiFile={mode !== 'component'}
 				onApply={applyProposal}
 				onClose={toggleChat}
 			/>
@@ -636,6 +915,13 @@
 		min-height: 0;
 		display: grid;
 		grid-template-columns: var(--left, 50%) 6px 1fr;
+	}
+	/* The file tree takes a fixed column; the editor / output split shares the rest. */
+	.split.with-tree {
+		grid-template-columns: 220px minmax(0, var(--left, 50%)) 6px minmax(0, 1fr);
+	}
+	.split.with-tree.tree-collapsed {
+		grid-template-columns: 36px minmax(0, var(--left, 50%)) 6px minmax(0, 1fr);
 	}
 	.split.dragging {
 		cursor: col-resize;
@@ -699,6 +985,48 @@
 		outline: none;
 		border-color: var(--accent);
 	}
+	.tabs {
+		display: flex;
+		align-items: stretch;
+		gap: 0.15rem;
+		min-width: 0;
+		height: 100%;
+		overflow-x: auto;
+		scrollbar-width: thin;
+	}
+	.tab {
+		display: inline-flex;
+		align-items: center;
+		flex: none;
+		border-bottom: 2px solid transparent;
+		font-family: ui-monospace, monospace;
+	}
+	.tab.active {
+		border-bottom-color: var(--accent);
+		color: var(--fg);
+	}
+	.tab button {
+		border: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		padding: 0 0.4rem;
+		height: 100%;
+		cursor: pointer;
+	}
+	.tab button:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
+	}
+	.tab .close {
+		padding: 0 0.3rem;
+		font-size: 0.9rem;
+		line-height: 1;
+		opacity: 0.6;
+	}
+	.tab .close:hover {
+		opacity: 1;
+	}
 	.status {
 		flex: none;
 	}
@@ -713,19 +1041,30 @@
 		flex: 1;
 		min-height: 0;
 	}
+	.binary {
+		display: grid;
+		place-items: center;
+		height: 100%;
+		color: var(--muted);
+	}
 	@media (max-width: 800px) {
 		.workspace.with-chat {
 			grid-template-columns: minmax(0, 1fr);
 			grid-template-rows: 1fr minmax(16rem, 40%);
 		}
-		.split {
+		.split,
+		.split.with-tree,
+		.split.with-tree.tree-collapsed {
 			grid-template-columns: 1fr;
+			grid-template-rows: auto 1fr 1fr;
+		}
+		.split:not(.with-tree) {
 			grid-template-rows: 1fr 1fr;
 		}
 		.gutter {
 			display: none;
 		}
-		.pane:first-child {
+		.pane:first-of-type {
 			border-bottom: 1px solid var(--border);
 		}
 	}

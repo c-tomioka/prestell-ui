@@ -60,10 +60,10 @@
 - 画像はコンパイラ型 Playground と同じく「AI は URL / プレースホルダー / SVG（テキスト）を書く」を基本にし、ユーザーがアップロードした画像だけを `public/` 配下のバイナリとして保持する。`astro:assets`（`<Image />`、`import` した画像）はビルドパイプラインが要るため対象外。
 
 - [x] 技術検証: 複数 `.astro` ファイルのコンパイルと相対 import の解決（browser レンダラーは Blob URL のモジュールグラフに書き換え、server レンダラーは Worker Loader の `modules` に同梱）。`.css` の import も含めて実装済み（2026-09-08、`src/lib/preview-graph.ts`、`PREVIEW_RENDERING.md` の検証記録）。`public/` 配下のパス参照は画像の項目で扱う
-- [ ] プロジェクトモデルの多ファイル化: `source` を `files: Record<path, text | Blob>` に変え、プレビューの入口ファイルとモード（`component` / `page` / `site`）を持たせる。IndexedDB スキーマ v2 へのマイグレーション（既存プロジェクトは Component モードとして自動変換）
-- [ ] モード: Component（`Component.astro` 1 本、自己完結・import 禁止、ツリー非表示）/ Page（`src/pages/index.astro` + `src/layouts/Layout.astro`）/ Site（Page + `src/components/`、複数ページとページ切替）。Component → Page への昇格を提供
-- [ ] ファイルツリー UI: **画面左端（エディタの左）**に配置。タブ、追加・改名・削除・移動、Component モードでは折りたたみ
-- [ ] ページプレビュー: 入口ファイルの選択とページ切替、レイアウト・コンポーネント・CSS の import、`public/` 配下の画像を `blob:` URL に書き換えて表示。Phase 4 の別オリジン sandbox iframe + CSP の上に載せ、外部画像の読み込みを許可する
+- [x] プロジェクトモデルの多ファイル化: `source` を `files: Record<path, text | Blob>` に変え、プレビューの入口ファイルとモード（`component` / `page` / `site`）を持たせる。レコードの `schemaVersion: 2` へ読み出し時に移行（既存プロジェクトは Component モードとして自動変換。`src/lib/projects/record.ts`、2026-09-08）
+- [x] モード: Component（`Component.astro` 1 本、自己完結・import 禁止、ツリー非表示）/ Page（`src/pages/index.astro` + `src/layouts/Layout.astro`）/ Site（Page + `src/components/`、複数ページとページ切替）。Component → Page への昇格を提供（`src/lib/projects/presets.ts`、2026-09-08）
+- [x] ファイルツリー UI: **画面左端（エディタの左）**に配置。タブ、追加・改名・削除・移動（改名でパスを変える）、折りたたみ。Component モードでは非表示（`FileTree.svelte`、2026-09-08。ドラッグ＆ドロップは未対応）
+- [x] ページプレビュー: 入口ファイルの選択とページ切替、レイアウト・コンポーネント・CSS の import（2026-09-08、Preview コントロールの select）。`public/` 配下の画像の `blob:` URL 書き換えと外部画像の許可（`img-src`）は次の「画像」項目で扱う
 - [ ] 画像: アップロードを `public/` 配下の Blob として IndexedDB に保持（上限の目安: 1 ファイル 2 MB、1 プロジェクト 20 MB）。SVG はテキストファイルとして編集・AI 生成の対象にする
 - [ ] AI の多ファイル生成: モード別のシステムプロンプト（Component は現状の import 禁止を維持）、パス付きコードブロックの出力形式、複数ファイルの検証・適用・fix ループ、画像は URL / プレースホルダー / SVG に限定する指示、Page / Site 向けテンプレート（LP 生成、セクション分割、ページ追加など）
 - [ ] 書き出し: Site / Page は Astro プロジェクトの ZIP（`package.json`、`astro.config.mjs`、`tsconfig.json`、`public/`、`src/`）と File System Access API によるディレクトリ書き込み。Component は従来の 1 ファイル保存

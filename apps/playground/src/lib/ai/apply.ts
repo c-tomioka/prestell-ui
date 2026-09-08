@@ -5,15 +5,21 @@ import { compiler } from "../compiler";
 import type { CompileOptions } from "../compiler-protocol";
 import { DEFAULT_COMPILE_OPTIONS } from "../options";
 import { validatePreview } from "../preview";
+import type { ImportCheck } from "../preview-graph";
 import { formatCompilerErrors } from "./format-diagnostics";
 
 export type ProposalValidation =
 	| { ok: true; warnings: string[] }
 	| { ok: false; error: string };
 
+/**
+ * `checkImport` (Page / Site projects) allows the relative imports the
+ * preview can follow; without it the proposal must be self-contained.
+ */
 export async function validateProposal(
 	code: string,
 	options: CompileOptions = DEFAULT_COMPILE_OPTIONS,
+	checkImport?: ImportCheck,
 ): Promise<ProposalValidation> {
 	if (code.trim() === "") return { ok: false, error: "The proposal is empty." };
 	try {
@@ -25,7 +31,7 @@ export async function validateProposal(
 		if (errors.length > 0) {
 			return { ok: false, error: formatCompilerErrors(code, errors) };
 		}
-		const unsupported = validatePreview(result, parsed);
+		const unsupported = validatePreview(result, parsed, checkImport);
 		if (unsupported) return { ok: false, error: unsupported };
 		return {
 			ok: true,

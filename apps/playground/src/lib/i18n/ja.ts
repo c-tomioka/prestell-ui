@@ -21,6 +21,8 @@ export const ja: Record<MessageKey, string> = {
 	"toolbar.share": "共有リンクをコピー",
 	"toolbar.copied": "コピーしました",
 	"toolbar.copyFailed": "コピーに失敗しました",
+	"toolbar.shareComponentOnly":
+		"共有リンクは Component プロジェクトでのみ使えます",
 
 	"project.new": "新しいプロジェクト",
 	"project.rename": "プロジェクト名を変更",
@@ -28,6 +30,41 @@ export const ja: Record<MessageKey, string> = {
 	"project.namePrompt": "プロジェクト名",
 	"project.deleteConfirm":
 		"プロジェクト「{name}」とそのチャット履歴を削除しますか？",
+	"project.newTitle": "新しいプロジェクト…",
+	"project.mode.component": "Component",
+	"project.mode.component.hint": "自己完結した .astro ファイル 1 本",
+	"project.mode.page": "Page",
+	"project.mode.page.hint": "レイアウトとグローバル CSS を持つ index ページ",
+	"project.mode.site": "Site",
+	"project.mode.site.hint": "複数ページ・レイアウト・共有コンポーネント",
+	"project.promote": "Page プロジェクトに変換",
+	"project.promoteConfirm":
+		"「{file}」を src/components/ に移し、レイアウト付きの新しい src/pages/index.astro から表示しますか？",
+	"project.cancel": "キャンセル",
+
+	"files.title": "ファイル",
+	"files.collapse": "ファイルツリーを隠す",
+	"files.expand": "ファイルツリーを表示",
+	"files.add": "新しいファイル",
+	"files.addPrompt": "ファイルのパス（例: src/components/Card.astro）",
+	"files.rename": "ファイルの名前変更・移動",
+	"files.renamePrompt": "{path} の新しいパス",
+	"files.delete": "ファイルを削除",
+	"files.deleteConfirm": "「{path}」を削除しますか？",
+	"files.entryBadge": "入口",
+	"files.entryTitle": "プレビューが描画するファイル",
+	"files.binary": "バイナリファイル（ここでは編集できません）",
+	"files.invalidPath":
+		"英数字・ドット・ハイフン・アンダースコアからなる相対パスを指定してください（例: src/components/Card.astro）。",
+	"files.componentPath":
+		"Component プロジェクトはトップレベルの .astro ファイル 1 本だけを持ちます（例: Card.astro）。",
+	"files.unsupportedType":
+		"対応していない種類のファイルです。テキストファイルのみ: .astro, .css, .svg, .txt, .json, .xml, .html, .js, .webmanifest。",
+	"files.outsideRoots": "ファイルは src/ か public/ の下に置いてください。",
+	"files.astroOutsideSrc": ".astro ファイルは src/ の下に置いてください。",
+	"files.exists": "「{path}」という名前のファイルは既にあります。",
+	"files.cannotDeleteEntry":
+		"「{path}」はプレビューの入口です。先に Preview の選択で別の入口を選んでください。",
 
 	"editor.filename": "コンポーネントのファイル名",
 	"editor.starting": "コンパイラを起動中…",
@@ -35,6 +72,8 @@ export const ja: Record<MessageKey, string> = {
 	"editor.compilerError": "コンパイルエラー",
 	"editor.compiledIn": "{ms} ms でコンパイル",
 	"editor.resize": "エディタと出力ペインの幅を変更",
+	"editor.tabs": "開いているファイル",
+	"editor.closeTab": "{path} を閉じる",
 
 	"tabs.preview": "プレビュー",
 	"tabs.js": "JS",
@@ -74,6 +113,10 @@ export const ja: Record<MessageKey, string> = {
 	"output.styleErrors": "スタイルのエラー",
 	"output.nothingCompiled": "まだコンパイルされていません。",
 	"output.noDiagnostics": "診断はありません。",
+	"output.entry": "ページ",
+	"output.entryTitle": "プレビューが描画するファイル（ページを先頭に表示）",
+	"output.notAstro":
+		"コンパイラ出力を見るには .astro ファイルを選んでください。",
 
 	"chat.title": "AI チャット",
 	"chat.clear": "チャット履歴を消去",
@@ -107,6 +150,8 @@ export const ja: Record<MessageKey, string> = {
 	"chat.assistant": "アシスタント",
 	"chat.fixRequest": "🔧 自動修正リクエスト {attempt}/{max}",
 	"chat.thinking": "考え中…",
+	"chat.multiFileNote":
+		"チャットはアクティブなファイル（{path}）を 1 つのコンポーネントとして編集します。複数ファイルの同時生成は今後対応します。",
 
 	"proposal.title": "コンポーネントの提案",
 	"proposal.lines": "{count} 行",

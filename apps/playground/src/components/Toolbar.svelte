@@ -4,7 +4,7 @@
 	import type { Theme } from '../lib/codemirror';
 	import { t } from '../lib/i18n';
 	import { COMPACT_OPTIONS, SCOPED_STYLE_STRATEGIES, SOURCEMAP_OPTIONS } from '../lib/options';
-	import type { ProjectSummary } from '../lib/projects/types';
+	import type { ProjectMode, ProjectSummary } from '../lib/projects/types';
 
 	export type SaveFeedback = 'idle' | 'saved' | 'downloaded' | 'failed';
 	export type ShareFeedback = 'idle' | 'copied' | 'failed';
@@ -28,10 +28,13 @@
 		currentProjectId: string | null;
 		/** True while the project store is still loading. */
 		projectsBusy: boolean;
-		onCreateProject: () => void;
+		onCreateProject: (mode: ProjectMode) => void;
 		onOpenProject: (id: string) => void;
 		onRenameProject: (name: string) => void;
 		onDeleteProject: () => void;
+		onPromoteProject: () => void;
+		/** Share links only cover Component projects (one file fits in `#code=`). */
+		shareAvailable: boolean;
 	}
 
 	let {
@@ -52,6 +55,8 @@
 		onOpenProject,
 		onRenameProject,
 		onDeleteProject,
+		onPromoteProject,
+		shareAvailable,
 	}: Props = $props();
 
 	function setSourcemap(value: string) {
@@ -101,6 +106,7 @@
 		onOpen={onOpenProject}
 		onRename={onRenameProject}
 		onDelete={onDeleteProject}
+		onPromote={onPromoteProject}
 	/>
 	<form class="options" onsubmit={(e) => e.preventDefault()}>
 		<label for="opt-sourcemap">
@@ -155,10 +161,15 @@
 			<Icon name={saveState === 'idle' ? 'save' : feedbackIcon[saveState]} />
 		</IconButton>
 		<IconButton
-			label={shareState === 'idle' ? $t('toolbar.share') : shareLabel}
+			label={!shareAvailable
+				? $t('toolbar.shareComponentOnly')
+				: shareState === 'idle'
+					? $t('toolbar.share')
+					: shareLabel}
 			showTip={shareState !== 'idle'}
 			variant="accent"
 			tipAlign="end"
+			disabled={!shareAvailable}
 			onclick={onShare}
 		>
 			<Icon name={shareState === 'idle' ? 'share' : feedbackIcon[shareState]} />

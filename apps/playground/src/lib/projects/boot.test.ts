@@ -3,8 +3,8 @@ import { resolveInitialProject } from "./boot";
 import type { ProjectSummary } from "./types";
 
 const summaries: ProjectSummary[] = [
-	{ id: "b", name: "B", createdAt: 2, updatedAt: 20 },
-	{ id: "a", name: "A", createdAt: 1, updatedAt: 10 },
+	{ id: "b", name: "B", createdAt: 2, updatedAt: 20, mode: "component" },
+	{ id: "a", name: "A", createdAt: 1, updatedAt: 10, mode: "component" },
 ];
 
 describe("resolveInitialProject", () => {
