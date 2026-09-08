@@ -9,6 +9,11 @@
 	import { COMPILE_DEBOUNCE_MS, PREVIEW_DEBOUNCE_MS, PROJECT_SAVE_DEBOUNCE_MS } from '../lib/config';
 	import { toCodeMirrorDiagnostics } from '../lib/diagnostics';
 	import { normalizeFilename, saveComponent } from '../lib/export';
+	import {
+		exportProjectAsZip,
+		exportProjectToDirectory,
+		supportsDirectoryExport,
+	} from '../lib/export-project';
 	import { t, tr } from '../lib/i18n';
 	import { DEFAULT_COMPILE_OPTIONS } from '../lib/options';
 	import {
@@ -59,7 +64,7 @@
 	import Editor from './Editor.svelte';
 	import FileTree from './FileTree.svelte';
 	import OutputTabs from './OutputTabs.svelte';
-	import Toolbar, { type SaveFeedback, type ShareFeedback } from './Toolbar.svelte';
+	import Toolbar, { type ExportKind, type SaveFeedback, type ShareFeedback } from './Toolbar.svelte';
 
 	// --- project contents (the file map is the model; see lib/projects/types.ts) ---
 	const shared = readSharedState();
@@ -101,6 +106,7 @@
 	let compileMs = $state(0);
 	let shareFeedback = $state<ShareFeedback>('idle');
 	let saveFeedback = $state<SaveFeedback>('idle');
+	let exportFeedback = $state<SaveFeedback>('idle');
 	let previewActive = $state(true);
 	/** Whether generated code runs outside this origin; re-read after each render (the sandbox may fall back). */
 	let previewIsolated = $state(preview.isolated);
@@ -643,6 +649,23 @@
 		setTimeout(() => (saveFeedback = 'idle'), 1500);
 	}
 
+	/** Page / Site: write the project (with the Astro scaffold) as a ZIP or into a folder. */
+	async function exportProject(kind: ExportKind) {
+		if (mode === 'component' || !currentProject) return;
+		const record = snapshotRecord(currentProject, Date.now());
+		try {
+			const outcome =
+				kind === 'directory'
+					? await exportProjectToDirectory(record)
+					: await exportProjectAsZip(record);
+			exportFeedback = outcome === 'cancelled' ? 'idle' : outcome;
+		} catch (error) {
+			exportFeedback = 'failed';
+			console.error(error);
+		}
+		setTimeout(() => (exportFeedback = 'idle'), 1500);
+	}
+
 	// --- AI chat panel ---
 	let chatOpen = $state(loadSettings().chatOpen);
 
@@ -745,6 +768,10 @@
 		onRenameProject={(name) => void renameProject(name)}
 		onDeleteProject={() => void deleteProject()}
 		onPromoteProject={() => void promoteProject()}
+		exportAvailable={mode !== 'component'}
+		directoryExportSupported={supportsDirectoryExport()}
+		{exportFeedback}
+		onExport={(kind) => void exportProject(kind)}
 	/>
 
 	{#if status === 'error'}

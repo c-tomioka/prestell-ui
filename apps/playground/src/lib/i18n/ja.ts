@@ -23,6 +23,14 @@ export const ja: Record<MessageKey, string> = {
 	"toolbar.copyFailed": "コピーに失敗しました",
 	"toolbar.shareComponentOnly":
 		"共有リンクは Component プロジェクトでのみ使えます",
+	"toolbar.export": "Astro プロジェクトとして書き出す",
+	"toolbar.exportZip": "ZIP をダウンロード",
+	"toolbar.exportZipHint": "package.json、astro.config.mjs、src/、public/",
+	"toolbar.exportFolder": "フォルダーに書き込む…",
+	"toolbar.exportFolderHint":
+		"このコンピューターのフォルダーを選ぶ（Chromium 系ブラウザ）",
+	"toolbar.exported": "書き出しました",
+	"toolbar.exportFailed": "書き出しに失敗しました",
 
 	"project.new": "新しいプロジェクト",
 	"project.rename": "プロジェクト名を変更",

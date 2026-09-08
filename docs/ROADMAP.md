@@ -66,8 +66,8 @@
 - [x] ページプレビュー: 入口ファイルの選択とページ切替、レイアウト・コンポーネント・CSS の import（2026-09-08、Preview コントロールの select）。`public/` 配下の画像の `blob:` URL 書き換えと外部画像の許可（`img-src`）は次の「画像」項目で扱う
 - [ ] 画像: アップロードを `public/` 配下の Blob として IndexedDB に保持（上限の目安: 1 ファイル 2 MB、1 プロジェクト 20 MB）。SVG はテキストファイルとして編集・AI 生成の対象にする
 - [ ] AI の多ファイル生成: モード別のシステムプロンプト（Component は現状の import 禁止を維持）、パス付きコードブロックの出力形式、複数ファイルの検証・適用・fix ループ、画像は URL / プレースホルダー / SVG に限定する指示、Page / Site 向けテンプレート（LP 生成、セクション分割、ページ追加など）
-- [ ] 書き出し: Site / Page は Astro プロジェクトの ZIP（`package.json`、`astro.config.mjs`、`tsconfig.json`、`public/`、`src/`）と File System Access API によるディレクトリ書き込み。Component は従来の 1 ファイル保存
-- [ ] Share URL: 多ファイルは `#code=` に収まらないため、対象を Component モードに限定するか別形式にするかを決める
+- [x] 書き出し: Site / Page は Astro プロジェクトの ZIP（`package.json`、`astro.config.mjs`、`tsconfig.json`、`.gitignore`、`README.md`、`public/`、`src/`）と File System Access API によるディレクトリ書き込み（非対応ブラウザは ZIP に自動フォールバック）。Component は従来の 1 ファイル保存（`src/lib/export-project.ts`、`src/lib/zip.ts`、2026-09-08。Site プリセットの書き出しを `npm install && npm run build` で確認済み）
+- [x] Share URL: **Component モード限定**に決定（2026-09-08）。Page / Site では Share ボタンを無効にし、ZIP / フォルダー書き出しを案内する。多ファイルを圧縮して `#project=` に載せる案は、URL 長と共有経路での切り詰めが読めないため見送り（必要になれば別途検討）
 - [ ] 評価ハーネス（`pnpm eval`）の多ファイル対応と、`OVERVIEW.md` / `ARCHITECTURE.md` / `PREVIEW_RENDERING.md` / README（EN/JA）の更新
 
 **完了条件**: Site モードで LP を生成→プレビュー→ZIP 出力し、展開先で `npm install && npm run dev` を実行するとプレビューと同じ表示になること。既存の Component プロジェクトが移行後もそのまま使えること。

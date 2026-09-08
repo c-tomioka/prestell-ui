@@ -19,7 +19,8 @@
 		| 'folder'
 		| 'chevron-left'
 		| 'chevron-right'
-		| 'layout';
+		| 'layout'
+		| 'download';
 
 	interface Props {
 		name: IconName;
@@ -57,6 +58,8 @@
 		'chevron-right': '<path d="m9 18 6-6-6-6"/>',
 		layout:
 			'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',
+		download:
+			'<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
 	};
 </script>
 

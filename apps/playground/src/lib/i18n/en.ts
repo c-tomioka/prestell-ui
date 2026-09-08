@@ -23,6 +23,14 @@ export const en = {
 	"toolbar.copyFailed": "Copy failed",
 	"toolbar.shareComponentOnly":
 		"Share links are available for Component projects only",
+	"toolbar.export": "Export as an Astro project",
+	"toolbar.exportZip": "Download ZIP",
+	"toolbar.exportZipHint": "package.json, astro.config.mjs, src/, public/",
+	"toolbar.exportFolder": "Write to a folder…",
+	"toolbar.exportFolderHint":
+		"Choose a folder on this computer (Chromium browsers)",
+	"toolbar.exported": "Exported!",
+	"toolbar.exportFailed": "Export failed",
 
 	// --- project menu ---
 	"project.new": "New project",
