@@ -1,7 +1,8 @@
 // Derived from withastro/astro-playground (MIT). See THIRD_PARTY_NOTICES.md at the repository root.
 //
-// Preview pipeline: validate the compile result, hand the prepared code to a
-// renderer, and wrap the rendered HTML into a sandboxed document.
+// Preview pipeline: validate the compile result, hand the compiled module
+// graph (`preview-graph.ts`) to a renderer, and wrap the rendered HTML into a
+// sandboxed document.
 //
 // Three renderers implement the same contract:
 //   - SandboxPreviewRenderer: BrowserPreviewRenderer inside a hidden iframe on a
@@ -13,6 +14,7 @@
 import type { CompileResult } from "@astrojs/compiler-binding";
 import type { ParsedAst } from "./compiler-protocol";
 import { PREVIEW_ORIGIN, PREVIEW_RENDERER, PREVIEW_TIMEOUT_MS } from "./config";
+import type { ImportCheck } from "./preview-graph";
 import type {
 	PreviewRendererMode,
 	PreviewRenderRequest,
@@ -36,9 +38,6 @@ interface ActiveRender {
 	timer: ReturnType<typeof setTimeout>;
 }
 
-const STYLE_IMPORT =
-	/^import\s+["'](?:[^"'\\]|\\.)*\?astro&type=style&(?:[^"'\\]|\\.)*["'];?\s*$/gm;
-
 interface AstNode {
 	type?: unknown;
 	source?: {
@@ -46,7 +45,15 @@ interface AstNode {
 	};
 }
 
-function moduleSyntaxError(ast: unknown): string | null {
+/**
+ * Rejects module syntax the preview cannot follow. Without `checkImport`
+ * every static import is rejected (a self-contained component); with it, each
+ * import specifier is checked and the first message returned wins.
+ */
+function moduleSyntaxError(
+	ast: unknown,
+	checkImport?: ImportCheck,
+): string | null {
 	const stack: unknown[] = [ast];
 	const seen = new WeakSet<object>();
 
@@ -58,9 +65,14 @@ function moduleSyntaxError(ast: unknown): string | null {
 		const node = value as AstNode;
 		if (node.type === "ImportDeclaration") {
 			const specifier = node.source?.value;
-			return typeof specifier === "string"
-				? `Imports are not supported in Preview: ${specifier}`
-				: "Imports are not supported in Preview.";
+			if (checkImport && typeof specifier === "string") {
+				const problem = checkImport(specifier);
+				if (problem) return problem;
+			} else {
+				return typeof specifier === "string"
+					? `Imports are not supported in Preview: ${specifier}`
+					: "Imports are not supported in Preview.";
+			}
 		}
 		if (node.type === "ImportExpression") {
 			return "Dynamic imports are not supported in Preview.";
@@ -73,7 +85,9 @@ function moduleSyntaxError(ast: unknown): string | null {
 			return "Re-exports are not supported in Preview.";
 		}
 
-		for (const child of Object.values(value)) {
+		// Push in reverse so the stack visits nodes in source order (the first
+		// offending import is the one reported).
+		for (const child of Object.values(value).reverse()) {
 			if (child && typeof child === "object") stack.push(child);
 		}
 	}
@@ -81,9 +95,15 @@ function moduleSyntaxError(ast: unknown): string | null {
 	return null;
 }
 
+/**
+ * Why a compiled file cannot be previewed, or null. `checkImport` (Page /
+ * Site modes, see `preview-graph.ts`) decides which imports are allowed;
+ * without it the file must be self-contained (Component mode).
+ */
 export function validatePreview(
 	result: CompileResult,
 	ast: ParsedAst,
+	checkImport?: ImportCheck,
 ): string | null {
 	if (
 		result.diagnostics.some((diagnostic) => diagnostic.severity === "error")
@@ -91,7 +111,7 @@ export function validatePreview(
 		return "Fix compiler errors before rendering the preview.";
 	}
 
-	const syntaxError = moduleSyntaxError(ast.ast);
+	const syntaxError = moduleSyntaxError(ast.ast, checkImport);
 	if (syntaxError) return syntaxError;
 
 	if (
@@ -135,23 +155,6 @@ export function createPreviewDocument(html: string, css: string[]): string {
 	document.head.prepend(csp, viewport, style);
 
 	return `<!doctype html>\n${document.documentElement.outerHTML}`;
-}
-
-export function preparePreviewCode(code: string): string {
-	return code.replace(STYLE_IMPORT, "");
-}
-
-export function toPreviewRequest(result: CompileResult): PreviewRenderRequest {
-	return {
-		code: preparePreviewCode(result.code),
-		scripts: result.scripts.map((script) =>
-			script.type === "inline"
-				? { type: "inline", code: script.code }
-				: { type: "external", src: script.src },
-		),
-		containsHead: result.containsHead,
-		propagation: result.propagation,
-	};
 }
 
 // ---------------------------------------------------------------------------
@@ -609,7 +612,8 @@ export class PreviewClient {
 		return this.#renderer.isolated;
 	}
 
-	async render(result: CompileResult): Promise<string> {
+	/** Render a module graph built by `buildPreviewGraph` (`preview-graph.ts`). */
+	async render(request: PreviewRenderRequest): Promise<string> {
 		this.cancel();
 
 		const controller = new AbortController();
@@ -621,8 +625,9 @@ export class PreviewClient {
 		this.#active = { controller, timer };
 
 		try {
+			// Only what the renderers need: a `PreviewGraph` also carries `css`.
 			return await this.#renderer.render(
-				toPreviewRequest(result),
+				{ modules: request.modules },
 				controller.signal,
 			);
 		} catch (error) {

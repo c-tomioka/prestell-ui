@@ -16,6 +16,7 @@
 		preview,
 		validatePreview,
 	} from '../lib/preview';
+	import { buildPreviewGraph, PreviewUnsupportedError } from '../lib/preview-graph';
 	import { loadAutoPreview, saveAutoPreview } from '../lib/preview-settings';
 	import { resolveInitialProject } from '../lib/projects/boot';
 	import { loadCurrentProjectId, saveCurrentProjectId } from '../lib/projects/current';
@@ -285,23 +286,39 @@
 		previewStatus = 'rendering';
 		previewError = '';
 		try {
-			const renderable = await compiler.compile(previewSource, {
-				...previewOptions,
-				internalURL: './runtime.js',
-				resolvePathProvided: true,
-				sourcemap: undefined,
+			// One self-contained file for now; Page / Site projects (Phase 5) hand
+			// the whole file map to the same builder with `allowImports: true`.
+			const entry = previewOptions.filename ?? 'index.astro';
+			const graph = await buildPreviewGraph({
+				entry,
+				files: { [entry]: previewSource },
+				allowImports: false,
+				validate: validatePreview,
+				compile: async (path, text) => {
+					const [compiled, parsed] = await Promise.all([
+						compiler.compile(text, {
+							...previewOptions,
+							filename: path,
+							internalURL: './runtime.js',
+							resolvePathProvided: true,
+							sourcemap: undefined,
+						}),
+						compiler.parse(text),
+					]);
+					return { result: compiled, ast: parsed };
+				},
 			});
 			if (current !== previewRunId) return;
-			const html = await preview.render(renderable);
+			const html = await preview.render(graph);
 			previewIsolated = preview.isolated;
 			if (current !== previewRunId) return;
-			previewDocument = createPreviewDocument(html, renderable.css);
+			previewDocument = createPreviewDocument(html, graph.css);
 			previewStatus = 'ready';
 			previewStale = false;
 		} catch (error) {
 			previewIsolated = preview.isolated;
 			if (current !== previewRunId) return;
-			previewStatus = 'error';
+			previewStatus = error instanceof PreviewUnsupportedError ? 'unsupported' : 'error';
 			previewError = error instanceof Error ? error.message : String(error);
 		}
 	}

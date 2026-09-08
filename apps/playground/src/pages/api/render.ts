@@ -2,7 +2,11 @@
 import { env } from "cloudflare:workers";
 import previewWorkerBundle from "virtual:preview-worker-source";
 import type { APIRoute } from "astro";
-import type { PreviewRenderRequest } from "../../lib/preview-protocol";
+import {
+	ENTRY_MODULE_ID,
+	type PreviewModule,
+	type PreviewRenderRequest,
+} from "../../lib/preview-protocol";
 
 export const prerender = false;
 
@@ -16,21 +20,36 @@ function errorResponse(error: string, status: number): Response {
 	);
 }
 
-function isPreviewRequest(value: unknown): value is PreviewRenderRequest {
+const MODULE_ID = /^module-\d+\.js$/;
+
+function isPreviewModule(value: unknown): value is PreviewModule {
 	if (!value || typeof value !== "object") return false;
-	const request = value as Partial<PreviewRenderRequest>;
+	const module = value as Partial<PreviewModule>;
 	return (
-		typeof request.code === "string" &&
-		request.code.length > 0 &&
-		typeof request.containsHead === "boolean" &&
-		typeof request.propagation === "boolean" &&
-		Array.isArray(request.scripts) &&
-		request.scripts.every(
+		typeof module.id === "string" &&
+		(module.id === ENTRY_MODULE_ID || MODULE_ID.test(module.id)) &&
+		typeof module.moduleId === "string" &&
+		typeof module.code === "string" &&
+		module.code.length > 0 &&
+		typeof module.containsHead === "boolean" &&
+		typeof module.propagation === "boolean" &&
+		Array.isArray(module.scripts) &&
+		module.scripts.every(
 			(script) =>
 				script?.type === "inline" &&
 				(script.code === undefined || typeof script.code === "string"),
 		)
 	);
+}
+
+function isPreviewRequest(value: unknown): value is PreviewRenderRequest {
+	if (!value || typeof value !== "object") return false;
+	const request = value as Partial<PreviewRenderRequest>;
+	if (!Array.isArray(request.modules) || request.modules.length === 0)
+		return false;
+	if (!request.modules.every(isPreviewModule)) return false;
+	const ids = new Set(request.modules.map((module) => module.id));
+	return ids.size === request.modules.length && ids.has(ENTRY_MODULE_ID);
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -64,7 +83,9 @@ export const POST: APIRoute = async ({ request }) => {
 			mainModule: previewWorkerBundle.mainModule,
 			modules: {
 				...previewWorkerBundle.modules,
-				"component.js": payload.code,
+				...Object.fromEntries(
+					payload.modules.map((module) => [module.id, module.code]),
+				),
 			},
 			globalOutbound: null,
 		});

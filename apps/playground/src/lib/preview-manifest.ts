@@ -1,10 +1,10 @@
 // Derived from withastro/astro-playground (MIT). See THIRD_PARTY_NOTICES.md at the repository root.
 //
-// Builds the Astro Container manifest for a single compiled component. Shared
-// by both preview renderers (server Worker Loader and browser Web Worker).
+// Builds the Astro Container manifest for a compiled module graph. Shared by
+// both preview renderers (server Worker Loader and browser Web Worker).
 import type { AstroContainerOptions } from "astro/container";
 import type { AstroComponentFactory } from "astro/runtime/server/index.js";
-import type { PreviewRenderRequest } from "./preview-protocol";
+import type { PreviewModule } from "./preview-protocol";
 
 export type { AstroComponentFactory };
 
@@ -17,22 +17,30 @@ function scriptIds(code: string): string[] {
 	);
 }
 
-export function createManifest(
-	factory: AstroComponentFactory,
-	code: string,
-	metadata: Omit<PreviewRenderRequest, "code">,
-): NonNullable<AstroContainerOptions["manifest"]> {
-	const ids = scriptIds(code);
-	if (ids.length !== metadata.scripts.length) {
-		throw new Error("The compiler emitted unsupported script metadata.");
-	}
+type Manifest = NonNullable<AstroContainerOptions["manifest"]>;
 
+export function createManifest(modules: readonly PreviewModule[]): Manifest {
+	const componentMetadata = new Map<
+		string,
+		{ containsHead: boolean; propagation: "self" | "none" }
+	>();
 	const inlinedScripts = new Map<string, string>();
-	for (const [index, script] of metadata.scripts.entries()) {
-		if (script.type !== "inline") {
-			throw new Error("External scripts are not supported in Preview.");
+
+	for (const module of modules) {
+		const ids = scriptIds(module.code);
+		if (ids.length !== module.scripts.length) {
+			throw new Error("The compiler emitted unsupported script metadata.");
 		}
-		inlinedScripts.set(ids[index], script.code ?? "");
+		for (const [index, script] of module.scripts.entries()) {
+			if (script.type !== "inline") {
+				throw new Error("External scripts are not supported in Preview.");
+			}
+			inlinedScripts.set(ids[index], script.code ?? "");
+		}
+		componentMetadata.set(module.moduleId, {
+			containsHead: module.containsHead,
+			propagation: module.propagation ? "self" : "none",
+		});
 	}
 
 	// astro/container derives these from `new URL(relative, import.meta.url)`.
@@ -47,17 +55,9 @@ export function createManifest(
 		buildClientDir: new URL("./dist/client/", root),
 		buildServerDir: new URL("./dist/server/", root),
 		cacheDir: new URL("./node_modules/.astro/", root),
-		componentMetadata: new Map([
-			[
-				factory.moduleId ?? "index.astro",
-				{
-					containsHead: metadata.containsHead,
-					propagation: metadata.propagation ? "self" : "none",
-				},
-			],
-		]),
+		componentMetadata,
 		inlinedScripts,
-	} as NonNullable<AstroContainerOptions["manifest"]>;
+	} as Manifest;
 }
 
 /** URL every preview render sees as `Astro.request.url`, identical in both renderers. */
