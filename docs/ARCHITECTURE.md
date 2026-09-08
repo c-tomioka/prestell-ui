@@ -115,7 +115,8 @@
 
 ### 5. コード保存
 - Phase 1: `src/lib/export.ts`。Chromium は File System Access API（保存先を選択）、それ以外は `<a download>`。
-- Worker 側の `/api/files` は実装しない（workerd はローカル FS に書けない）。複数ファイル化（Phase 5）では Astro プロジェクトの ZIP export と File System Access API のディレクトリ書き込みを追加する。
+- Worker 側の `/api/files` は実装しない（workerd はローカル FS に書けない）。
+- Phase 5: Page / Site プロジェクトは `src/lib/export-project.ts` で Astro プロジェクトとして書き出す。プロジェクトの `src/` と `public/` に雛形（`package.json`（astro `^7.2.0`）、`astro.config.mjs`、`tsconfig.json`、`.gitignore`、`README.md`）を足し、ZIP（`src/lib/zip.ts`、依存なしの無圧縮 writer）のダウンロードか、File System Access API（`showDirectoryPicker`、Chromium）でフォルダーに書き込む。ツールバーの「Export」メニュー。Component は従来の 1 ファイル保存のみで、Share URL も Component 限定。
 
 ## Phase 4（静的ホスト版）の構成
 

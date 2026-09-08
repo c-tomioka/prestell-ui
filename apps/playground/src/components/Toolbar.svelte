@@ -7,6 +7,7 @@
 	import type { ProjectMode, ProjectSummary } from '../lib/projects/types';
 
 	export type SaveFeedback = 'idle' | 'saved' | 'downloaded' | 'failed';
+	export type ExportKind = 'zip' | 'directory';
 	export type ShareFeedback = 'idle' | 'copied' | 'failed';
 
 	import Icon from './Icon.svelte';
@@ -35,6 +36,12 @@
 		onPromoteProject: () => void;
 		/** Share links only cover Component projects (one file fits in `#code=`). */
 		shareAvailable: boolean;
+		/** Page / Site projects can be exported as an Astro project. */
+		exportAvailable: boolean;
+		/** File System Access API present (folder export offered). */
+		directoryExportSupported: boolean;
+		exportFeedback: SaveFeedback;
+		onExport: (kind: ExportKind) => void;
 	}
 
 	let {
@@ -57,7 +64,27 @@
 		onDeleteProject,
 		onPromoteProject,
 		shareAvailable,
+		exportAvailable,
+		directoryExportSupported,
+		exportFeedback,
+		onExport,
 	}: Props = $props();
+
+	let exportMenuOpen = $state(false);
+	function pickExport(kind: ExportKind) {
+		exportMenuOpen = false;
+		onExport(kind);
+	}
+	const exportState = $derived<Feedback>(
+		exportFeedback === 'idle' ? 'idle' : exportFeedback === 'failed' ? 'error' : 'done',
+	);
+	const exportLabel = $derived(
+		exportFeedback === 'failed'
+			? $t('toolbar.exportFailed')
+			: exportFeedback === 'idle'
+				? ''
+				: $t('toolbar.exported'),
+	);
 
 	function setSourcemap(value: string) {
 		options.sourcemap = value === 'none' ? undefined : (value as CompileOptions['sourcemap']);
@@ -160,6 +187,40 @@
 		>
 			<Icon name={saveState === 'idle' ? 'save' : feedbackIcon[saveState]} />
 		</IconButton>
+		{#if exportAvailable}
+			<span class="export">
+				<IconButton
+					label={exportState === 'idle' ? $t('toolbar.export') : exportLabel}
+					showTip={exportState !== 'idle'}
+					active={exportMenuOpen}
+					onclick={() => (exportMenuOpen = !exportMenuOpen)}
+				>
+					<Icon name={exportState === 'idle' ? 'download' : feedbackIcon[exportState]} />
+				</IconButton>
+				{#if exportMenuOpen}
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="export-menu"
+						role="menu"
+						aria-label={$t('toolbar.export')}
+						onkeydown={(e) => {
+							if (e.key === 'Escape') exportMenuOpen = false;
+						}}
+					>
+						<button type="button" role="menuitem" class="export-item" onclick={() => pickExport('zip')}>
+							<span class="item-name">{$t('toolbar.exportZip')}</span>
+							<span class="item-hint">{$t('toolbar.exportZipHint')}</span>
+						</button>
+						{#if directoryExportSupported}
+							<button type="button" role="menuitem" class="export-item" onclick={() => pickExport('directory')}>
+								<span class="item-name">{$t('toolbar.exportFolder')}</span>
+								<span class="item-hint">{$t('toolbar.exportFolderHint')}</span>
+							</button>
+						{/if}
+					</div>
+				{/if}
+			</span>
+		{/if}
 		<IconButton
 			label={!shareAvailable
 				? $t('toolbar.shareComponentOnly')
@@ -179,6 +240,7 @@
 	<span class="visually-hidden" role="status" aria-live="polite">
 		{shareLabel}
 		{saveLabel}
+		{exportLabel}
 	</span>
 </div>
 
@@ -233,6 +295,51 @@
 		align-items: center;
 		gap: 0.5rem;
 		flex-wrap: wrap;
+	}
+	.export {
+		position: relative;
+		display: inline-flex;
+	}
+	.export-menu {
+		position: absolute;
+		top: calc(100% + 4px);
+		right: 0;
+		z-index: 20;
+		display: flex;
+		flex-direction: column;
+		min-width: 16rem;
+		padding: 0.25rem;
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		background: var(--panel);
+		box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
+	}
+	.export-item {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.1rem;
+		padding: 0.4rem 0.6rem;
+		border: 0;
+		border-radius: 6px;
+		background: transparent;
+		color: var(--fg);
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+	.export-item:hover,
+	.export-item:focus-visible {
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		outline: none;
+	}
+	.item-name {
+		font-size: 0.8rem;
+		font-weight: 600;
+	}
+	.item-hint {
+		font-size: 0.7rem;
+		color: var(--muted);
 	}
 
 	@media (max-width: 800px) {

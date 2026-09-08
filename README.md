@@ -15,6 +15,7 @@ Prestell UI is a "v0 / bolt.new for Astro" built on top of the official [Astro P
 - **Chat to code** – generate and edit Astro components. Every proposal is compiled with `@astrojs/compiler` (WASM) and rejected if it cannot render, so broken code never reaches the editor.
 - **Live preview in the browser** – rendering runs in a Web Worker with `astro/container`; no server round-trip. Server-side rendering via Cloudflare Worker Loader is available as an option.
 - **Components, pages, and sites** – a project is a set of files. Start from a **Component** (one self-contained `.astro` file), a **Page** (index page + layout + global CSS), or a **Site** (pages, layout, shared components); the file tree, editor tabs, and a page switcher in the preview follow relative `import`s of `.astro` and `.css` files.
+- **Export as an Astro project** – Page and Site projects download as a ZIP (or write straight into a folder in Chromium browsers) with `package.json`, `astro.config.mjs`, `tsconfig.json`, `src/`, and `public/`, ready for `npm install && npm run dev`.
 - **Local or cloud LLMs** – Ollama and LM Studio (no API key), or Anthropic Claude, OpenAI, Google Gemini, and Workers AI through Cloudflare AI Gateway (BYOK).
 - **Two connection modes** – **Server** sends requests through this app's `/api/chat` (keys stay in `.dev.vars`); **Direct** lets the browser call Ollama, LM Studio, Anthropic, OpenAI, or Google AI Studio itself with your own key, with no API server involved.
 - **Astro knowledge via MCP** – `inject` (default) searches the Astro docs before each request; `tools` lets the model search on its own. In our evaluation `inject` brought hallucinated Astro APIs to zero for every model tested ([docs/EVALUATION.md](./docs/EVALUATION.md)).
@@ -24,7 +25,7 @@ Prestell UI is a "v0 / bolt.new for Astro" built on top of the official [Astro P
 
 ## Status
 
-**Public since 2026-09-07 (`v0.1.0`)**; Phase 3 of the [roadmap](./docs/ROADMAP.md) is complete and Phase 4, the static-host (BYOK) version, is in progress: the direct connection mode is done, the Astro docs relay Worker, the sandboxed preview origin, and the static build are next. Phase 5, the multi-file site builder, is in progress: the project model (Component / Page / Site), the file tree, and page previews with relative `import`s are done; AI generation across several files, image uploads, and exporting an Astro project (ZIP / directory) are next. The preview does not support framework components, `client:*` directives, npm or `astro:*` imports, or external scripts. A hosted SaaS is a later phase; SaaS-only code lives outside this repository ([docs/OSS_SCOPE.md](./docs/OSS_SCOPE.md)).
+**Public since 2026-09-07 (`v0.1.0`)**; Phase 3 of the [roadmap](./docs/ROADMAP.md) is complete and Phase 4, the static-host (BYOK) version, is in progress: the direct connection mode is done, the Astro docs relay Worker, the sandboxed preview origin, and the static build are next. Phase 5, the multi-file site builder, is in progress: the project model (Component / Page / Site), the file tree, page previews with relative `import`s, and export as an Astro project (ZIP / folder) are done; AI generation across several files and image uploads are next. The preview does not support framework components, `client:*` directives, npm or `astro:*` imports, or external scripts. A hosted SaaS is a later phase; SaaS-only code lives outside this repository ([docs/OSS_SCOPE.md](./docs/OSS_SCOPE.md)).
 
 ## Requirements
 
@@ -132,7 +133,7 @@ The current mode is shown as a badge in the output pane. In browser mode the ren
 3. Choose a **Connection** (Server or Direct), a provider, and a model. **Astro docs** controls the MCP mode (`inject` by default).
 4. Describe the component, or pick a prompt template with **Template…**. `⌘/Ctrl+Enter` sends. The chat edits the file that is open in the editor.
 5. Valid proposals are applied to the editor automatically and the preview updates. Invalid ones trigger the auto-fix loop; you can also **Apply anyway**.
-6. Refine with follow-up prompts, then **Save** the active `.astro` file. (Share links are available for Component projects.)
+6. Refine with follow-up prompts, then **Save** the active `.astro` file, or use **Export** (Page / Site) to download the whole project as a ZIP or write it into a folder. Share links are available for Component projects.
 
 ## Documentation
 
