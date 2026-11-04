@@ -16,22 +16,22 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^4.0.49
-        version: 4.0.49(zod@4.5.4)
+        version: 4.0.49(zod@4.6.6)
       '@ai-sdk/google':
         specifier: ^4.0.64
-        version: 4.0.64(zod@4.5.4)
+        version: 4.0.64(zod@4.6.6)
       '@ai-sdk/mcp':
         specifier: ^2.0.44
-        version: 2.0.44(zod@4.5.4)
+        version: 2.0.44(zod@4.6.6)
       '@ai-sdk/openai':
         specifier: ^4.0.60
-        version: 4.0.60(zod@4.5.4)
+        version: 4.0.60(zod@4.6.6)
       '@ai-sdk/openai-compatible':
         specifier: ^3.0.43
-        version: 3.0.43(zod@4.5.4)
+        version: 3.0.43(zod@4.6.6)
       '@ai-sdk/svelte':
         specifier: ^5.0.92
-        version: 5.0.92(svelte@5.57.0)(zod@4.5.4)
+        version: 5.0.92(svelte@5.57.0)(zod@4.6.6)
       '@astrojs/cloudflare':
         specifier: ^14.2.0
         version: 14.2.6(@types/node@24.13.3)(astro@7.2.0(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@types/node@24.13.3)(jiti@2.7.0)(yaml@2.9.0))(esbuild@0.28.2)(jiti@2.7.0)(wrangler@4.128.0)(yaml@2.9.0)
@@ -82,7 +82,7 @@ importers:
         version: link:../../packages/lang-astro
       ai:
         specifier: ^7.0.92
-        version: 7.0.92(zod@4.5.4)
+        version: 7.0.92(zod@4.6.6)
       astro:
         specifier: 7.2.0
         version: 7.2.0(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@types/node@24.13.3)(jiti@2.7.0)(yaml@2.9.0)
@@ -96,8 +96,8 @@ importers:
         specifier: ^8.2.1
         version: 8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)
       zod:
-        specifier: ^4.5.4
-        version: 4.5.4
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       '@astrojs/check':
         specifier: ^0.9.10
@@ -3230,70 +3230,70 @@ packages:
   zimmerframe@1.1.5:
     resolution: {integrity: sha512-msJxIvYDYcoNL+PJsu+7qmpDWsYmAxTY+2TNYXXF0hzBzBk0BMecOqDOG/EckUoKCuKwObfbugIl8QpqHDXeFA==}
 
-  zod@4.5.4:
-    resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
+  zod@4.6.6:
+    resolution: {integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
 
-  '@ai-sdk/anthropic@4.0.49(zod@4.5.4)':
+  '@ai-sdk/anthropic@4.0.49(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.10
-      '@ai-sdk/provider-utils': 5.0.36(zod@4.5.4)
-      zod: 4.5.4
+      '@ai-sdk/provider-utils': 5.0.36(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/gateway@4.0.74(zod@4.5.4)':
+  '@ai-sdk/gateway@4.0.74(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.10
-      '@ai-sdk/provider-utils': 5.0.36(zod@4.5.4)
+      '@ai-sdk/provider-utils': 5.0.36(zod@4.6.6)
       '@vercel/oidc': 3.2.0
-      zod: 4.5.4
+      zod: 4.6.6
 
-  '@ai-sdk/google@4.0.64(zod@4.5.4)':
+  '@ai-sdk/google@4.0.64(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.10
-      '@ai-sdk/provider-utils': 5.0.36(zod@4.5.4)
-      zod: 4.5.4
+      '@ai-sdk/provider-utils': 5.0.36(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/mcp@2.0.44(zod@4.5.4)':
+  '@ai-sdk/mcp@2.0.44(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.10
-      '@ai-sdk/provider-utils': 5.0.36(zod@4.5.4)
+      '@ai-sdk/provider-utils': 5.0.36(zod@4.6.6)
       cross-spawn: 7.0.6
       pkce-challenge: 5.0.1
-      zod: 4.5.4
+      zod: 4.6.6
 
-  '@ai-sdk/openai-compatible@3.0.43(zod@4.5.4)':
+  '@ai-sdk/openai-compatible@3.0.43(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.10
-      '@ai-sdk/provider-utils': 5.0.36(zod@4.5.4)
-      zod: 4.5.4
+      '@ai-sdk/provider-utils': 5.0.36(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/openai@4.0.60(zod@4.5.4)':
+  '@ai-sdk/openai@4.0.60(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.10
-      '@ai-sdk/provider-utils': 5.0.36(zod@4.5.4)
-      zod: 4.5.4
+      '@ai-sdk/provider-utils': 5.0.36(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/provider-utils@5.0.36(zod@4.5.4)':
+  '@ai-sdk/provider-utils@5.0.36(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.10
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.1
       undici: 7.29.0
-      zod: 4.5.4
+      zod: 4.6.6
 
   '@ai-sdk/provider@4.0.10':
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/svelte@5.0.92(svelte@5.57.0)(zod@4.5.4)':
+  '@ai-sdk/svelte@5.0.92(svelte@5.57.0)(zod@4.6.6)':
     dependencies:
-      '@ai-sdk/provider-utils': 5.0.36(zod@4.5.4)
-      ai: 7.0.92(zod@4.5.4)
+      '@ai-sdk/provider-utils': 5.0.36(zod@4.6.6)
+      ai: 7.0.92(zod@4.6.6)
       svelte: 5.57.0
     transitivePeerDependencies:
       - zod
@@ -4653,12 +4653,12 @@ snapshots:
 
   acorn@8.18.0: {}
 
-  ai@7.0.92(zod@4.5.4):
+  ai@7.0.92(zod@4.6.6):
     dependencies:
-      '@ai-sdk/gateway': 4.0.74(zod@4.5.4)
+      '@ai-sdk/gateway': 4.0.74(zod@4.6.6)
       '@ai-sdk/provider': 4.0.10
-      '@ai-sdk/provider-utils': 5.0.36(zod@4.5.4)
-      zod: 4.5.4
+      '@ai-sdk/provider-utils': 5.0.36(zod@4.6.6)
+      zod: 4.6.6
 
   ajv-draft-04@1.0.0(ajv@8.20.0):
     optionalDependencies:
@@ -4751,7 +4751,7 @@ snapshots:
       vitefu: 1.1.3(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))
       xxhash-wasm: 1.1.0
       yargs-parser: 22.0.0
-      zod: 4.5.4
+      zod: 4.6.6
     optionalDependencies:
       sharp: 0.35.4(@types/node@24.13.3)
     transitivePeerDependencies:
@@ -6112,6 +6112,6 @@ snapshots:
 
   zimmerframe@1.1.5: {}
 
-  zod@4.5.4: {}
+  zod@4.6.6: {}
 
   zwitch@2.0.4: {}
