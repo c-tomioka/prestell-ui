@@ -31,7 +31,7 @@
 		"@ai-sdk/svelte": "^5.0.92",
 		"@astrojs/cloudflare": "^14.2.0",
 		"@astrojs/compiler-binding-wasm32-wasi": "^0.2.2",
-		"@astrojs/svelte": "^9.0.1",
+		"@astrojs/svelte": "^9.1.2",
 		"@codemirror/autocomplete": "^6.20.3",
 		"@codemirror/commands": "^6.10.4",
 		"@codemirror/lang-css": "^6.3.1",
